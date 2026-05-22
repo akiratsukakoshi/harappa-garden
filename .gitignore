@@ -1,0 +1,22 @@
+.env
+*.csv
+__pycache__/
+*.p# System
+.DS_Store
+__pycache__/
+
+# Python
+venv/
+*.pyc
+
+# Project Data
+data/
+.env
+modules/freee_tokens.json
+credentials.json
+token.json
+oauth_credentials.json
+
+# Logs
+run_log.txt
+*.log

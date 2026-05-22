@@ -1,0 +1,156 @@
+{
+    "sections": {
+        "おとな学部": 2985715,
+        "おやこ学部": 2985717,
+        "こども学部": 2985716,
+        "ナーフ学園": 3381924,
+        "ハラチュウ": 1694590,
+        "企業案件": 153355,
+        "俺のヨガ": 2501870,
+        "全社共通": 1052584,
+        "共創プロジェクト": 3114498,
+        "大阪_SSEK": 1424131,
+        "大阪_コース": 246400,
+        "新規事業": 3728639,
+        "逗子_SSEK": 1424127,
+        "逗子_共通": 1052579,
+        "逗子_放課後サボール": 1052577
+    },
+    "keyword_rules": {
+        "大阪": "大阪_コース",
+        "オンライン対談": "全社共通",
+        "放課後サボール": "逗子_放課後サボール"
+    },
+    "partner_rules": {
+        "description": "Exactly match extracted payee to Freee Partner and Default Account. format: 'keyword': {'name': 'FreeePartnerName', 'account': 'DefaultAccountItem'}",
+        "niyatto design": {
+            "name": "吉田耕作",
+            "account": "外注費"
+        },
+        "安藤": {
+            "name": "安藤寛人",
+            "account": "旅費交通費"
+        },
+        "城家 尚子": {
+            "name": "城家尚子",
+            "account": "外注費"
+        },
+        "志村 正太郎": {
+            "name": "志村正太郎",
+            "account": "外注費"
+        },
+        "Forrest": {
+            "name": "和田祐司",
+            "account": "外注費"
+        },
+        "A and Life": {
+            "name": "東田彩",
+            "account": "外注費"
+        },
+        "飯田": {
+            "name": "飯田淳毅",
+            "account": "外注費"
+        }
+    },
+    "account_rules": {
+        "description": "Keyword match for account item when partner is not found. Priority order.",
+        "外注費": [
+            "委託",
+            "報酬",
+            "サービス",
+            "代行",
+            "制作",
+            "開発",
+            "撮影",
+            "写真",
+            "デザイン"
+        ],
+        "旅費交通費": [
+            "タクシー",
+            "交通",
+            "JR",
+            "鉄道",
+            "航空",
+            "ホテル",
+            "宿泊",
+            "出張",
+            "EXサービス",
+            "ETC",
+            "駐車場"
+        ],
+        "消耗品費": [
+            "Amazon",
+            "アスクル",
+            "モノタロウ",
+            "書店",
+            "文具",
+            "PC",
+            "ソフト",
+            "購入",
+            "備品"
+        ],
+        "会議費": [
+            "カフェ",
+            "飲食",
+            "レストラン",
+            "弁当",
+            "コーヒー",
+            "ランチ",
+            "ディナー"
+        ],
+        "通信費": [
+            "AWS",
+            "Google",
+            "Adobe",
+            "Zoom",
+            "Slack",
+            "携帯",
+            "電話",
+            "インターネット",
+            "サーバー",
+            "ドメイン"
+        ]
+    },
+    "stores": {
+        "encoding": "utf-8",
+        "header_row": 1,
+        "date_column": "取引日時",
+        "date_format": "%Y年%m月%d日 %H:%M",
+        "amount_column": "売上",
+        "description_options": [
+            "タイトル",
+            "商品名",
+            "メニュー"
+        ],
+        "account_item_name": "売上高"
+    },
+    "square": {
+        "encoding": "utf-16",
+        "delimiter": "\t",
+        "header_row": 1,
+        "date_column": "日付",
+        "time_column": "時間",
+        "date_format": "%Y-%m-%d %H:%M:%S",
+        "amount_column": "合計（純額 ）",
+        "amount_params": {
+            "remove_chars": [
+                "¥",
+                "\"",
+                ","
+            ],
+            "is_quoted": true
+        },
+        "description_column": "詳細",
+        "account_item_name": "売上高"
+    },
+    "review": {
+        "encoding": "utf-8",
+        "header_row": 1,
+        "date_column": "date",
+        "amount_column": "amount",
+        "description_column": "description",
+        "section_column": "section_name",
+        "date_format": "%Y-%m-%d",
+        "account_item_name": "売上高"
+    }
+}

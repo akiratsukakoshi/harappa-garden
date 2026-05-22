@@ -1,0 +1,71 @@
+{
+    "sections": {
+        "おとな学部": 2985715,
+        "おやこ学部": 2985717,
+        "こども学部": 2985716,
+        "ナーフ学園": 3381924,
+        "ハラチュウ": 1694590,
+        "企業案件": 153355,
+        "俺のヨガ": 2501870,
+        "全社共通": 1052584,
+        "共創プロジェクト": 3114498,
+        "大阪_SSEK": 1424131,
+        "大阪_コース": 246400,
+        "新規事業": 3728639,
+        "逗子_SSEK": 1424127,
+        "逗子_共通": 1052579,
+        "逗子_放課後サボール": 1052577,
+        "AI関連": 3939043
+    },
+    "keyword_rules": {
+        "大阪": "大阪_コース",
+        "オンライン対談": "全社共通",
+        "放課後サボール": "逗子_放課後サボール"
+    },
+    "stores": {
+        "encoding": "shift_jis",
+        "header_row": 1,
+        "date_column": "取引日時",
+        "date_format": "%Y年%m月%d日 %H:%M",
+        "amount_column": "売上",
+        "description_options": [
+            "タイトル",
+            "商品名",
+            "メニュー"
+        ],
+        "account_item_name": "売上高",
+        "debit_account_item_name": "前受金"
+    },
+    "square": {
+        "encoding": "utf-16",
+        "delimiter": "\t",
+        "header_row": 1,
+        "date_column": "日付",
+        "time_column": "時間",
+        "date_format": "%Y-%m-%d %H:%M:%S",
+        "amount_column": "合計（純額 ）",
+        "amount_params": {
+            "remove_chars": [
+                "¥",
+                "\"",
+                ","
+            ],
+            "is_quoted": true
+        },
+        "description_column": "詳細",
+        "account_item_name": "売上高",
+        "debit_account_item_name": "前受金"
+    },
+    "review": {
+        "encoding": "utf-8-sig",
+        "header_row": 1,
+        "date_column": "date",
+        "registration_date_column": "registration_date",
+        "amount_column": "amount",
+        "description_column": "description",
+        "section_column": "section_name",
+        "date_format": "%Y-%m-%d",
+        "account_item_name": "売上高",
+        "debit_account_item_name": "前受金"
+    }
+}

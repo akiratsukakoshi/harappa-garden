@@ -1,0 +1,17 @@
+{
+  "spreadsheet_id": "1NWU7FYGsMol18aHkrvpVzEB7dxIk2YvyTlb4eUD-Ycg",
+  "sheets": {
+    "weekly_summary": "週次サマリー",
+    "post_log": "投稿ログ",
+    "reels_kpi": "Reels KPI"
+  },
+  "posting_schedule": {
+    "tuesday":   { "purpose": "B", "hour": 20, "minute": 0 },
+    "thursday":  { "purpose": "reels", "hour": 12, "minute": 0 },
+    "saturday":  { "purpose": "AC", "hour": 8, "minute": 0 }
+  },
+  "reels_target_non_follower_reach_rate": 0.60,
+  "reels_target_3sec_retention_rate": 0.50,
+  "drafts_dir": "data/sns_pilot/drafts",
+  "images_dir": "data/sns_pilot/images/selected"
+}
