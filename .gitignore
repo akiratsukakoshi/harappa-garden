@@ -1,12 +1,10 @@
-.env
-*.csv
-__pycache__/
-*.p# System
+# System
 .DS_Store
-__pycache__/
 
 # Python
 venv/
+.venv/
+__pycache__/
 *.pyc
 
 # Project Data
@@ -17,6 +15,10 @@ credentials.json
 token.json
 oauth_credentials.json
 
+# Sheet extracts and other private data caches
+**/_data/
+
 # Logs
 run_log.txt
 *.log
+*.csv
