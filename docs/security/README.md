@@ -59,6 +59,26 @@ HISTCONTROL=ignorespace:ignoredups
 
 **理由**: 2026-05-23 のインシデント（[詳細](./incidents/2026-05-23_gog_keyring_rotation.md)）で、`echo "${VAR:+SET (length=${#VAR})}${VAR:-UNSET}"` という確認コマンドにより新パスフレーズを 2 回連続で AI チャットログに漏洩させる事故が発生。確認コマンドのテンプレは上記2形式に限定する。
 
+#### 補足: env の読み込み確認は interactive シェルで実施
+
+`~/.bashrc` 冒頭の `case $- in *i*) ;; *) return;; esac` により、**non-interactive シェルでは bashrc が early return し、`source ~/.config/gogcli/env` まで到達しない**。
+
+動作確認は必ず下記いずれかの方法で:
+
+```bash
+# 方法1: 塚越さん自身の対話ターミナルで実行
+exec bash -l
+test ${#GOG_KEYRING_PASSWORD} -eq 32 && echo "OK"
+
+# 方法2: AI / スクリプトから login+interactive で起動
+bash -lic 'test ${#GOG_KEYRING_PASSWORD} -eq 32 && echo "OK"'
+
+# 方法3: bashrc を経由せず env を明示 source
+bash -c 'source ~/.config/gogcli/env && test ${#GOG_KEYRING_PASSWORD} -eq 32 && echo "OK"'
+```
+
+業務スクリプトを cron / systemd / 非対話ラッパーから呼ぶ時も、起動側で明示的に `source ~/.config/gogcli/env` してから実行すること（[詳細](./incidents/2026-05-23_gog_keyring_rotation.md#動作確認時の注意点garden-側で判明した知見)）。
+
 ### 1.5 secret を含むコマンドが履歴に残ったら即削除
 
 ```bash

@@ -128,8 +128,47 @@ test ${#GOG_KEYRING_PASSWORD} -eq 32 && echo "OK"
 ~/.local/bin/gog gmail labels list --plain | head
 ```
 
+## 両環境での完了確認
+
+| 環境 | 動作確認 | docs/security 反映 commit | 完了時刻 (JST) |
+|---|---|---|---|
+| cockpit | ✅ Gmail API 到達確認 | `059f5c5` | 2026-05-23 22:47 |
+| garden | ✅ env OK + HISTCONTROL OK + 両スクリプト存在 | `d42a71f` | 2026-05-23 22:53 |
+
+## 動作確認時の注意点（garden 側で判明した知見）
+
+**non-interactive シェルでは `~/.bashrc` 冒頭の guard で early return し、env が読み込まれない**。
+
+`~/.bashrc` の冒頭にある下記の慣用句:
+
+```bash
+case $- in
+    *i*) ;;
+      *) return;;
+esac
+```
+
+これは「対話モードでなければ何もせず return」という意味で、`bash -c '...'` のような non-interactive 実行では `~/.bashrc` 末尾の `source ~/.config/gogcli/env` まで到達せず、`GOG_KEYRING_PASSWORD` が読まれない。
+
+**動作確認時は必ず interactive モード**で実施すること:
+
+| ✅ 正しい | 説明 |
+|---|---|
+| 塚越さんの実ターミナルで `exec bash -l` 後に確認 | login + interactive 両方 |
+| AI / スクリプトから確認するなら `bash -lic '...'` | `-l` (login) + `-i` (interactive) + `-c` |
+| あるいは `source ~/.config/gogcli/env && ...` で明示的に source | bashrc を経由せず env を直接読む |
+
+| ❌ 間違い | 結果 |
+|---|---|
+| `bash -l -c '...'` | login だが non-interactive なので bashrc guard で early return |
+| `bash -c '...'` | login も interactive も無し |
+| Claude Code 等の AI が起動した子 bash | 通常 non-interactive |
+
+業務スクリプト本体（`fetcher.py` 等）はラッパー側で `source ~/.config/gogcli/env` してから起動するか、cron / systemd 経由なら明示的に `BashEnv` を指定する設計が安全。
+
 ## 関連
 
 - 運用ルール本体: [`../README.md`](../README.md)
 - gog cli 認証構成: [steipete/gogcli](https://github.com/steipete/gogcli)
 - 通知元: harappa-garden 側エージェント（tmux-workspace 環境整備時に発見）
+- garden リポでのミラー記録: `https://github.com/akiratsukakoshi/harappa-garden/blob/main/docs/security/incidents/2026-05-23_gog_keyring_rotation.md`
