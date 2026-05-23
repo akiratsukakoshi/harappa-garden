@@ -59,7 +59,7 @@ Gmailの操作には `gogcli` を使用します。
 
 ```bash
 # パスワードは環境に合わせて設定してください
-export GOG_KEYRING_PASSWORD=bigwave0415
+export GOG_KEYRING_PASSWORD=your_password
 ./venv/bin/python3 apps/email_organizer/organizer.py
 ```
 
