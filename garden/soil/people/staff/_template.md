@@ -2,8 +2,10 @@
 type: staff
 status: active            # active | inactive | alumni
 dynamism: dynamic
-role: 業務委託            # 代表 | 運営 | 業務委託 | アルバイト
+contract:                 # 経営 | 業務委託 | 外部スタッフ | アルバイト  (1軸排他)
+role: []                  # 運営 | フィールドスタッフ | 写真 | 調理  (複数可)
 kana:                     # ふりがな(ひらがな)
+area:                     # 拠点(全社 | 逗子 | 千葉 | 大阪 | etc.)
 freee_id:                 # Freee の Partner ID または Employee ID
 freee_type:               # partner | employee | manual
 email: []
@@ -22,7 +24,7 @@ last_updated_by: claude
 
 ## プロフィール
 
-(役割・関与開始・得意領域)
+(契約関係・役割・関与開始・得意領域)
 
 ## 担当領域
 

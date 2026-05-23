@@ -54,6 +54,40 @@
 - summary: 塚越さんレビュー(2026-05-22)で4名の担当領域・追加メアド・nicknames を直接編集。Claude が linked_services / linked_staff の双方向リンクを補完。塚越さん追記の主要事項: 塚越→tuka@harappa-daigaku.jpメアド追加・ガクチョ ニックネーム、和田→おやこ/運営全般/企業研修、少佐→おやこ/ナーフ学園(events)/サボール、慶ちゃん→俺のヨガ/こども、慶ちゃんは退社済みでいまは業務委託(role=運営は維持)。
 - source: 塚越さんレビュー直接編集
 
+## [2026-05-22] edit | スタッフスキーマ contract / role 2軸に改訂
+- by: gardener + claude
+- type: edit
+- pages: people/staff/README.md, _template.md, akira-tsukakoshi.md, yuji-wada.md, shotaro-shimura.md, kei-suzuki.md
+- summary: 塚越さん判定により旧 `role: 代表|運営|業務委託|アルバイト` を 2軸に分離。**contract**(経営/業務委託/外部スタッフ/アルバイト、1軸排他) と **role**(運営/フィールドスタッフ/写真/調理、リスト複数可)。 area フィールドも追加。既存4名(塚越=経営/[運営]、ユージ・少佐・慶=業務委託/[運営])を移行。
+- source: 塚越さん 2026-05-22 セッション2 判定
+
+## [2026-05-22] ingest | _review 80名分の個別ページを一括生成(24名)
+- by: claude
+- type: ingest
+- pages: shunsuke-akagi, tomoyo-kitao, etsuko-shimada, eriko-fujita (アルバイト 4), chihiro-irie, keisuke-ono, hiroki-ono, taro-koyama, nazuki-shindo, masaki-chonan, honoka-nagano, yuto-fukaya, shion-fujimoto, kota-yamada, kio-oyoshi (外部スタッフ 11), keiko-uchiyama, miho-oyoshi, naoko-shiroie, kasumi-tachibana, sakiko-nakatsuji, takayuki-maeda, misa-mine, mie-morite, kosaku-yoshida (業務委託 9)
+- summary: _review-2026-05-22-master-data-candidates.md の塚越さんレビュー結果(☐ 26名のうち既存2名=塚越・少佐 を除く 24名)を個別ページ化。各ページは frontmatter のみ充実(contract/email/kana/freee_id/area)、本文は塚越さん埋め待ち。role は全員 `[]` (空リスト)で生成、塚越さんが運営/フィールドスタッフ/写真/調理 から選んで埋める。
+- source: _review-2026-05-22-master-data-candidates.md, _data/sheet-extract-2026-05-22.json
+
+## [2026-05-22] edit | 24名スタッフの role を確定
+- by: gardener
+- type: edit
+- pages: 24 staff pages (shunsuke-akagi ... kosaku-yoshida)
+- summary: 塚越さん指示で 24名分の role を一括設定。1-15(アルバイト4+外部スタッフ11)はフィールドスタッフのみ。業務委託9名は内山・立花・三根・吉田=写真のみ、大吉美穂=写真+フィールド、城家・中辻・前田・守田=フィールドのみ。役割「調理」は今回未割り当て。
+- source: 塚越さん 2026-05-22 セッション2 指示
+
+## [2026-05-22] edit | 三根美紗の Freee ID 同定(漢字違いの表記ゆれ)
+- by: gardener + claude
+- type: edit
+- pages: [[misa-mine]]
+- summary: Freee に「三根美沙」(沙)で登録あり、Freee ID 37003282。Sheet 表記「三根 美紗」(紗)と字違いだが、塚越さん判定で同一人物。`freee_name_variant: 三根美沙` フィールドを新設して両表記を記録。
+- source: HMC master_data.csv, 塚越さん 2026-05-22 確認
+
+## [2026-05-22] edit | _review ファイルの記号運用を訂正
+- by: claude
+- type: edit
+- pages: _review-2026-05-22-master-data-candidates.md
+- summary: 塚越さん運用と Claude の説明文に乖離があった(塚越方式: ☐=個別ページ作る / ■=alumni / ×=不要)。説明文を実態に合わせて修正。alumni 集約(■ 48名)は塚越さん「無視でOK」判定で本セッションでは保留。
+
 ## [2026-05-22] ingest | business/ 事業構造の骨格を作成
 - by: claude
 - type: edit

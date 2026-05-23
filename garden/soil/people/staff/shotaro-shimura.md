@@ -2,8 +2,11 @@
 type: staff
 status: active
 dynamism: dynamic
-role: 運営
+contract: 業務委託
+role:
+  - 運営
 kana: しむらしょうたろう
+area: 逗子
 freee_id: 4418211
 freee_type: partner
 email:

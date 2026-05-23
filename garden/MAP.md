@@ -10,8 +10,8 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 ## 現在地 @2026-05-22
 
 - **設計フェーズ**: 土壌の最小実装中(Phase 1)
-- **直近セッション**: [2026-05-22 セッション1](../docs/sessions/2026-05-22-session1.md)
-- **直近の重要決定**: 土壌方式 = Karpathy LLM Wiki / スキーマ = role 1軸 / 機微情報は Wiki に書かない
+- **直近セッション**: [2026-05-22 セッション2](../docs/sessions/2026-05-22-session2.md) — スタッフ全員ページ化完了(28名 role 確定)
+- **直近の重要決定**: スタッフスキーマ改訂 = `contract`(経営/業務委託/外部スタッフ/アルバイト 1軸) + `role`(運営/フィールドスタッフ/写真/調理 複数可)の2軸分離
 
 ## 区画別ステータス
 
@@ -19,8 +19,8 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 | Garden 語彙 | パス | 状態 | 一行 |
 |---|---|---|---|
-| 土壌 (soil) | [garden/soil/](soil/) | 🌱 | 骨格 + スタッフ4 + 事業骨格21 + 退任7 + レビュー80 |
-| 土壌-people/staff | [soil/people/staff/](soil/people/staff/) | 🌱 | 4名確定 + alumni + 80名レビュー待ち |
+| 土壌 (soil) | [garden/soil/](soil/) | 🌱 | 骨格 + スタッフ28(role全員確定)+ 事業骨格21 + alumni候補48(保留) |
+| 土壌-people/staff | [soil/people/staff/](soil/people/staff/) | 🌳 | 28名 active(役割: 運営4・フィールド20・写真5・調理0)、alumni候補48は保留 |
 | 土壌-people/clients | [soil/people/clients/](soil/people/clients/) | ⬜ | クライアント担当者(個人) |
 | 土壌-people/partners | [soil/people/partners/](soil/people/partners/) | ⬜ | パートナー窓口 |
 | 土壌-business | [soil/business/](soil/business/) | 🌱 | 21ファイル骨格、各サービスの中身埋め待ち |
@@ -44,10 +44,12 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 - [x] コンセプト・ネーミング(2026-05-22 セッション1)
 - [x] garden/ + soil/ 骨格(README/index/log)
-- [x] スタッフマスター骨格(4名 + alumni + レビュー80名)
+- [x] スタッフマスター(28名 active、role 全員確定 @2026-05-22)
+- [x] スタッフスキーマ contract/role 2軸化(2026-05-22 セッション2)
 - [x] 事業構造骨格(toC/toB/communication 21ファイル)
+- [ ] alumni 候補 48名の `_alumni.md` 集約(塚越さん「無視でOK」判定で保留)
 - [ ] クライアント企業一覧(`soil/clients/`)
-- [ ] 業務フロー(`soil/workflows/`) — 塚越さんソース提供待ち
+- [ ] 業務フロー(`soil/workflows/`) — 塚越さん壁打ちで言語化予定
 - [ ] 議事録インデックス(`soil/meetings/`) — Plaud 連携
 
 ### Phase 2: 剪定の規律(承認境界)
@@ -77,9 +79,8 @@ HMC SKILL を順次 HMG に移植・自律化。
 ## 直近の宿題
 
 ### 庭師(塚越さん)
-- [ ] [_review-2026-05-22-master-data-candidates.md](soil/people/staff/_review-2026-05-22-master-data-candidates.md) の 80名レビュー(気が向いたタイミング)
 - [ ] `business/` 各サービスページの中身埋め(or Claude が他ソースから合成)
-- [ ] `workflows/` のソースドキュメント提供(イベント時/クライアントワーク時/月間)
+- [ ] `workflows/` 言語化壁打ち(イベント時/クライアントワーク時/月間)
 - [ ] Square予約 / Notion / Plaud のシェア(Phase 3 で必要)
 
 ### Claude
@@ -96,9 +97,14 @@ HMC SKILL を順次 HMG に移植・自律化。
 | 慶ちゃん追加・「運営」表記統一 | 2026-05-22 | [CLAUDE.md](../CLAUDE.md) |
 | Obsidian は分離 + 読み取り参照 | 2026-05-22 | [sessions/2026-05-22-session1.md](../docs/sessions/2026-05-22-session1.md) |
 | 業務フロー = ハイブリッド配置 | 2026-05-22 | [sessions/2026-05-22-session1.md](../docs/sessions/2026-05-22-session1.md) |
+| スタッフスキーマ contract/role 2軸分離 | 2026-05-22 | [sessions/2026-05-22-session2.md](../docs/sessions/2026-05-22-session2.md) |
+| 三根美紗 = 三根美沙(Freee) 表記ゆれ同定 | 2026-05-22 | [sessions/2026-05-22-session2.md](../docs/sessions/2026-05-22-session2.md) |
+| スタッフ 28名 role 全員確定 | 2026-05-22 | [sessions/2026-05-22-session2.md](../docs/sessions/2026-05-22-session2.md) |
+| alumni 候補48名は保留(言及不要のため) | 2026-05-22 | [sessions/2026-05-22-session2.md](../docs/sessions/2026-05-22-session2.md) |
 
 ## 直近のセッション
 
+- [2026-05-22 セッション2](../docs/sessions/2026-05-22-session2.md) — スタッフスキーマ contract/role 2軸化・28名 role 全員確定
 - [2026-05-22 セッション1](../docs/sessions/2026-05-22-session1.md) — HMG 立ち上げ・土壌+業務骨格構築
 
 ## 関連ドキュメント

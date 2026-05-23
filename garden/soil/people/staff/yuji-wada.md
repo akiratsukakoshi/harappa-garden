@@ -2,8 +2,11 @@
 type: staff
 status: active
 dynamism: dynamic
-role: 運営
+contract: 業務委託
+role:
+  - 運営
 kana: わだゆうじ
+area: 逗子
 freee_id: 35972404
 freee_id_deprecated: 26976689  # 旧表記「Yuji」のID。塚越さん確認済み(2026-05-22)で統合済み
 freee_type: partner

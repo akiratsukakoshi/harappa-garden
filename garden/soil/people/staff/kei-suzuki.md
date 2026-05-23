@@ -2,8 +2,11 @@
 type: staff
 status: active
 dynamism: dynamic
-role: 運営
+contract: 業務委託
+role:
+  - 運営
 kana: すずきけい
+area: 逗子
 freee_id: 54087983
 freee_id_deprecated: 62108905  # kei.suzuki.2019@gmail.com 名義の旧ID。塚越さん確認済み(2026-05-22)で統合
 freee_type: partner

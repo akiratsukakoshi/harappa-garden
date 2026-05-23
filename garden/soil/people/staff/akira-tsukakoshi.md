@@ -2,8 +2,11 @@
 type: staff
 status: active
 dynamism: dynamic
-role: 代表
+contract: 経営
+role:
+  - 運営
 kana: つかこしあきら
+area: 全社
 freee_id: 26224600
 freee_type: partner
 email:
