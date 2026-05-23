@@ -4,12 +4,17 @@ service_type: toC
 status: active
 dynamism: static
 parent: harappa-university
+cadence: 月1-2回
 linked_staff:
   - "[[kei-suzuki]]"
 linked_clients: []
 linked_projects: []
+linked_workflows:
+  - "[[annual-quarterly-planning]]"
+  - "[[monthly-cycle]]"
+  - "[[program-execution]]"
 sources: []
-last_updated: 2026-05-22
+last_updated: 2026-05-23
 last_updated_by: claude
 ---
 

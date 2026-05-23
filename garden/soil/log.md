@@ -94,3 +94,38 @@
 - pages: business/README.md, toC/*, toB/*, communication/*
 - summary: 21ファイルの骨格生成。HARAPPA(株)単一法人配下に toC事業(原っぱ大学・大阪・放課後サボール・俺のヨガ・各種イベント・AI関連)、toB事業(研修・組織開発・コミュニティマネジメント・単発イベントプロデュース・みうらの森林共創・その他出演等)、横断コミュニケーション(週1メルマガ)を配置。各サービスページは中身空欄(塚越さん埋め待ち)。
 - source: 塚越さん 2026-05-22 提供の事業領域サマリ
+
+## [2026-05-23] ingest | workflows/ toC原っぱ大学 3階層の業務フロー初期化
+- by: claude (gardener 投入)
+- type: ingest
+- pages: workflows/README.md, workflows/annual-quarterly-planning.md, workflows/monthly-cycle.md, workflows/program-execution.md
+- summary: 塚越さん投入のテキストをもとに toC 1-a/b/c(おやこ/こども/おとな)の業務フローを 3 階層に分解して言語化。(A) 年間→3ヶ月→月次の企画反映、(B) 当月のシフト中心ルーチン、(C) プログラム実施フローの 3 本立て。登場人物(企画担当者=運営4+飯田 / 現場責任者=運営4 / フォトグラファー=写真role月次決定)・外部接続(年間/月次カレンダー Sheet, STORES, Notion, Google Photo, LINE)・Phase 3 向けの種(自律トリガー)候補を frontmatter+本文に編み込み。
+- source: 塚越さん 2026-05-23 セッション3 投入
+
+## [2026-05-23] ingest | 飯田淳毅 staff ページ新設
+- by: claude
+- type: ingest
+- pages: [[junki-iida]]
+- summary: workflows 言語化中、企画会議メンバー(運営4名+飯田)として登場。Drive Sheet に存在(2025/08/15 登録、未退職、kana=いいだじゅんき、email=junki.iida@gmail.com)。contract / role / area / freee_id は塚越さん埋め待ち。linked_services=[parent-child, kids, adult], linked_workflows=[annual-quarterly-planning, program-execution]。
+- source: Drive Sheet「スタッフ登録フォーム(回答)」+ 塚越さん 2026-05-23 セッション3
+
+## [2026-05-23] edit | 3学部ページに linked_workflows を追記
+- by: claude
+- type: edit
+- pages: [[parent-child]], [[kids]], [[adult]]
+- summary: harappa-university 配下 3 学部の frontmatter に linked_workflows(annual-quarterly-planning / monthly-cycle / program-execution)と cadence(月3回 / 月1-2回 / 月2回)を追加。本文は引き続き塚越さん埋め待ち。
+- source: 塚越さん 2026-05-23 セッション3
+
+## [2026-05-23] edit | 飯田淳毅の Freee ID / role / area を確定
+- by: gardener + claude
+- type: edit
+- pages: [[junki-iida]], people/staff/README.md
+- summary: 塚越さん指示で role=フィールドスタッフ・area=逗子 を確定。HMC master_data.csv に Partner ID 102180692 で登録あり → freee_id 確定。contract は塚越さん未明示のため業務委託で仮置き(他業務委託メンバーに準拠、要確認)。README の業務委託テーブル(12→13名)と role 集計(フィールド20→21)を更新。
+- source: 塚越さん 2026-05-23 セッション3 指示 + HMC master_data.csv
+
+## [2026-05-23] ingest | Notion フィールドレポート DB のスキーマを取込み
+- by: claude
+- type: ingest
+- pages: [[program-execution]], workflows/README.md
+- summary: 塚越さん共有 URL からフィールドレポート DB(collection://ffb8cd73-f4e1-471c-bf2e-305532ead0de)を fetch。プロパティ 11 種(Name/開催日/コース/天気/気温/業務時間/参加組数/体験家族数/参加スタッフ/調理班へのランチオーダー/アルバム)を program-execution.md step 7 に表で反映。コース選択肢に「余の日/海DAY/千葉」があり toC 1-a/b/c 以外のプログラムも同テンプレ運用 = workflows 拡張時の手掛かりとして TODO 登録。
+- source: Notion DB「フィールドレポート」 https://www.notion.so/5dab98a40ae443849e3804c0b431abe2
