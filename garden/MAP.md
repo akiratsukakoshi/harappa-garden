@@ -9,9 +9,9 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 ## 現在地 @2026-05-23
 
-- **設計フェーズ**: 土壌の最小実装中(Phase 1)
-- **直近セッション**: [2026-05-23 セッション3](../docs/sessions/2026-05-23-session3.md) — workflows/ 初期化(toC 原っぱ大学 3階層)・飯田淳毅 staff 追加
-- **直近の重要決定**: workflows/ ハイブリッド配置の初期化方針 = 3階層(年間→3ヶ月企画反映 / 当月シフト / プログラム実施)を独立ファイル化
+- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種の設計方針(Phase 3 入口)
+- **直近セッション**: [2026-05-23 セッション4](../docs/sessions/2026-05-23-session4.md) — 種(seeds) 設計の基本方針(時計のメタファ・ガクコ統合・剪定振り分け)
+- **直近の重要決定**: 種は3形式(cron/event/state-change)、ガクコ = 庭の出口を再利用、番人は定刻cron+緊急push、剪定は重さで自動振り分け
 
 ## 区画別ステータス
 
@@ -65,6 +65,11 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 エージェントが自律起動できる仕組み。
 
+- [x] 設計方針合意(2026-05-23 セッション4) — 3形式・ガクコ統合・番人/剪定の振り分け
+- [ ] 種の YAML スキーマ設計 ← **次セッション本命**
+- [ ] 最初の種1本(候補: shift_manager の月次シート生成)
+- [ ] 連絡板(`garden/board/`)の構造設計
+- [ ] 緊急 push の経路設計(ガクコ進化と同期)
 - [ ] cron / event / 状態変化 のトリガー定義(`garden/seeds/`)
 - [ ] MCP server 実装(土壌へのアクセス層)
 - [ ] 既存ソース(Square予約・Notion・Plaud)の ingest
@@ -80,16 +85,18 @@ HMC SKILL を順次 HMG に移植・自律化。
 ## 直近の宿題
 
 ### 庭師(塚越さん)
+- [ ] **稼働時間表のスタッフへの見せ方**(セッション4 で保留 — 個別要約 / スプシ個人タブ / 現状スクショ から選ぶ or 新案)
 - [ ] `business/` 各サービスページの中身埋め(or Claude が他ソースから合成)
-- [ ] 飯田淳毅さんの contract / role / area / freee_id 確定
+- [ ] 飯田淳毅さんの contract 確定(業務委託で良いか)
+- [ ] `余の日` プログラムの実態
 - [ ] Notion 振り返りレポート構造の MCP 開放(必要タイミングで)
 - [ ] 体験案内 / お礼テンプレートのコピー元提供
 - [ ] シフト管理担当の確認(`monthly-cycle` の TODO)
 - [ ] Square予約 / Notion / Plaud のシェア(Phase 3 で必要)
 
 ### Claude
-- [ ] 次回セッション開始時に本 MAP.md と最新セッション記録を読む
-- [ ] 塚越さんが選んだ次の議論候補に着手
+- [ ] 次回セッション開始時に本 MAP.md + セッション4 + 種設計 ADR を読む
+- [ ] **次回本命**: 種の YAML スキーマ設計と最初の1本(shift_manager の月次シート生成 候補)
 
 ## 主要な決定の索引
 
@@ -107,9 +114,15 @@ HMC SKILL を順次 HMG に移植・自律化。
 | alumni 候補48名は保留(言及不要のため) | 2026-05-22 | [sessions/2026-05-22-session2.md](../docs/sessions/2026-05-22-session2.md) |
 | workflows/ = toC原っぱ大学 3階層(年次/月次/開催毎)で初期化 | 2026-05-23 | [sessions/2026-05-23-session3.md](../docs/sessions/2026-05-23-session3.md) |
 | 飯田淳毅 = 企画会議メンバーとして staff 化 | 2026-05-23 | [sessions/2026-05-23-session3.md](../docs/sessions/2026-05-23-session3.md) |
+| 種は 3形式(cron / event / state-change) | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
+| ガクコ = 庭の出口(3チャネル+承認フローを再利用) | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
+| 番人 = 定刻 cron + 緊急 push | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
+| 剪定の置き場は重さで自動振り分け(line / board_with_notify / board) | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
+| ガクコ core_team は当面いじらず(飯田は未参加) | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
 
 ## 直近のセッション
 
+- [2026-05-23 セッション4](../docs/sessions/2026-05-23-session4.md) — 種(seeds) 設計の基本方針(時計のメタファ・ガクコ統合・剪定振り分け)
 - [2026-05-23 セッション3](../docs/sessions/2026-05-23-session3.md) — workflows/ toC原っぱ大学 3階層初期化・飯田淳毅 staff 追加
 - [2026-05-22 セッション2](../docs/sessions/2026-05-22-session2.md) — スタッフスキーマ contract/role 2軸化・28名 role 全員確定
 - [2026-05-22 セッション1](../docs/sessions/2026-05-22-session1.md) — HMG 立ち上げ・土壌+業務骨格構築

@@ -129,3 +129,10 @@
 - pages: [[program-execution]], workflows/README.md
 - summary: 塚越さん共有 URL からフィールドレポート DB(collection://ffb8cd73-f4e1-471c-bf2e-305532ead0de)を fetch。プロパティ 11 種(Name/開催日/コース/天気/気温/業務時間/参加組数/体験家族数/参加スタッフ/調理班へのランチオーダー/アルバム)を program-execution.md step 7 に表で反映。コース選択肢に「余の日/海DAY/千葉」があり toC 1-a/b/c 以外のプログラムも同テンプレ運用 = workflows 拡張時の手掛かりとして TODO 登録。
 - source: Notion DB「フィールドレポート」 https://www.notion.so/5dab98a40ae443849e3804c0b431abe2
+
+## [2026-05-23] edit | 飯田淳毅ページに「ガクコ core_team 未参加」セクション追加
+- by: claude
+- type: edit
+- pages: [[junki-iida]]
+- summary: セッション4 の決定「ガクコ core_team は当面いじらない(飯田は未参加)」を反映。「企画会議メンバー」と「ガクコ core_team」が別概念であることを staff ページに明記。HMG が core_team へ通知を投げ始めるタイミングで再判断する旨も記載。
+- source: 塚越さん 2026-05-23 セッション4、docs/decisions/2026-05-23-seeds-design-direction.md

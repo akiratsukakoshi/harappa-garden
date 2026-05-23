@@ -48,7 +48,14 @@ last_updated_by: claude
 - Freee Partner DB に 102180692 で登録(取引先扱い)
 - 役割は `フィールドスタッフ` だが、企画会議には運営4名と並んで参加する立ち位置
 
+## ガクコ(LINE Bot)所属
+
+- ガクコ `core_team` チャネル **未参加** (2026-05-23 現在)
+- 「企画会議メンバー」と「ガクコ core_team」は別概念。HMG が core_team に通知を投げ始める時に再判断する
+- 参考: [docs/decisions/2026-05-23-seeds-design-direction.md](../../../../docs/decisions/2026-05-23-seeds-design-direction.md)
+
 ## 履歴
 
 - 2025-08-15: スタッフ登録
 - 2026-05-23: HMG 上で初期ページ生成(企画会議メンバーとして)、Freee ID 同定
+- 2026-05-23: セッション4 で「ガクコ core_team 未参加」を明記
