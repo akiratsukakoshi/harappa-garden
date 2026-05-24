@@ -7,11 +7,11 @@
 HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォーム。
 庭師=塚越さん、エージェント群=自律的に育つ生態系。HMC(操縦席)からの進化版(庭=育てる生態系)。
 
-## 現在地 @2026-05-23
+## 現在地 @2026-05-24
 
-- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種の設計方針(Phase 3 入口)
-- **直近セッション**: [2026-05-23 セッション4](../docs/sessions/2026-05-23-session4.md) — 種(seeds) 設計の基本方針(時計のメタファ・ガクコ統合・剪定振り分け)
-- **直近の重要決定**: 種は3形式(cron/event/state-change)、ガクコ = 庭の出口を再利用、番人は定刻cron+緊急push、剪定は重さで自動振り分け
+- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種の設計方針(Phase 3 入口)+ workflow 規律の整備
+- **直近セッション**: [2026-05-24 セッション5](../docs/sessions/2026-05-24-session5.md) — workflow を「正本かつ改善対象」として整備、monthly-cycle 詳細化、コドモン登録、種候補3本に整理
+- **直近の重要決定**: workflows/ が正本(SKILL より優先)/ 目的は不変・方法は改善対象 / 各ステップに改善余地表 / 種は責務で分割(同タイミングでも分ける)
 
 ## 区画別ステータス
 
@@ -26,10 +26,10 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-business | [soil/business/](soil/business/) | 🌱 | 21ファイル骨格、各サービスの中身埋め待ち(3学部に linked_workflows 反映済) |
 | 土壌-clients | [soil/clients/](soil/clients/) | ⬜ | クライアント企業本体 |
 | 土壌-projects | [soil/projects/](soil/projects/) | ⬜ | 進行中プロジェクト |
-| 土壌-workflows | [soil/workflows/](soil/workflows/) | 🌱 | toC原っぱ大学の3階層(年次/月次/開催毎)言語化済。toBやイベント等は未着手 |
+| 土壌-workflows | [soil/workflows/](soil/workflows/) | 🌱 | toC原っぱ大学の3階層(年次/月次/開催毎)言語化済。monthly-cycle は A 案テンプレで詳細化済(2026-05-24)。残り2本は次セッション以降に書き直し |
 | 土壌-events | [soil/events/](soil/events/) | ⬜ | 個別イベント |
 | 土壌-meetings | [soil/meetings/](soil/meetings/) | ⬜ | 議事録インデックス(Plaud等) |
-| 土壌-concepts | [soil/concepts/](soil/concepts/) | ⬜ | 概念ページ(season/garden-philosophy 等) |
+| 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
 | 種 (seeds) | garden/seeds/ | ⬜ | トリガー(cron/event/状態変化)定義 |
 | 区画 (plots) | garden/plots/ | ⬜ | HMC SKILL の Garden 化版 |
 | 番人 (watchers) | garden/watchers/ | ⬜ | 監視エージェント |
@@ -66,8 +66,10 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 エージェントが自律起動できる仕組み。
 
 - [x] 設計方針合意(2026-05-23 セッション4) — 3形式・ガクコ統合・番人/剪定の振り分け
+- [x] 種スキーマの位置づけ・目的合意(2026-05-24 セッション5)
+- [x] 最初の種候補の絞り込み(2026-05-24 セッション5) — `shift_manager/monthly-shift-survey`(月初1日アンケート送信)
 - [ ] 種の YAML スキーマ設計 ← **次セッション本命**
-- [ ] 最初の種1本(候補: shift_manager の月次シート生成)
+- [ ] 種1本目: `shift_manager/monthly-shift-survey` の draft YAML 作成
 - [ ] 連絡板(`garden/board/`)の構造設計
 - [ ] 緊急 push の経路設計(ガクコ進化と同期)
 - [ ] cron / event / 状態変化 のトリガー定義(`garden/seeds/`)
@@ -95,8 +97,11 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [ ] Square予約 / Notion / Plaud のシェア(Phase 3 で必要)
 
 ### Claude
-- [ ] 次回セッション開始時に本 MAP.md + セッション4 + 種設計 ADR を読む
-- [ ] **次回本命**: 種の YAML スキーマ設計と最初の1本(shift_manager の月次シート生成 候補)
+- [ ] 次回セッション開始時に本 MAP.md + セッション5 + 2026-05-23 種ADR + 2026-05-24 workflow ADR を読む
+- [ ] **次回本命**: 種の YAML スキーマ設計 + `shift_manager/monthly-shift-survey` の draft YAML
+- [ ] **workflow 書き直し残り(A 案テンプレ適用)**:
+  - [ ] `garden/soil/workflows/annual-quarterly-planning.md`
+  - [ ] `garden/soil/workflows/program-execution.md`
 
 ## 主要な決定の索引
 
@@ -119,9 +124,14 @@ HMC SKILL を順次 HMG に移植・自律化。
 | 番人 = 定刻 cron + 緊急 push | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
 | 剪定の置き場は重さで自動振り分け(line / board_with_notify / board) | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
 | ガクコ core_team は当面いじらず(飯田は未参加) | 2026-05-23 | [decisions/2026-05-23-seeds-design-direction.md](../docs/decisions/2026-05-23-seeds-design-direction.md) |
+| workflows/ が正本(SKILL/他データソースは追従) | 2026-05-24 | [decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md](../docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md) |
+| workflow は目的不変・方法は改善対象(各ステップに改善余地表) | 2026-05-24 | [decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md](../docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md) |
+| 種は責務で分割(同タイミングでも分ける) | 2026-05-24 | [sessions/2026-05-24-session5.md](../docs/sessions/2026-05-24-session5.md) |
+| 最初の種 = `shift_manager/monthly-shift-survey`(月初1日アンケート送信) | 2026-05-24 | [sessions/2026-05-24-session5.md](../docs/sessions/2026-05-24-session5.md) |
 
 ## 直近のセッション
 
+- [2026-05-24 セッション5](../docs/sessions/2026-05-24-session5.md) — workflow を正本かつ改善対象として整備、monthly-cycle 詳細化、コドモン登録、種候補3本に整理
 - [2026-05-23 セッション4](../docs/sessions/2026-05-23-session4.md) — 種(seeds) 設計の基本方針(時計のメタファ・ガクコ統合・剪定振り分け)
 - [2026-05-23 セッション3](../docs/sessions/2026-05-23-session3.md) — workflows/ toC原っぱ大学 3階層初期化・飯田淳毅 staff 追加
 - [2026-05-22 セッション2](../docs/sessions/2026-05-22-session2.md) — スタッフスキーマ contract/role 2軸化・28名 role 全員確定

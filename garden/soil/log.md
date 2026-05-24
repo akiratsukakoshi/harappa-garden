@@ -136,3 +136,17 @@
 - pages: [[junki-iida]]
 - summary: セッション4 の決定「ガクコ core_team は当面いじらない(飯田は未参加)」を反映。「企画会議メンバー」と「ガクコ core_team」が別概念であることを staff ページに明記。HMG が core_team へ通知を投げ始めるタイミングで再判断する旨も記載。
 - source: 塚越さん 2026-05-23 セッション4、docs/decisions/2026-05-23-seeds-design-direction.md
+
+## [2026-05-24] edit | workflows/monthly-cycle.md を A 案テンプレで全面書き直し
+- by: claude
+- type: edit
+- pages: [[monthly-cycle]], workflows/README.md
+- summary: セッション5 で workflow が実運用とずれていた問題(月初1日に「前月稼働確認依頼→3ルート精算」「月末に稼働表作成」が抜け)を発見。塚越さん追記情報を元に4ステップ構成(月末/月初1日/月初10日/適宜)で書き直し。各ステップを「目的(Purpose)/現状の方法(Current Method)/改善余地(Improvement Hints)」の三層で記述する A 案テンプレを採用。改善余地表に ❓未検証 / 💡着手可能 / ✋検討済 / 🛠️実装中 のマーカー。workflows/README.md 冒頭にも原則とテンプレを追記。
+- source: 塚越さん 2026-05-24 セッション5、docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md
+
+## [2026-05-24] ingest | コドモン(放サボ勤怠管理アプリ)を concepts に登録
+- by: claude
+- type: ingest
+- pages: [[kodomon]]
+- summary: 月末稼働表作成フローに登場する外部システム。学童・保育園向け ICT。放サボの参加者管理とスタッフ勤怠に使用。API/MCP 提供有無は未調査(改善余地 ❓ で記録)。CSV エクスポート → 稼働表に手入力が現状。CSV パーサ実装(💡着手可能)を改善候補として明記。
+- source: 塚越さん 2026-05-24 セッション5

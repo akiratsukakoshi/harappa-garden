@@ -24,6 +24,17 @@
 - CLAUDE.md・memory・docsはすべてプロジェクト内に配置(プラットフォーム固有形式を避ける)。
 - データストアはmarkdown + sqlite + MCP serverを基本とする。
 
+## workflow の扱い(目的が正・方法は改善対象)
+
+[`garden/soil/workflows/`](garden/soil/workflows/) は業務の **single source of truth(正本)** だが、各ステップの「現状の方法」は **常に改善対象** として読むこと。
+
+- **目的(Purpose)** = 不変。これを満たすことが必須
+- **現状の方法(Current Method)** = 変更可能。簡略化・自動化の機会を常に探す
+- 各ステップに **改善余地(Improvement Hints)** 表がある。セッション中に新たな改善案を思いついたら、まず該当表に追記してから判断を仰ぐ
+- `✋ 検討済` マーカーの改善案は再提案しない(却下理由を尊重)
+- **HMC SKILL / 他データソースとずれた場合は workflows/ が正**。ずれを発見したら他を直す
+- 詳細: [docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md](docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md)
+
 ## Garden語彙(設計言語)
 
 HMG関連の設計議論ではこの語彙を共通言語として使う。詳細表は [docs/garden-vocabulary.md](docs/garden-vocabulary.md)。
