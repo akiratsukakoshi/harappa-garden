@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  couchdb:
+    image: apache/couchdb:3.4
+    container_name: garden-couchdb
+    restart: unless-stopped
+    environment:
+      COUCHDB_USER: ${COUCHDB_USER}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
+    ports:
+      - "127.0.0.1:5984:5984"
+    volumes:
+      - ./data:/opt/couchdb/data
+      - ./local.ini:/opt/couchdb/etc/local.d/local.ini
+    networks:
+      - default
+      - npm
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+  npm:
+    external: true
+    name: proxy-manager_default

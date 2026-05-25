@@ -22,3 +22,7 @@ oauth_credentials.json
 run_log.txt
 *.log
 *.csv
+
+# Secrets
+docs/security/secrets/*
+!docs/security/secrets/.gitkeep
