@@ -136,3 +136,53 @@ test ${#GOG_KEYRING_PASSWORD} -eq 32 && echo "OK"
 | `~/harappa-cockpit/.env` | アプリ用 API キー類 | 600（推奨） |
 
 `~/.bashrc` には source 行のみを書き、secret 本体は環境変数として埋め込まない。
+
+---
+
+## 6. VPS 環境での追加考慮（Garden Phase 3b 以降）
+
+**§1〜§5 は WSL（ローカル）前提**。Garden が業務 secret を VPS に配置する Phase 3b 以降では、以下を追加で考慮する。
+
+詳細は [VPS secret 管理方針 ADR](../decisions/2026-05-25-vps-secret-management-direction.md) 参照。
+
+### 6.1 保管方式
+
+- 初期: **平文 env + 600**（§1.1〜1.5 を VPS にもそのまま延長）
+- 発展余地: 後追いで **age 暗号化 + master key** に移行
+- 採用しない: クラウド secret manager（ベンダー中立性のため）
+
+### 6.2 サービス隔離
+
+- gaku-co5.0 / hmc-on-vps / garden-seed-launcher / CouchDB は **各々別 Docker コンテナ**
+- 各コンテナ内で **root 不使用**
+- secret は **必要コンテナのみマウント**（共通マウント禁止）
+- Docker network はサービス間通信に必要なものだけ
+
+### 6.3 OAuth scope 最小化
+
+- **scope を最小に**（write 不要なら read のみ・特定リソース限定）
+- **人事労務 freee は最も厳重**：独立 OAuth client、アクセスする種を限定
+- **読取り専用と書込みでトークン分離**（可能な場合は別 OAuth client）
+- Google Drive は **file scope** のみ（gog cli の既存方式踏襲）
+
+### 6.4 ローテーション
+
+- **発覚時**: 即時ローテ（§4 緊急時対応原則 + [2026-05-23 インシデント手順](incidents/2026-05-23_gog_keyring_rotation.md)）
+- **年1強制ローテ**: 全 token を1年に1度ローテ（漏えい発覚なしでも）
+- **手順**: 初期はチェックリスト、後追いでスクリプト化
+- **記録**: ローテ実施都度 `incidents/` に YYYY-MM-DD 形式で記録
+
+### 6.5 VPS 自体のハードニング（別セッションで監査・強化）
+
+未確定の項目（Phase 3b で監査する）:
+
+- SSH 鍵認証のみ・パスワード認証無効
+- SSH ポート変更や fail2ban
+- ファイアウォール（必要ポートのみ open）
+- OS / Docker / 各 daemon の自動更新
+- root 直接ログイン無効化
+
+### 6.6 CLAUDE.md 由来のルール（VPS でも厳守）
+
+- secret 確認コマンドは **length 比較 か set/unset 判定のみ**（§1.4）
+- ベンダー中立性: 特定 secret manager に強く依存しない

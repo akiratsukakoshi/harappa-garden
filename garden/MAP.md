@@ -9,9 +9,9 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 ## 現在地 @2026-05-25
 
-- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種の設計方針(Phase 3 入口)+ workflow 規律の整備 + **デイリーワークフローのアーキテクチャ確定(Phase 3 実装準備)**
-- **直近セッション**: [2026-05-25 セッション6](../docs/sessions/2026-05-25-session6.md) — デイリーワークフローの種化(4本立て)+ タスクマスタを Obsidian LiveSync + VPS CouchDB に + Claude Code ヘッドレスを Garden 全体の頭脳に
-- **直近の重要決定**: タスクマスタ = Obsidian LiveSync(CouchDB)/ backlog がマスタ・active は派生 / 種の頭脳 = Claude Code ヘッドレス on VPS / Triage = LINE + board MD ハイブリッド / 締切なし追加 = 翌日暫定締切自動付与
+- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種の YAML スキーマ草案 + 1本目 draft + **Phase 3 を 3a/3b/3c に細分・cron 実行ホスト確定・VPS secret 管理方針合意**(セッション7)
+- **直近セッション**: [2026-05-25 セッション7](../docs/sessions/2026-05-25-session7.md) — 種 YAML スキーマ起草 + `monthly-shift-survey` draft + cron 実行ホスト=VPS確定 + Phase 3a/3b/3c 細分 + VPS secret 管理方針(平文env+600開始/Docker分離/scope最小化/年1ローテ)
+- **直近の重要決定**: 種スキーマ = MD frontmatter 9要素+本文 / 種配置 = plot別 / 実行記述 = SKILL参照+自然言語prompt / cron実行ホスト = VPS / Phase 3a→3b→3c / VPS secret = 平文env+600開始・サービス単位Docker分離・scope最小化・発覚時+年1ローテ
 
 ## 区画別ステータス
 
@@ -30,7 +30,7 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-events | [soil/events/](soil/events/) | ⬜ | 個別イベント |
 | 土壌-meetings | [soil/meetings/](soil/meetings/) | ⬜ | 議事録インデックス(Plaud等) |
 | 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
-| 種 (seeds) | garden/seeds/ | ⬜ | トリガー(cron/event/状態変化)定義 |
+| 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + スキーマ草案 + 1本目 draft(`shift_manager/monthly-shift-survey`、Phase 3c 待ち)|
 | 区画 (plots) | garden/plots/ | ⬜ | HMC SKILL の Garden 化版 |
 | 番人 (watchers) | garden/watchers/ | ⬜ | 監視エージェント |
 | 苗床 (nursery) | garden/nursery/ | ⬜ | 試行領域 |
@@ -62,23 +62,50 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [ ] LINE 通知連携(まずは塚越さん個人、後にチーム)
 - [ ] **VPS 信頼性 watcher の設計**(Garden 共通課題、番人候補)
 
-### Phase 3: 種(自律トリガー)
+### Phase 3: 種(自律トリガー) — **3a / 3b / 3c に細分(セッション7)**
 
 エージェントが自律起動できる仕組み。
+
+#### 設計合意済
 
 - [x] 設計方針合意(2026-05-23 セッション4) — 3形式・ガクコ統合・番人/剪定の振り分け
 - [x] 種スキーマの位置づけ・目的合意(2026-05-24 セッション5)
 - [x] 最初の種候補の絞り込み(2026-05-24 セッション5) — `shift_manager/monthly-shift-survey`(月初1日アンケート送信)
-- [x] **デイリーワークフローの種化アーキテクチャ確定(2026-05-25 セッション6)** — 4本立て + Claude Code ヘッドレス + LiveSync + Triage ハイブリッド
-- [ ] 種の YAML スキーマ設計 ← **次セッション本命**
-- [ ] 種1本目: `shift_manager/monthly-shift-survey` の draft YAML 作成
-- [ ] 種2本目以降: `daily-pilot/*` 4本(recurring-spawn / morning-briefing / night-review / inbox-process)
-- [ ] 連絡板(`garden/board/`)の構造設計
-- [ ] 緊急 push の経路設計(ガクコ進化と同期)
-- [ ] cron / event / 状態変化 のトリガー定義(`garden/seeds/`)
-- [ ] **VPS CouchDB + Obsidian LiveSync セットアップ手順策定**(daily-pilot 種の前提インフラ)
+- [x] **デイリーワークフロー種化アーキテクチャ確定(2026-05-25 セッション6)** — 4本立て + Claude Code ヘッドレス + LiveSync + Triage ハイブリッド
+- [x] **種 YAML スキーマ草案 + 1本目 draft(2026-05-25 セッション7)** — [seeds/README.md](seeds/README.md) と [shift_manager/monthly-shift-survey.md](seeds/shift_manager/monthly-shift-survey.md)
+- [x] **cron 種の実行ホスト確定(2026-05-25 セッション7)** — すべて VPS で起動(PC 非依存)
+- [x] **種を HMC 依存度で分類 + Phase 3 を 3a/3b/3c に細分(セッション7)**
+
+#### Phase 3a: 種ランチャー(VPS)+ Garden 内完結種(daily-pilot 4本)の active 化
+
+- [ ] **VPS CouchDB + Obsidian LiveSync セットアップ手順策定**(全種共通の前提)
 - [ ] **平文 MD ミラー daemon の実装**(`_changes` feed リスナ)
-- [ ] **gaku-co5.0 側に「LINE 返信 → board MD 書き戻し」処理を実装**
+- [ ] **種ランチャー実装**(VPS cron → `claude -p` 起動 + ログ + on_failure)
+- [ ] **watcher daemon 実装**(event 種用、glob 監視)
+- [ ] 連絡板(`garden/board/`)の構造設計(pending / processed の切り分け、配信本文セクション規約)
+- [ ] **gaku-co5.0 側「LINE 返信 → board MD 書き戻し」処理を実装**
+- [ ] 種2-5本目 draft: `daily-pilot/*` 4本(recurring-spawn / morning-briefing / night-review / inbox-process)
+- [ ] daily-pilot 4本の active 化
+
+#### Phase 3b: HMC の VPS 移植 + secret 管理設計
+
+- [ ] **secret 管理設計の確定(セッション7 議論B 継続)** — 保管方式・rotation・信頼境界・VPS ハードニング
+- [ ] `docs/security/README.md` を VPS 環境にも拡張(現状は WSL 前提)
+- [ ] HMC の VPS 移植 or 必要部分切り出し(まず shift_manager の `generate_shift_form.py` から)
+- [ ] HMC credentials の VPS 配置(Freee / Google OAuth・人事労務 freee)
+- [ ] VPS 自体のハードニング監査・強化(SSH / firewall / fail2ban / 自動更新)
+
+#### Phase 3c: HMC 依存種の active 化(Phase 3b 完了後)
+
+- [ ] `shift_manager/monthly-shift-survey` を active 化
+- [ ] `shift_manager/month-end-working-hours-prep` 起草 → active
+- [ ] `shift_manager/monthly-working-hours-confirmation` 起草(庭師「見せ方」決定後)
+- [ ] `shift_manager/monthly-shift-finalize` 起草 → active
+- [ ] finance 系・invoice_processor・expense_processor 等の種化
+
+#### 横断・後フェーズ
+
+- [ ] 緊急 push の経路設計(ガクコ進化と同期)
 - [ ] MCP server 実装(土壌へのアクセス層)
 - [ ] 既存ソース(Square予約・Notion・Plaud)の ingest
 
@@ -107,15 +134,17 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [ ] **(新)** Obsidian LiveSync 採用に伴う現行 Obsidian 同期方式(Remotely Sync 等)の切替計画
 
 ### Claude
-- [ ] 次回セッション開始時に本 MAP.md + セッション6 + 2026-05-25/24/23 の 3 ADR を読む
-- [ ] **次回本命(継続)**: 種の YAML スキーマ設計 + `shift_manager/monthly-shift-survey` の draft YAML
-  - スキーマには `engine:` フィールド・`depends_on:` を組み込む
+- [ ] 次回セッション開始時に本 MAP.md + 直近セッション(7)サマリ + 2026-05-25 ADR 2本(セッション6・7予定)+ 2026-05-24/23 の 2 ADR を読む
+- [x] 種の YAML スキーマ設計 + `monthly-shift-survey` draft(セッション7 完了)
+- [ ] **次回本命(継続)**: セッション7 議論 B(secret 管理・VPS 信頼境界)の続きと、Phase 3a 着手の優先順位整理
 - [ ] **workflow 書き直し残り(A 案テンプレ適用)**:
   - [ ] `garden/soil/workflows/annual-quarterly-planning.md`
   - [ ] `garden/soil/workflows/program-execution.md`
-- [ ] **(新)** VPS CouchDB + Obsidian LiveSync セットアップ手順策定
-- [ ] **(新)** 平文 MD ミラー daemon 実装方針(`_changes` feed リスナ)
-- [ ] **(新)** gaku-co5.0 側「LINE 返信 → board MD 書き戻し」の連携仕様
+- [ ] VPS CouchDB + Obsidian LiveSync セットアップ手順策定(Phase 3a)
+- [ ] 平文 MD ミラー daemon 実装方針(`_changes` feed リスナ、Phase 3a)
+- [ ] gaku-co5.0 側「LINE 返信 → board MD 書き戻し」の連携仕様(Phase 3a)
+- [ ] **(新)** daily-pilot 系 4種の draft 起草(Phase 3a)
+- [ ] **(新)** `docs/security/README.md` の VPS 環境向け拡張(Phase 3b)
 
 ## 主要な決定の索引
 
@@ -149,9 +178,17 @@ HMC SKILL を順次 HMG に移植・自律化。
 | Triage 対話チャネル = LINE + board MD ハイブリッド(返信2系統) | 2026-05-25 | 同上 |
 | night-review = 常に処理(差分のみ反映、active は必ずクリア) | 2026-05-25 | 同上 |
 | `## 追加` 締切なしタスク = 翌日デフォルトで暫定締切自動付与 + 翌朝 Triage で確定 | 2026-05-25 | 同上 |
+| 種スキーマ草案(MD frontmatter 9要素)+ plot別配置 + SKILL参照+自然言語指示 | 2026-05-25 (S7) | [decisions/2026-05-25-seed-schema-and-execution-host.md](../docs/decisions/2026-05-25-seed-schema-and-execution-host.md) |
+| cron 種の実行ホスト = すべて VPS(PC 非依存) | 2026-05-25 (S7) | 同上 |
+| Phase 3 を 3a/3b/3c に細分(VPS完結種先行 / HMC移植 / HMC依存種active化) | 2026-05-25 (S7) | 同上 |
+| VPS secret 保管 = 平文env+600開始(age 暗号化への余地残す) | 2026-05-25 (S7) | [decisions/2026-05-25-vps-secret-management-direction.md](../docs/decisions/2026-05-25-vps-secret-management-direction.md) |
+| サービス単位 Docker 分離 + コンテナ内 root 不使用 + secret は必要コンテナのみマウント | 2026-05-25 (S7) | 同上 |
+| OAuth scope 最小化(大枠) + 人事労務 freee 独立 client + 読取/書込分離 | 2026-05-25 (S7) | 同上 |
+| rotation = 発覚時 + 年1強制 + docs/security/incidents/ 記録 | 2026-05-25 (S7) | 同上 |
 
 ## 直近のセッション
 
+- [2026-05-25 セッション7](../docs/sessions/2026-05-25-session7.md) — 種スキーマ起草 + `monthly-shift-survey` draft + cron 実行ホスト=VPS確定 + Phase 3a/3b/3c 細分 + VPS secret 管理方針
 - [2026-05-25 セッション6](../docs/sessions/2026-05-25-session6.md) — デイリーワークフローの種化アーキテクチャ確定(4本立て + Claude Code ヘッドレス + LiveSync + Triage ハイブリッド)
 - [2026-05-24 セッション5](../docs/sessions/2026-05-24-session5.md) — workflow を正本かつ改善対象として整備、monthly-cycle 詳細化、コドモン登録、種候補3本に整理
 - [2026-05-23 セッション4](../docs/sessions/2026-05-23-session4.md) — 種(seeds) 設計の基本方針(時計のメタファ・ガクコ統合・剪定振り分け)
