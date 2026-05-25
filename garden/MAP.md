@@ -7,11 +7,11 @@
 HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォーム。
 庭師=塚越さん、エージェント群=自律的に育つ生態系。HMC(操縦席)からの進化版(庭=育てる生態系)。
 
-## 現在地 @2026-05-24
+## 現在地 @2026-05-25
 
-- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種の設計方針(Phase 3 入口)+ workflow 規律の整備
-- **直近セッション**: [2026-05-24 セッション5](../docs/sessions/2026-05-24-session5.md) — workflow を「正本かつ改善対象」として整備、monthly-cycle 詳細化、コドモン登録、種候補3本に整理
-- **直近の重要決定**: workflows/ が正本(SKILL より優先)/ 目的は不変・方法は改善対象 / 各ステップに改善余地表 / 種は責務で分割(同タイミングでも分ける)
+- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種の設計方針(Phase 3 入口)+ workflow 規律の整備 + **デイリーワークフローのアーキテクチャ確定(Phase 3 実装準備)**
+- **直近セッション**: [2026-05-25 セッション6](../docs/sessions/2026-05-25-session6.md) — デイリーワークフローの種化(4本立て)+ タスクマスタを Obsidian LiveSync + VPS CouchDB に + Claude Code ヘッドレスを Garden 全体の頭脳に
+- **直近の重要決定**: タスクマスタ = Obsidian LiveSync(CouchDB)/ backlog がマスタ・active は派生 / 種の頭脳 = Claude Code ヘッドレス on VPS / Triage = LINE + board MD ハイブリッド / 締切なし追加 = 翌日暫定締切自動付与
 
 ## 区画別ステータス
 
@@ -26,7 +26,7 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-business | [soil/business/](soil/business/) | 🌱 | 21ファイル骨格、各サービスの中身埋め待ち(3学部に linked_workflows 反映済) |
 | 土壌-clients | [soil/clients/](soil/clients/) | ⬜ | クライアント企業本体 |
 | 土壌-projects | [soil/projects/](soil/projects/) | ⬜ | 進行中プロジェクト |
-| 土壌-workflows | [soil/workflows/](soil/workflows/) | 🌱 | toC原っぱ大学の3階層(年次/月次/開催毎)言語化済。monthly-cycle は A 案テンプレで詳細化済(2026-05-24)。残り2本は次セッション以降に書き直し |
+| 土壌-workflows | [soil/workflows/](soil/workflows/) | 🌱 | toC原っぱ大学の3階層(年次/月次/開催毎)言語化済。monthly-cycle と daily-cycle が A 案テンプレで詳細化済。残り2本(annual / program-execution)は次セッション以降に書き直し |
 | 土壌-events | [soil/events/](soil/events/) | ⬜ | 個別イベント |
 | 土壌-meetings | [soil/meetings/](soil/meetings/) | ⬜ | 議事録インデックス(Plaud等) |
 | 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
@@ -60,6 +60,7 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [ ] 自律実行 vs 剪定待ちの境界文書化
 - [ ] 通知方法(連絡板/高札)の設計
 - [ ] LINE 通知連携(まずは塚越さん個人、後にチーム)
+- [ ] **VPS 信頼性 watcher の設計**(Garden 共通課題、番人候補)
 
 ### Phase 3: 種(自律トリガー)
 
@@ -68,11 +69,16 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [x] 設計方針合意(2026-05-23 セッション4) — 3形式・ガクコ統合・番人/剪定の振り分け
 - [x] 種スキーマの位置づけ・目的合意(2026-05-24 セッション5)
 - [x] 最初の種候補の絞り込み(2026-05-24 セッション5) — `shift_manager/monthly-shift-survey`(月初1日アンケート送信)
+- [x] **デイリーワークフローの種化アーキテクチャ確定(2026-05-25 セッション6)** — 4本立て + Claude Code ヘッドレス + LiveSync + Triage ハイブリッド
 - [ ] 種の YAML スキーマ設計 ← **次セッション本命**
 - [ ] 種1本目: `shift_manager/monthly-shift-survey` の draft YAML 作成
+- [ ] 種2本目以降: `daily-pilot/*` 4本(recurring-spawn / morning-briefing / night-review / inbox-process)
 - [ ] 連絡板(`garden/board/`)の構造設計
 - [ ] 緊急 push の経路設計(ガクコ進化と同期)
 - [ ] cron / event / 状態変化 のトリガー定義(`garden/seeds/`)
+- [ ] **VPS CouchDB + Obsidian LiveSync セットアップ手順策定**(daily-pilot 種の前提インフラ)
+- [ ] **平文 MD ミラー daemon の実装**(`_changes` feed リスナ)
+- [ ] **gaku-co5.0 側に「LINE 返信 → board MD 書き戻し」処理を実装**
 - [ ] MCP server 実装(土壌へのアクセス層)
 - [ ] 既存ソース(Square予約・Notion・Plaud)の ingest
 
@@ -95,13 +101,21 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [ ] 体験案内 / お礼テンプレートのコピー元提供
 - [ ] シフト管理担当の確認(`monthly-cycle` の TODO)
 - [ ] Square予約 / Notion / Plaud のシェア(Phase 3 で必要)
+- [ ] 月次シートの Q列チェック運用(誰がいつ入れるか)
+- [ ] コドモンの API/MCP 提供有無の確認可能性
+- [ ] **(新)** VPS 信頼性課題(Docker 停止)対処の優先度判断
+- [ ] **(新)** Obsidian LiveSync 採用に伴う現行 Obsidian 同期方式(Remotely Sync 等)の切替計画
 
 ### Claude
-- [ ] 次回セッション開始時に本 MAP.md + セッション5 + 2026-05-23 種ADR + 2026-05-24 workflow ADR を読む
-- [ ] **次回本命**: 種の YAML スキーマ設計 + `shift_manager/monthly-shift-survey` の draft YAML
+- [ ] 次回セッション開始時に本 MAP.md + セッション6 + 2026-05-25/24/23 の 3 ADR を読む
+- [ ] **次回本命(継続)**: 種の YAML スキーマ設計 + `shift_manager/monthly-shift-survey` の draft YAML
+  - スキーマには `engine:` フィールド・`depends_on:` を組み込む
 - [ ] **workflow 書き直し残り(A 案テンプレ適用)**:
   - [ ] `garden/soil/workflows/annual-quarterly-planning.md`
   - [ ] `garden/soil/workflows/program-execution.md`
+- [ ] **(新)** VPS CouchDB + Obsidian LiveSync セットアップ手順策定
+- [ ] **(新)** 平文 MD ミラー daemon 実装方針(`_changes` feed リスナ)
+- [ ] **(新)** gaku-co5.0 側「LINE 返信 → board MD 書き戻し」の連携仕様
 
 ## 主要な決定の索引
 
@@ -128,9 +142,17 @@ HMC SKILL を順次 HMG に移植・自律化。
 | workflow は目的不変・方法は改善対象(各ステップに改善余地表) | 2026-05-24 | [decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md](../docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md) |
 | 種は責務で分割(同タイミングでも分ける) | 2026-05-24 | [sessions/2026-05-24-session5.md](../docs/sessions/2026-05-24-session5.md) |
 | 最初の種 = `shift_manager/monthly-shift-survey`(月初1日アンケート送信) | 2026-05-24 | [sessions/2026-05-24-session5.md](../docs/sessions/2026-05-24-session5.md) |
+| タスクマスタの置き場 = Obsidian LiveSync + VPS CouchDB(数秒push同期) | 2026-05-25 | [decisions/2026-05-25-daily-workflow-and-task-master-architecture.md](../docs/decisions/2026-05-25-daily-workflow-and-task-master-architecture.md) |
+| backlog がマスタ、active_tasks は派生ビュー(全 recurring が backlog 経由) | 2026-05-25 | 同上 |
+| デイリーワークフローの種は 4本立て(recurring-spawn / morning-briefing / night-review / inbox-process) | 2026-05-25 | 同上 |
+| 種の頭脳 = Claude Code ヘッドレス起動 on VPS(Garden 全体に適用) | 2026-05-25 | 同上 |
+| Triage 対話チャネル = LINE + board MD ハイブリッド(返信2系統) | 2026-05-25 | 同上 |
+| night-review = 常に処理(差分のみ反映、active は必ずクリア) | 2026-05-25 | 同上 |
+| `## 追加` 締切なしタスク = 翌日デフォルトで暫定締切自動付与 + 翌朝 Triage で確定 | 2026-05-25 | 同上 |
 
 ## 直近のセッション
 
+- [2026-05-25 セッション6](../docs/sessions/2026-05-25-session6.md) — デイリーワークフローの種化アーキテクチャ確定(4本立て + Claude Code ヘッドレス + LiveSync + Triage ハイブリッド)
 - [2026-05-24 セッション5](../docs/sessions/2026-05-24-session5.md) — workflow を正本かつ改善対象として整備、monthly-cycle 詳細化、コドモン登録、種候補3本に整理
 - [2026-05-23 セッション4](../docs/sessions/2026-05-23-session4.md) — 種(seeds) 設計の基本方針(時計のメタファ・ガクコ統合・剪定振り分け)
 - [2026-05-23 セッション3](../docs/sessions/2026-05-23-session3.md) — workflows/ toC原っぱ大学 3階層初期化・飯田淳毅 staff 追加

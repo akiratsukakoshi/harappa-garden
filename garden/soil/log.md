@@ -150,3 +150,10 @@
 - pages: [[kodomon]]
 - summary: 月末稼働表作成フローに登場する外部システム。学童・保育園向け ICT。放サボの参加者管理とスタッフ勤怠に使用。API/MCP 提供有無は未調査(改善余地 ❓ で記録)。CSV エクスポート → 稼働表に手入力が現状。CSV パーサ実装(💡着手可能)を改善候補として明記。
 - source: 塚越さん 2026-05-24 セッション5
+
+## [2026-05-25] ingest | workflows/daily-cycle.md を A 案テンプレで新規起草
+- by: claude
+- type: ingest
+- pages: [[daily-cycle]], workflows/README.md (関連メモのみ)
+- summary: セッション6 で「HMC のコア機能(朝ブリーフィング → タスク化 → 夜の振り返り)が workflows/ に未登録」が発覚。HMC `hmc_pilot` SKILL の Mode 1/2/3 を Garden 化方針(種起点)で書き直し、5 ステップ構成(recurring-spawn / morning-briefing / 日中編集 / night-review / inbox-process)で起草。各ステップに目的・現状の方法・改善余地表を A 案テンプレで配置。データモデル(backlog=マスタ、active=派生ビュー)も明記。
+- source: 塚越さん 2026-05-25 セッション6、docs/decisions/2026-05-25-daily-workflow-and-task-master-architecture.md, HMC hmc_pilot SKILL
