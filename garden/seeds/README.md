@@ -2,7 +2,7 @@
 type: index
 status: active
 last_updated: 2026-05-25
-last_updated_by: claude
+last_updated_by: claude (with 塚越さん, セッション8)
 ---
 
 # garden/seeds/ — 種(自律トリガー)
@@ -97,9 +97,9 @@ outputs:
 
 # === ④ 誰に剪定依頼するか(pruning) ===
 pruning:
-  channel: line | board_with_notify | board   # 重さで自動振り分け(ADR セッション4 決定6)
-  approver: "[[庭師の wiki link]]"
-  notify:                                     # board_with_notify / board でも notify は必須
+  channel: line | board_with_notify | board | none   # 重さで自動振り分け(ADR セッション4 決定6 + none を S8 で追加)
+  approver: "[[庭師の wiki link]]" | null            # channel: none なら null
+  notify:                                            # channel: none なら null。board_with_notify / board は notify 必須
     via: gaku-co
     group: personal | core_team | staff
     template: |
@@ -177,6 +177,10 @@ workflows/ と同じ表形式。❓未検証 / 💡着手可能 / ✋検討済 /
 
 - watcher daemon が glob を監視。マッチ → `claude -p` 起動。
 - daemon 実装は Phase 3 課題(`daily-pilot/inbox-process` と合わせて設計)。
+- event 種は追加フィールド(セッション8 で導入、合意要):
+  - `trigger.exclude` — watch 対象から除外する glob(例: `processed/**`)
+  - `trigger.debounce` — 連続書き込み中のファイナル状態待ち(例: `10s`)
+  - `{event.path}` — マッチファイルのパス(computed_inputs / prompt で参照可能)
 
 ### state-change 種
 
@@ -225,13 +229,25 @@ workflows/ と同じ表形式。❓未検証 / 💡着手可能 / ✋検討済 /
 | 種 ID | trigger | HMC依存 | 該当Phase | 状態 | 一行 |
 |---|---|---|---|---|---|
 | [shift_manager/monthly-shift-survey](shift_manager/monthly-shift-survey.md) | cron 月初1日 | あり | **3c** | draft | 翌々月シフトアンケートを下書き → 剪定 → staff LINE 配信 |
-| daily-pilot/recurring-spawn | cron 毎日 06:25 | なし | **3a** | 構想 | recurring_master を見て、当該期間のインスタンスを backlog に追加 |
-| daily-pilot/morning-briefing | cron 毎日 06:30 | なし | **3a** | 構想 | backlog から今日締切を active 抽出 + calendar + Triage + LINE |
-| daily-pilot/night-review | cron 毎日 22:30 | なし | **3a** | 構想 | active の `[x]/[ ]/追加` を backlog/archive 反映 + LINE 報告 |
-| daily-pilot/inbox-process | event | なし | **3a** | 構想 | inbox/*.md 投入 → 振り分け → backlog 追記 |
+| [daily-pilot/recurring-spawn](daily-pilot/recurring-spawn.md) | cron 毎日 06:25 | なし | **3a** | draft | recurring_master を見て、当該期間のインスタンスを backlog に追加 |
+| [daily-pilot/morning-briefing](daily-pilot/morning-briefing.md) | cron 毎日 06:30 | なし | **3a** | draft | backlog から今日締切を active 抽出 + calendar + Triage + LINE |
+| [daily-pilot/night-review](daily-pilot/night-review.md) | cron 毎日 22:30 | なし | **3a** | draft | active の `[x]/[ ]/追加` を backlog/archive 反映 + LINE 報告 |
+| [daily-pilot/inbox-process](daily-pilot/inbox-process.md) | event | なし | **3a** | draft | inbox/*.md 投入 → 振り分け → backlog 追記 |
 | shift_manager/month-end-working-hours-prep | cron 月末 | あり | **3c** | 構想 | 稼働表準備(検証チェックリスト+generate+コドモン手入力リマインド) |
 | shift_manager/monthly-working-hours-confirmation | cron 月初1日 | あり | **3c**(保留) | 構想 | 稼働時間確認依頼。庭師の「見せ方」決定後に着手 |
 | shift_manager/monthly-shift-finalize | cron 月初10日 | あり | **3c** | 構想 | シフト確定+稼働確認締切の集約通知 |
+
+## スキーマ拡張メモ(セッション8 導入・合意要)
+
+daily-pilot 4本の draft 過程で以下のフィールドを新設した。Phase 3a 実装入口で塚越さんと合意確認する。
+
+| フィールド | 用途 | 導入種 |
+|---|---|---|
+| `pruning.channel: none` | 自律完結種(剪定なし)用。approver/notify は null | recurring-spawn / night-review / inbox-process |
+| `on_complete` (frontmatter top-level) | 剪定なしで完了報告だけ送る種用。`via: gaku-co` + `endpoint: /send` + `body.template_summary` | night-review |
+| `trigger.exclude` | event 種の watch 対象から除外する glob | inbox-process |
+| `trigger.debounce` | event 種の連続書き込みファイナル状態待ち | inbox-process |
+| `{event.path}` 変数 | event 種で watcher daemon が渡すマッチファイルパス。computed_inputs / prompt から参照可 | inbox-process |
 
 ## Phase 3a の前提インフラ(VPS 完結種を動かすための最小セット)
 
