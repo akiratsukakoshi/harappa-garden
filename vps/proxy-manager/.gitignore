@@ -1,0 +1,6 @@
+# NPM の data / letsencrypt は VPS 専有(本 repo では構成のみ管理)
+data/
+letsencrypt/
+
+# backup は SSL 秘密鍵を含むためローカル WSL のみに保管
+backups/*.tar.gz

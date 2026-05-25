@@ -1,0 +1,3 @@
+# secret はローカル WSL + VPS の .env のみ。本 repo には .env.example のみ commit
+.env
+*.db

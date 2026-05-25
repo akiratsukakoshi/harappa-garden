@@ -1,0 +1,2 @@
+*/15 * * * * find /home/vps-harappa/.openclaw/agents/main/sessions/ -name "*.lock" -mmin +15 -delete -print >> /tmp/lock-cleaner.log 2>&1
+0 19 * * * docker restart gaku-co-oc_openclaw-gateway_1 >> /tmp/openclaw-restart.log 2>&1

@@ -26,3 +26,10 @@ run_log.txt
 # Secrets
 docs/security/secrets/*
 !docs/security/secrets/.gitkeep
+
+# VPS リソース管理(secret / backup)
+vps/proxy-manager/backups/*.tar.gz
+vps/proxy-manager/data/
+vps/proxy-manager/letsencrypt/
+vps/ig_scheduler/.env
+vps/**/*.db

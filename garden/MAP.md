@@ -7,11 +7,11 @@
 HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォーム。
 庭師=塚越さん、エージェント群=自律的に育つ生態系。HMC(操縦席)からの進化版(庭=育てる生態系)。
 
-## 現在地 @2026-05-25
+## 現在地 @2026-05-26
 
-- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種 draft 5本 + **Phase 3a A-2 完了(CouchDB + LiveSync 三端末同期 動作)**
-- **直近セッション**: [2026-05-25 セッション10](../docs/sessions/2026-05-25-session10.md) — Phase 3a A-2(CouchDB + Obsidian Self-hosted LiveSync)実装完了。PC ↔ iPhone ↔ VPS の三角同期がほぼリアルタイムで動作
-- **直近の重要決定**: 既存 vault `gakuchovault` をそのまま LiveSync 化(Remotely Sync 無効化、Dropbox は放置)/ CouchDB を `proxy-manager_default` external network に参加させる 2NIC 方式 / E2EE オン + Path/Properties Obfuscation OFF(VPS daemon が平文 MD を扱うため)/ 端末追加は Setup URI 方式必須 / NPM パスワードリセットは `bcrypt`(`bcryptjs` ではない)
+- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種 draft 5本 + Phase 3a A-2 完了 + **VPS 管理体制確立(セッション11)**
+- **直近セッション**: [2026-05-26 セッション11](../docs/sessions/2026-05-26-session11.md) — VPS 管理体制(`vps/` ディレクトリ)設立。ガクコ系 / その他系の2系統分離、NPM backup 初回取得成功
+- **直近の重要決定**: VPS 管理は本 repo `vps/` で集約(ハラッパ直結 + ig_scheduler) / ガクコは別 repo 継続 + 参照のみ / NPM 設定は定期 export(`vps/proxy-manager/export.sh`)+ 本 repo 内に backup(git 除外) / secret は現状継続(`docs/security/secrets/` 平文 + git 除外)
 
 ## 区画別ステータス
 
@@ -32,6 +32,7 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
 | 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + スキーマ草案(+拡張5項目 暫定)+ draft 5本 + 案 E 合意 + **`.scratch/` で最小ランチャー試作のエンドツーエンド検証 OK(S9)** |
 | サービス (services) | [garden/services/](services/) | 🌱 | **garden-couchdb 稼働中(S10)**。Docker, 127.0.0.1:5984 + NPM 経由 `https://gardendb.harappa.monster` |
+| VPS 管理 | [vps/](../vps/) | 🌱 | **本 repo で正本管理開始(S11)**。proxy-manager / ig_scheduler / cron 構成ミラー + NPM backup 取得 + dev-flow + recovery 整備 |
 | 区画 (plots) | garden/plots/ | ⬜ | HMC SKILL の Garden 化版 |
 | 番人 (watchers) | garden/watchers/ | ⬜ | 監視エージェント |
 | 苗床 (nursery) | garden/nursery/ | ⬜ | 試行領域 |
@@ -97,7 +98,11 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 #### Phase 3b: HMC の VPS 移植 + secret 管理設計
 
-- [ ] **secret 管理設計の確定(セッション7 議論B 継続)** — 保管方式・rotation・信頼境界・VPS ハードニング
+- [x] **VPS 管理体制の確立(セッション11)** — `vps/` ディレクトリ + ガクコ系/その他系の2系統分離 + NPM backup 取得スクリプト
+- [ ] **NPM backup の定期実行化**(週次 cron で `vps/proxy-manager/export.sh` を回す)
+- [ ] **NPM backup の logs 除外**(現状 272 ファイル中の多くがログ。`export.sh` に `--exclude='data/logs/*'` 追加)
+- [ ] **secret の外部 storage 二重化**(現状ローカル WSL のみ。1Password / 暗号化 zip 等)
+- [ ] **VPS スナップショット自動化**(`docker ps` / `df -h` / 構成差分の cron 取得 → `vps/snapshots/`)
 - [ ] `docs/security/README.md` を VPS 環境にも拡張(現状は WSL 前提)
 - [ ] HMC の VPS 移植 or 必要部分切り出し(まず shift_manager の `generate_shift_form.py` から)
 - [ ] HMC credentials の VPS 配置(Freee / Google OAuth・人事労務 freee)
@@ -149,7 +154,7 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [ ] **(新)** Phase 3a 次回着手の優先順位判断 — A-3(平文 MD ミラー daemon、本命) vs A-1(本番ランチャー) vs 連絡板設計
 
 ### Claude
-- [ ] 次回セッション開始時に本 MAP.md + 直近セッション(10)サマリ + 2026-05-25 ADR 4本 + [docs/vps/current-state.md](../docs/vps/current-state.md) を読む
+- [ ] 次回セッション開始時に本 MAP.md + 直近セッション(11)サマリ + 2026-05-26 ADR + [vps/README.md](../vps/README.md) を読む
 - [x] 種の YAML スキーマ設計 + `monthly-shift-survey` draft(セッション7 完了)
 - [x] daily-pilot 系 4種の draft 起草(セッション8 完了)
 - [x] VPS 現状把握 + Claude Code 動作確認 + 最小ランチャー試作の cron 検証(セッション9 完了)
@@ -222,10 +227,16 @@ HMC SKILL を順次 HMG に移植・自律化。
 | docker-compose v1.29 互換のため `version: '3.8'` + `-p garden-couchdb` | 2026-05-25 (S10) | 同上 |
 | NPM パスワードリセットは `bcrypt`(`bcryptjs` ではない)+ ハッシュ長 assertion 必須 | 2026-05-25 (S10) | 同上 |
 | iPhone は新規 vault `gakuchovault-ls` で Fetch(既存 vault は触らず、ダメージ 0 戦略) | 2026-05-25 (S10) | 同上 |
+| VPS 管理は本 repo `vps/` で集約(ハラッパ直結 + ig_scheduler) | 2026-05-26 (S11) | [decisions/2026-05-26-vps-management-policy.md](../docs/decisions/2026-05-26-vps-management-policy.md) |
+| ガクコは別 repo 継続、本 repo からは参照リンクのみ(submodule 不採用) | 2026-05-26 (S11) | 同上 |
+| NPM 内部 DB は定期 export(`vps/proxy-manager/export.sh`)→ 本 repo `backups/` に保管(git 除外) | 2026-05-26 (S11) | 同上 |
+| VPS ↔ ローカル の root 所有ファイル取得は alpine コンテナ経由(sudo 不要パターン化) | 2026-05-26 (S11) | 同上 |
+| 開発フロー2系統: (a) ガクコ系=GitHub 経由 / (b) その他=本 repo + scp/rsync | 2026-05-26 (S11) | [vps/dev-flow.md](../vps/dev-flow.md) |
 
 ## 直近のセッション
 
-- [2026-05-25 セッション10](../docs/sessions/2026-05-25-session10.md) — **Phase 3a A-2 完了: CouchDB + Obsidian LiveSync 三端末同期動作開始**
+- [2026-05-26 セッション11](../docs/sessions/2026-05-26-session11.md) — **VPS 管理体制確立**(`vps/` ディレクトリ + ガクコ系/その他系の2系統分離 + NPM backup 初回取得)
+- [2026-05-25 セッション10](../docs/sessions/2026-05-25-session10.md) — Phase 3a A-2 完了: CouchDB + Obsidian LiveSync 三端末同期動作開始
 - [2026-05-25 セッション9](../docs/sessions/2026-05-25-session9.md) — VPS 現状把握 + Claude Code v2.1.150 動作確認 + 最小ランチャー試作(cron→claude -p→ログ)エンドツーエンド成立
 - [2026-05-25 セッション8](../docs/sessions/2026-05-25-session8.md) — daily-pilot 4本 draft 起草 + スキーマ拡張 5 項目 + 案 E(recur マーカー方式)
 - [2026-05-25 セッション7](../docs/sessions/2026-05-25-session7.md) — 種スキーマ起草 + `monthly-shift-survey` draft + cron 実行ホスト=VPS確定 + Phase 3a/3b/3c 細分 + VPS secret 管理方針
