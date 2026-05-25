@@ -22,11 +22,14 @@ last_updated_by: claude (with 塚越さん, セッション8)
 garden/seeds/
 ├── README.md                    ← 本ファイル(運用ルール+スキーマ定義)
 ├── .log/                        ← 種実行ログ(YYYY-MM-DD-{seed}.log)
+├── .scratch/                    ← 試作領域(本番ランチャー設計が固まったら削除)
 └── {plot}/                      ← plot 別(HMC SKILL 名と原則一致)
     └── {seed-name}.md           ← 1種 = 1ファイル
 ```
 
 `{plot}` は当面 HMC SKILL 名と一致させる(shift_manager / daily-pilot / finance_importer …)。将来 `garden/plots/` で区画を独立定義する時に同名対応を維持する。
+
+`.scratch/` はセッション9(2026-05-25)で導入。VPS 上で cron → claude -p → ログ生成 のエンドツーエンドを検証する最小スクリプトを置く。本番ランチャー(frontmatter パース・on_failure・retry 等)の設計が固まったら削除する。
 
 ## 実行ホスト(セッション7 確定)
 
