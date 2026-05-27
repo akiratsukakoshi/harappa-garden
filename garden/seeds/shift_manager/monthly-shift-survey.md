@@ -56,7 +56,7 @@ execute:
          - 生成された Google フォーム URL を取得・記録する
 
       3. **board に剪定依頼を起草**
-         - garden/board/pending/{today}-monthly-shift-survey.md を作成
+         - /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md を作成
          - 内容(後述のテンプレ参照):
            a. 配信予定の LINE 本文(編集可)
            b. フォーム URL
@@ -75,9 +75,9 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: board_draft
-    path: garden/board/pending/{today}-monthly-shift-survey.md
+    path: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md
   - kind: log
-    path: garden/seeds/.log/{today}-monthly-shift-survey.log
+    path: /home/vps-harappa/garden-mirror/garden/log/{today}-monthly-shift-survey.log
   # フォーム生成は副作用として Google Sheets / Forms に直接書き込まれる
   # (HMC SKILL の責務)
 
@@ -90,7 +90,7 @@ pruning:
     group: personal
     template: |
       📋 {target_month_jp}シフトアンケート 下書きあります
-      → board/pending/{today}-monthly-shift-survey.md
+      → /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md
       確認 → 承認で staff LINE 配信
 
 # === ⑤ 承認後の振る舞い ===
@@ -104,7 +104,7 @@ post_approval:
       board ファイル `## 配信本文` セクション全文を message として送信。
       フォーム URL を含む。
   on_send_success:
-    - board ファイルを garden/board/processed/ へ移動
+    - board ファイルを /home/vps-harappa/garden-mirror/garden/board/processed/ へ移動
     - audit.last_outcome = "sent"
     - LINE で庭師に完了通知(personal)
   on_send_failure:
@@ -116,7 +116,7 @@ post_approval:
 idempotency:
   key: monthly-shift-survey-{target_month}
   guard: |
-    既に board/pending/ or board/processed/ に {target_month} 用の本種ファイルが
+    既に /home/vps-harappa/garden-mirror/garden/board/pending/ or .../processed/ に {target_month} 用の本種ファイルが
     あれば、新規発火しない(2重実行防止)。
 
 # === ⑦ 失敗時の振る舞い ===
@@ -168,7 +168,7 @@ frontmatter の `execute` / `pruning` / `post_approval` を参照。要約:
 
 ## board ファイルのテンプレ(後述)
 
-`garden/board/pending/{today}-monthly-shift-survey.md`:
+`/home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md`:
 
 ```markdown
 ---
@@ -253,7 +253,7 @@ LINE 短文返信なら:
 ### Phase 3a 由来の前提(全種共通)
 
 1. 種ランチャー(VPS cron → `claude -p` 起動 + ログ + on_failure)
-2. `garden/board/pending/` と `garden/board/processed/` ディレクトリの構造設計と作成
+2. `/home/vps-harappa/garden-mirror/garden/board/pending/` と `/home/vps-harappa/garden-mirror/garden/board/processed/` ディレクトリの構造設計と作成
 3. ガクコ `/send` 経由配信の最小ループ(LINE 短文返信→board 書き戻しは後追い可)
 
 ### Phase 3b 由来の前提(本種固有)

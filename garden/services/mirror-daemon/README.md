@@ -123,6 +123,7 @@ docker logs -f garden-mirror-daemon
 - **削除はソフト**(空ディレクトリの掃除はしない)
 - **競合解決なし**(LiveSync 側で起きた競合 doc は最後の write が勝つ)
 - **chunk キャッシュは in-memory**(再起動で消える。LRU 風に CHUNK_CACHE_MAX 件で打ち切り)
+- **コンテナは uid 1000(vps-harappa)で動作**(`docker-compose.yml: user: "1000:1000"`)— mirror に書き出すファイルは vps-harappa 所有になる。これにより VPS 上の同ユーザの種(`claude -p`)から書き込みが可能になる(セッション13 で修正)
 
 ## トラブルシュート
 

@@ -5,6 +5,7 @@ services:
     build: .
     container_name: garden-mirror-daemon
     restart: unless-stopped
+    user: "1000:1000"               # vps-harappa(host)と一致させ、書き出しファイルを vps-harappa 所有にする(S13 で追加)
     environment:
       COUCHDB_URL: ${COUCHDB_URL:-http://garden-couchdb:5984}
       COUCHDB_USER: ${COUCHDB_USER}

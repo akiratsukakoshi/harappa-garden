@@ -27,7 +27,7 @@ trigger:
 engine: claude-code
 execute:
   skill: hmc_pilot (HMC)           # 手順参照のみ
-  working_dir: /opt/garden
+  working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
     today: "$(date +%Y-%m-%d)"
     today_md: "$(date +%-m/%-d)"
@@ -41,9 +41,9 @@ execute:
 
     手順:
       1. 入力読み込み
-         - /opt/garden/tasks/active_tasks.md
-         - /opt/garden/tasks/backlog.md
-         - /opt/garden/tasks/archive.md
+         - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md
+         - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md
+         - /home/vps-harappa/garden-mirror/hmc_tasks/archive.md
 
       2. **チェック済みタスク(`[x]`)処理**
          a. 該当タスクの記述を backlog から削除
@@ -96,13 +96,13 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: backlog
-    path: /opt/garden/tasks/backlog.md
+    path: /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md
   - kind: archive
-    path: /opt/garden/tasks/archive.md
+    path: /home/vps-harappa/garden-mirror/hmc_tasks/archive.md
   - kind: active_tasks
-    path: /opt/garden/tasks/active_tasks.md   # クリア後の状態を書き戻す
+    path: /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md   # クリア後の状態を書き戻す
   - kind: log
-    path: /opt/garden/seeds/.log/{today}-night-review.log
+    path: /home/vps-harappa/garden-mirror/garden/log/{today}-night-review.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:
@@ -156,9 +156,9 @@ on_failure:
 depends_on:
   workflow: daily-cycle
   state:
-    - "/opt/garden/tasks/active_tasks.md が存在(空でも可)"
-    - "/opt/garden/tasks/backlog.md が存在・有効"
-    - "/opt/garden/tasks/archive.md が存在(無ければ新規作成)"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md が存在(空でも可)"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/backlog.md が存在・有効"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/archive.md が存在(無ければ新規作成)"
     - "LiveSync 平文 MD ミラーが最新化されている"
     - "ガクコ /send が利用可能(personal グループ)"
   seeds: []
@@ -216,7 +216,7 @@ morning-briefing が翌朝 Triage Q1 として自動エスカレーション(`(b
 | ❓ | 暫定締切 = 翌日固定 | 「金曜の追加 → 月曜暫定」等の営業日ロジックが要るか未検証。最初は単純運用で開始 | 未検証(daily-cycle ステップ4 と同期) |
 | 💡 | 期限超過タスク表示 | LINE 報告で「🚨 期限超過(明日): X件」を別表示(本種で集計可能) | 着手可能 |
 | ❓ | 22:30 固定 | 夜の追加が間に合わない日が出るか未検証。可変化は運用後に判断 | 未検証 |
-| ❓ | `on_complete` フィールド | スキーマ草案に存在しない。剪定なしで完了報告だけ送る種(本種・recurring-spawn の正常通知)のために新設したいか? | 未検証(セッション8 で導入、合意要) |
+| ✋ | `on_complete` フィールド | 剪定なしで完了報告だけ送る種(本種)のために導入。[seed-schema-extensions ADR](../../../docs/decisions/2026-05-27-seed-schema-extensions.md) で正式採用済 | **検討済**(S13 で ADR 化) |
 | 🛠️ | backlog 削除のマッチキー = recur マーカー優先 + タスク名フォールバック | recurring 由来タスクは `<!-- recur:{id}@{period_id} -->` で一意マッチ可能。非 recurring(inbox 由来・手動追加)はタスク名+deadline フォールバック | 実装中(案 E ・セッション8) |
 | ❓ | 非 recurring タスクのマッチキー | recur マーカーがない手動タスクは表記揺れに弱いまま。inbox-process が `<!-- src:inbox/{file} -->` 等を付与する設計余地 | 未検証 |
 | ❓ | active クリア後のテンプレ | `# 今日のタスク` ヘッダのみ残す? 完全空? | 未検証 |
@@ -251,7 +251,7 @@ morning-briefing が翌朝 Triage Q1 として自動エスカレーション(`(b
 ### Phase 3a 由来の前提(全種共通)
 
 1. 種ランチャー(VPS cron → `claude -p` 起動 + ログ + on_failure)
-2. **平文 MD ミラー daemon**(CouchDB `_changes` → `/opt/garden/tasks/*.md` 同期)
+2. **平文 MD ミラー daemon**(CouchDB `_changes` → `/home/vps-harappa/garden-mirror/hmc_tasks/*.md` 同期)— **セッション12 で稼働開始**(`garden-mirror-daemon`)
 3. ガクコ `/send`(personal)経由 LINE 通知の最小ループ
 
 ### 本種固有

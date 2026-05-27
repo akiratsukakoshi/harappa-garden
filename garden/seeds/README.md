@@ -240,17 +240,22 @@ workflows/ と同じ表形式。❓未検証 / 💡着手可能 / ✋検討済 /
 | shift_manager/monthly-working-hours-confirmation | cron 月初1日 | あり | **3c**(保留) | 構想 | 稼働時間確認依頼。庭師の「見せ方」決定後に着手 |
 | shift_manager/monthly-shift-finalize | cron 月初10日 | あり | **3c** | 構想 | シフト確定+稼働確認締切の集約通知 |
 
-## スキーマ拡張メモ(セッション8 導入・合意要)
+## スキーマ拡張(セッション13 ADR で正式化)
 
-daily-pilot 4本の draft 過程で以下のフィールドを新設した。Phase 3a 実装入口で塚越さんと合意確認する。
+セッション8 で導入された 5 項目は [seed-schema-extensions ADR](../../docs/decisions/2026-05-27-seed-schema-extensions.md) で **正式採用済**。詳細は ADR 参照。要約:
 
 | フィールド | 用途 | 導入種 |
 |---|---|---|
 | `pruning.channel: none` | 自律完結種(剪定なし)用。approver/notify は null | recurring-spawn / night-review / inbox-process |
-| `on_complete` (frontmatter top-level) | 剪定なしで完了報告だけ送る種用。`via: gaku-co` + `endpoint: /send` + `body.template_summary` | night-review |
+| `on_complete` (frontmatter top-level) | 剪定なしで完了報告だけ送る種用 | night-review |
 | `trigger.exclude` | event 種の watch 対象から除外する glob | inbox-process |
 | `trigger.debounce` | event 種の連続書き込みファイナル状態待ち | inbox-process |
-| `{event.path}` 変数 | event 種で watcher daemon が渡すマッチファイルパス。computed_inputs / prompt から参照可 | inbox-process |
+| `{event.path}` 変数 | event 種で watcher daemon が渡すマッチファイルパス | inbox-process |
+
+関連 ADR:
+- [recurring-respawn-prevention ADR](../../docs/decisions/2026-05-27-recurring-respawn-prevention.md) — 案 E(`<!-- recur:... -->` マーカー)
+- [vault-folder-layout ADR](../../docs/decisions/2026-05-27-vault-folder-layout.md) — vault 内の `hmc_tasks/` 流用と `garden/` 新設
+- [garden-board-structure ADR](../../docs/decisions/2026-05-27-garden-board-structure.md) — `garden/board/` の内部構造(pending / processed / triage)
 
 ## Phase 3a の前提インフラ(VPS 完結種を動かすための最小セット)
 

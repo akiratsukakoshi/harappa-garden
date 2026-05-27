@@ -9,9 +9,9 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 ## 現在地 @2026-05-27
 
-- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種 draft 5本 + **Phase 3a A-3 完了(平文 MD ミラー daemon)**
-- **直近セッション**: [2026-05-27 セッション12](../docs/sessions/2026-05-27-session12.md) — Phase 3a A-3 実装。LiveSync E2EE 暗号方式の解析(`%=` プレフィックス / PBKDF2 salt は `_local/obsidian_livesync_sync_parameters`)→ Node.js + octagonal-wheels で復号 daemon → VPS デプロイ → 56 ファイル初期同期 + ライブ同期動作確認
-- **直近の重要決定**: mirror-daemon は単方向(CouchDB → MD)/ 実装は Node.js + octagonal-wheels 直接利用 / 配置は VPS `/home/vps-harappa/garden-mirror/` / スコープは MD のみ / Garden サービス追加パターンの 2 例目(`garden-couchdb_default` external network 参加)
+- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種 draft 5本 + **Phase 3a A-3 完了(mirror-daemon)** + **Phase 3a A-1 完動(本番ランチャー実装 + permission mode 確立 + recurring-spawn が backlog.md への書き込みまで完走)** + **ADR 4 本まとめ**
+- **直近セッション**: [2026-05-27 セッション13](../docs/sessions/2026-05-27-session13.md) — 1 セッションで 5 本立てを全走:案 E と スキーマ拡張 5 項目を正式 ADR 化 / vault 内 Garden フォルダ配置 ADR / board 構造 ADR / 既存 draft パス統一(`/opt/garden` → `/home/vps-harappa/garden-mirror/`) / 本番ランチャー実装(`garden/services/launcher/`)+ VPS deploy + recurring-spawn 実走で claude -p が種を完全実行 / mirror-daemon 運用観察項目整理
+- **直近の重要決定**: 既存 `hmc_tasks/` リネームせず流用(daily-pilot 種の I/O 先確定)/ 種ファイルは vault ミラーしない(repo + scp deploy)/ `garden/board/` は `pending` / `processed` / `triage` の 3 系統 / ランチャーは Node.js + 自前 YAML パーサ(最小依存)/ 案 E と 5 項目を正式昇格
 
 ## 区画別ステータス
 
@@ -30,9 +30,10 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-events | [soil/events/](soil/events/) | ⬜ | 個別イベント |
 | 土壌-meetings | [soil/meetings/](soil/meetings/) | ⬜ | 議事録インデックス(Plaud等) |
 | 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
-| 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + スキーマ草案(+拡張5項目 暫定)+ draft 5本 + 案 E 合意 + **`.scratch/` で最小ランチャー試作のエンドツーエンド検証 OK(S9)** |
-| サービス (services) | [garden/services/](services/) | 🌱 | **garden-couchdb(S10)+ garden-mirror-daemon(S12)稼働中**。前者が E2EE 暗号データを保管、後者が平文 MD を `/home/vps-harappa/garden-mirror/` に展開 |
-| 平文 MD ミラー | `~/garden-mirror/`(VPS) | 🌱 | **56 ファイル同期中 + ライブ更新 OK(S12)**。種は素朴に MD を読める状態。daemon ソースは [garden/services/mirror-daemon/](services/mirror-daemon/) |
+| 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + **スキーマ拡張5項目 ADR 化(S13)** + draft 5本(全パス基準統一済)+ **案 E 正式 ADR(S13)** + **本番ランチャー初版 + VPS 実走 OK(S13)** |
+| サービス (services) | [garden/services/](services/) | 🌱 | **garden-couchdb(S10)+ garden-mirror-daemon(S12)+ garden-launcher(S13)稼働中** |
+| 平文 MD ミラー | `~/garden-mirror/`(VPS) | 🌱 | **58 ファイル同期中 + ライブ更新 OK + 連続編集追従 OK(S12-13)**。`hmc_tasks/` 既存 + `garden/` 新設方針確定(S13)。daemon = [garden/services/mirror-daemon/](services/mirror-daemon/) |
+| 本番ランチャー | [garden/services/launcher/](services/launcher/) | 🌱 | **S13 初版:frontmatter パース + 並行制御 + 状態永続化 + VPS deploy + recurring-spawn 実走で claude -p が種を完全に読み解いた**(書き込みは permission mode 待ち) |
 | VPS 管理 | [vps/](../vps/) | 🌱 | **本 repo で正本管理開始(S11)**。proxy-manager / ig_scheduler / cron 構成ミラー + NPM backup 取得 + dev-flow + recovery 整備 |
 | 区画 (plots) | garden/plots/ | ⬜ | HMC SKILL の Garden 化版 |
 | 番人 (watchers) | garden/watchers/ | ⬜ | 監視エージェント |
@@ -88,13 +89,22 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [x] **VPS 現状把握 + Claude Code v2.1.150 動作確認 + 最小ランチャー試作の cron 検証 OK**(2026-05-25 セッション9)
 - [x] **A-2: VPS CouchDB + Obsidian LiveSync 実装完了**(2026-05-25 セッション10)— PC ↔ iPhone ↔ VPS 三端末リアルタイム同期動作
 - [x] **A-3: 平文 MD ミラー daemon 実装完了**(2026-05-27 セッション12)— [garden/services/mirror-daemon/](services/mirror-daemon/) 稼働中、56 ファイル初期同期 + ライブ同期動作確認
-- [ ] **A-1: 本番ランチャー実装**(frontmatter パース・on_failure・retry・複数種並行制御) → `.scratch/` を育てる
+- [x] **A-1: 本番ランチャー実装(初版)+ VPS 実走検証**(2026-05-27 セッション13)— [garden/services/launcher/](services/launcher/) で frontmatter パース・並行制御・状態永続化・dry-run。recurring-spawn 実走で claude -p が種を完全実行(書き込みは permission mode 判断待ち)
+- [x] **連絡板 `garden/board/` 構造設計 ADR**(セッション13)— pending / processed / triage の 3 系統、テンプレ、ライフサイクル、書き戻し経路の保留明示
+- [x] **gakuchovault 内 Garden フォルダ設計 ADR**(セッション13)— `hmc_tasks/` リネームせず流用、`garden/` 新設、種ファイルは vault ミラーしない
+- [x] **スキーマ拡張 5 項目 + 案 E の正式 ADR 化**(セッション13)— 暫定 → 正式へ昇格、既存 draft の改善余地表も「検討済」に更新
+- [x] **既存 draft 5本のパス統一**(セッション13)— `/opt/garden/...` → `/home/vps-harappa/garden-mirror/{hmc_tasks,garden}/...`
+- [x] **claude -p permission mode 確立**(セッション13 続き)— `~/.claude/settings.json` で `Write/Edit/Read` を `hmc_tasks/` `garden/` に path-scoped allow
+- [x] **mirror-daemon 権限修正**(セッション13 続き)— `user: "1000:1000"` 追加 + 既存ファイル `chown -R vps-harappa:vps-harappa`、daemon が host vps-harappa として書き出すように
+- [x] **vault 内 `garden/` 新設**(セッション13 続き)— `garden/{README.md, board/{pending,processed,triage}, inbox/{processed,archive}, log}/` 一式 created。`.archive` は Obsidian で作成不可だったため `archive/` に統一
+- [x] **`hmc_tasks/recurring_master.md` に id 後付け**(セッション13 続き)— 15 件全部に `<!-- id:rNNN -->` 振り済
+- [x] **recurring-spawn 副作用あり実走完動作確認**(セッション13 続き)— `## 定期` セクション新設 + `r001 暗号資産の相場確認` 書き込み成功 🎉
+- [ ] **A-1 続き**: on_failure.retry の自動化・fallback の LINE 通知発火・audit の永続化整理
 - [ ] **watcher daemon 実装**(event 種用、glob 監視)
-- [ ] 連絡板(`garden/board/`)の構造設計(pending / processed の切り分け、配信本文セクション規約、recur マーカー連動)
 - [ ] **gaku-co5.0 側「LINE 返信 → board MD 書き戻し」処理を実装**
-- [ ] **recurring_master.md のスキーマ確定 + 既存 recurring の棚卸し + 移行計画**
-- [ ] **スキーマ拡張 5 項目 + 案 E の正式 ADR 化**(暫定 → 正式へ)
-- [ ] gakuchovault 内 Garden フォルダ設計(`hmc_tasks/` 既存 + 新規 `garden/` の関係整理)
+- [ ] **書き戻し経路の確定**(mirror-daemon 双方向化 vs CouchDB 直書き)
+- [ ] **recurring_master.md のスキーマ確定 + id 後付け + 既存 recurring の棚卸し + 移行計画**
+- [ ] **vault に `garden/` フォルダを新設**(塚越さん側で実施 → LiveSync 反映)
 - [ ] daily-pilot 4本の active 化
 
 #### Phase 3b: HMC の VPS 移植 + secret 管理設計
@@ -152,21 +162,25 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [ ] (継続) `~/codex-auth.json` の用途確認(Garden で不要なら削除)
 - [ ] (継続) subscription auth の同時セッション制限が問題になった時の API key 移行判断
 - [ ] **(継続)** iPhone 旧 vault(Dropbox 経由)の整理(`gakuchovault-ls` 検証後、削除可否判断)
-- [ ] **(新)** Phase 3a 次回着手の優先順位判断 — A-1(本番ランチャー) vs 連絡板設計 vs gakuchovault 内 Garden フォルダ設計 vs ADR 化(案 E + 拡張5項目)
-- [ ] **(新)** mirror-daemon の単方向で十分か、書き戻し経路をどこに置くか(Phase 3a A-1 + 連絡板と同期判断)
+- [x] **(済)** Phase 3a 次回着手の優先順位判断 — セッション13 で 5 本立てを全走 (A-1 / 連絡板 / vault layout / 案 E ADR / 拡張5項目 ADR + mirror-daemon 観察)
+- [x] **(済)** claude -p の permission mode = B 案(settings.json で path-scoped allow)で確定
+- [x] **(済)** vault 内 `garden/` フォルダ新設(Obsidian 作業完了)
+- [x] **(済)** `hmc_tasks/recurring_master.md` に id 後付け(15 件)
+- [ ] **(新)** **テスト残骸の整理** = LiveSync 削除イベント不帰問題として継続調査(Obsidian の "Deleted files" 設定 / LiveSync 設定の確認が必要)
 
 ### Claude
-- [ ] 次回セッション開始時に本 MAP.md + 直近セッション(12)サマリ + 2026-05-27 ADR + [garden/services/mirror-daemon/README.md](services/mirror-daemon/README.md) を読む
+- [ ] 次回セッション開始時に本 MAP.md + 直近セッション(13)サマリ + 2026-05-27 ADR 4 本 + [garden/services/launcher/README.md](services/launcher/README.md) + [garden/services/mirror-daemon/OPERATION-LOG.md](services/mirror-daemon/OPERATION-LOG.md) を読む
 - [x] 種の YAML スキーマ設計 + `monthly-shift-survey` draft(セッション7 完了)
 - [x] daily-pilot 系 4種の draft 起草(セッション8 完了)
 - [x] VPS 現状把握 + Claude Code 動作確認 + 最小ランチャー試作の cron 検証(セッション9 完了)
 - [x] CouchDB + LiveSync 実装 + 三端末同期動作確認(セッション10 完了)
 - [x] **Phase 3a A-3 平文 MD ミラー daemon 実装完了**(セッション12 完了)
-- [ ] **次回本命候補(1)**: Phase 3a A-1 — 本番ランチャー(`.scratch/` を育てる)
-- [ ] **次回本命候補(2)**: 連絡板 `garden/board/` の構造設計(A-1 と密結合)
-- [ ] **次回本命候補(3)**: gakuchovault 内 Garden フォルダ設計(既存 `hmc_tasks/` + 新規 `garden/`)
-- [ ] **次回本命候補(4)**: 案 E + スキーマ拡張 5 項目の ADR 化
-- [ ] **次回本命候補(5)**: recurring_master.md のスキーマ確定 + 既存棚卸し + 移行計画
+- [x] **セッション13 で 5 本立て全走完了 + 続編で A-1 完動作**: A-1 ランチャー初版 + 連絡板 ADR + vault layout ADR + 案 E ADR + 拡張 5 項目 ADR + mirror-daemon 観察ログ + permission mode 確立 + mirror-daemon 権限修正 + recurring-spawn 副作用あり実走成功
+- [ ] **次回本命候補(1)**: morning-briefing と night-review を **実走検証**(recurring-spawn と同じ流れで)。発火は cron 化(`crontab -e` で 06:25 / 06:30 / 22:30)
+- [ ] **次回本命候補(2)**: watcher daemon 実装(inbox-process / morning-briefing resume 用)
+- [ ] **次回本命候補(3)**: gaku-co5.0 側「LINE 返信 → board MD 書き戻し」連携(書き戻し経路の確定とセット)
+- [ ] **次回本命候補(4)**: A-1 の後追い実装(on_failure.retry の自動化・fallback LINE 通知)
+- [ ] **次回本命候補(5)**: vault に `garden/` フォルダ新設 + `hmc_tasks/recurring_master.md` に id 後付け
 - [ ] **workflow 書き直し残り(A 案テンプレ適用)**:
   - [ ] `garden/soil/workflows/annual-quarterly-planning.md`
   - [ ] `garden/soil/workflows/program-execution.md`
@@ -240,9 +254,16 @@ HMC SKILL を順次 HMG に移植・自律化。
 | LiveSync の `%=` プレフィックスは HKDF + AES-GCM。PBKDF2 salt は `_local/obsidian_livesync_sync_parameters` doc に格納 | 2026-05-27 (S12) | 同上 |
 | mirror 配置 = VPS `/home/vps-harappa/garden-mirror/` / MD のみスコープ | 2026-05-27 (S12) | 同上 |
 | Garden サービス追加パターンの 2 例目: `garden-couchdb_default` external network 参加 | 2026-05-27 (S12) | 同上 |
+| 案 E(recur マーカー)を正式 ADR 化 + recurring_master の `id:` 必須化 | 2026-05-27 (S13) | [decisions/2026-05-27-recurring-respawn-prevention.md](../docs/decisions/2026-05-27-recurring-respawn-prevention.md) |
+| 種スキーマ拡張 5 項目を正式 ADR 化(暫定 → 正式) | 2026-05-27 (S13) | [decisions/2026-05-27-seed-schema-extensions.md](../docs/decisions/2026-05-27-seed-schema-extensions.md) |
+| vault 内 `hmc_tasks/` リネームせず流用 + `garden/` 新設 + 種ファイルは vault ミラーしない | 2026-05-27 (S13) | [decisions/2026-05-27-vault-folder-layout.md](../docs/decisions/2026-05-27-vault-folder-layout.md) |
+| `garden/board/` は `pending` / `processed` / `triage` の 3 系統 + 配信本文セクション切り出し規約 | 2026-05-27 (S13) | [decisions/2026-05-27-garden-board-structure.md](../docs/decisions/2026-05-27-garden-board-structure.md) |
+| 本番ランチャー(`garden/services/launcher/`)初版 = Node.js + 自前 YAML パーサ + flock + state.json | 2026-05-27 (S13) | [sessions/2026-05-27-session13.md](../docs/sessions/2026-05-27-session13.md) |
+| 種ファイル基準パス = `/home/vps-harappa/garden-mirror/`(`/opt/garden` 系を一掃) | 2026-05-27 (S13) | [decisions/2026-05-27-vault-folder-layout.md](../docs/decisions/2026-05-27-vault-folder-layout.md) |
 
 ## 直近のセッション
 
+- [2026-05-27 セッション13](../docs/sessions/2026-05-27-session13.md) — **5本立て全走**:案 E + 拡張5項目 を正式 ADR 化 / vault layout ADR / board structure ADR / 既存 draft パス統一 / **本番ランチャー初版 + VPS 実走で claude -p が種を完全実行** / mirror-daemon 運用観察ログ
 - [2026-05-27 セッション12](../docs/sessions/2026-05-27-session12.md) — **Phase 3a A-3 完了: 平文 MD ミラー daemon 実装**(`garden-mirror-daemon` 稼働、56 ファイル初期同期 + ライブ更新動作確認)
 - [2026-05-26 セッション11](../docs/sessions/2026-05-26-session11.md) — **VPS 管理体制確立**(`vps/` ディレクトリ + ガクコ系/その他系の2系統分離 + NPM backup 初回取得)
 - [2026-05-25 セッション10](../docs/sessions/2026-05-25-session10.md) — Phase 3a A-2 完了: CouchDB + Obsidian LiveSync 三端末同期動作開始

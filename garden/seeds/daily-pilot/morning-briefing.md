@@ -28,7 +28,7 @@ trigger:
 engine: claude-code
 execute:
   skill: hmc_pilot (HMC)           # 当面は手順参照のみ。実行は Garden 内 MD + MCP(Calendar)で完結
-  working_dir: /opt/garden
+  working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
     today: "$(date +%Y-%m-%d)"
     today_md: "$(date +%-m/%-d)"
@@ -41,10 +41,10 @@ execute:
 
     手順:
       1. 入力読み込み
-         - /opt/garden/tasks/backlog.md(deadline = {today} or それ以前のタスクを抽出)
-         - /opt/garden/tasks/active_tasks.md(前夜に night-review がクリアしているはず)
+         - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(deadline = {today} or それ以前のタスクを抽出)
+         - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md(前夜に night-review がクリアしているはず)
          - Google Calendar(MCP)から本日 {today} の予定取得
-         - /opt/garden/board/{today}-morning-briefing.md(存在すれば「resume モード」、後述)
+         - /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md(存在すれば「resume モード」、後述)
 
       2. **resume モード判定**
          - {today}-morning-briefing.md が存在し、`status: awaiting_triage` または塚越さんの
@@ -89,11 +89,11 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: active_tasks
-    path: /opt/garden/tasks/active_tasks.md
+    path: /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md
   - kind: board_draft
-    path: /opt/garden/board/{today}-morning-briefing.md
+    path: /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md
   - kind: log
-    path: /opt/garden/seeds/.log/{today}-morning-briefing.log
+    path: /home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:
@@ -106,11 +106,11 @@ pruning:
       ✅ {today_jp} ブリーフ
       アクション: {active_count}件 (期限超過: {overdue_count}件)
       予定: {calendar_count}件
-      → /opt/garden/tasks/active_tasks.md
+      → /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md
     template_with_triage: |
       📋 {today_jp} ブリーフ + Triage {triage_count}件
       → 返信(短文)or board 編集で回答
-      → /opt/garden/board/{today}-morning-briefing.md
+      → /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md
 
 # === ⑤ 承認後の振る舞い ===
 # Triage は「approve」ではなく「回答を受けて active を更新」する方式のため post_approval は使わない。
@@ -144,8 +144,8 @@ on_failure:
 depends_on:
   workflow: daily-cycle
   state:
-    - "/opt/garden/tasks/backlog.md が存在・有効"
-    - "/opt/garden/tasks/active_tasks.md が前夜の night-review でクリア済み"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/backlog.md が存在・有効"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md が前夜の night-review でクリア済み"
     - "Google Calendar MCP が稼働(失敗時は警告のみで続行)"
     - "ガクコ /send が利用可能(personal グループ)"
     - "board ファイルの resume を起動する watcher daemon が稼働(Phase 3a インフラ)"
@@ -186,7 +186,7 @@ frontmatter の `execute` / `outputs` / `pruning` を参照。要約:
 
 ## board ファイルのテンプレ(後述)
 
-`/opt/garden/board/{today}-morning-briefing.md`:
+`/home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md` ([garden-board-structure ADR](../../../docs/decisions/2026-05-27-garden-board-structure.md) で triage/ 配置確定):
 
 ```markdown
 ---
@@ -273,8 +273,8 @@ triage_count: 3
 ### Phase 3a 由来の前提(全種共通)
 
 1. 種ランチャー(VPS cron → `claude -p` 起動 + ログ + on_failure)
-2. **平文 MD ミラー daemon**(CouchDB `_changes` → `/opt/garden/tasks/*.md` 同期)
-3. **watcher daemon**(`/opt/garden/board/*.md` 変更検知 → 該当種 resume 起動)
+2. **平文 MD ミラー daemon**(CouchDB `_changes` → `/home/vps-harappa/garden-mirror/hmc_tasks/*.md` 同期)
+3. **watcher daemon**(`/home/vps-harappa/garden-mirror/garden/board/triage/*.md` 変更検知 → 該当種 resume 起動)
 4. Google Calendar MCP の VPS Claude Code への結合
 5. ガクコ `/send`(personal)経由 LINE 通知の最小ループ
 6. gaku-co5.0 側 「LINE 返信 → board MD 書き戻し」 処理の実装

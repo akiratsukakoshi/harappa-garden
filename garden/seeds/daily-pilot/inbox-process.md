@@ -20,15 +20,15 @@ linked_concepts: []
 # === ① いつ点火するか ===
 trigger:
   type: event
-  watch: /opt/garden/inbox/*.md     # 監視対象(glob)
-  exclude: /opt/garden/inbox/processed/**   # 処理済みは無視
+  watch: /home/vps-harappa/garden-mirror/garden/inbox/*.md     # 監視対象(glob)
+  exclude: /home/vps-harappa/garden-mirror/garden/inbox/processed/**   # 処理済みは無視
   debounce: 10s                     # 連続書き込み中はファイナル状態を待つ
 
 # === ② 何を実行するか ===
 engine: claude-code
 execute:
   skill: hmc_pilot (HMC)            # 手順参照のみ
-  working_dir: /opt/garden
+  working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
     target_file: "{event.path}"     # watcher daemon が渡すマッチファイル
     today: "$(date +%Y-%m-%d)"
@@ -63,7 +63,7 @@ execute:
            (night-review と同じ運用 = 翌朝 Triage Q1 で確認される)
 
       5. 処理済みファイルを移動
-         - {target_file} → /opt/garden/inbox/processed/{today}/{元ファイル名}
+         - {target_file} → /home/vps-harappa/garden-mirror/garden/inbox/processed/{today}/{元ファイル名}
          - 既存の同名ファイルがあれば連番付与({元ファイル名}_2.md)
 
       6. ログ出力
@@ -84,11 +84,11 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: backlog
-    path: /opt/garden/tasks/backlog.md
+    path: /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md
   - kind: archive                    # 処理済み inbox 自体は archive 扱い
-    path: /opt/garden/inbox/processed/{today}/{元ファイル名}
+    path: /home/vps-harappa/garden-mirror/garden/inbox/processed/{today}/{元ファイル名}
   - kind: log
-    path: /opt/garden/seeds/.log/{today}-inbox-process.log
+    path: /home/vps-harappa/garden-mirror/garden/log/{today}-inbox-process.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:
@@ -126,9 +126,9 @@ on_failure:
 depends_on:
   workflow: daily-cycle
   state:
-    - "/opt/garden/inbox/ 配下に投入ファイルが存在"
-    - "/opt/garden/inbox/processed/ ディレクトリが存在(無ければ自動作成)"
-    - "/opt/garden/tasks/backlog.md が存在・有効"
+    - "/home/vps-harappa/garden-mirror/garden/inbox/ 配下に投入ファイルが存在"
+    - "/home/vps-harappa/garden-mirror/garden/inbox/processed/ ディレクトリが存在(無ければ自動作成)"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/backlog.md が存在・有効"
     - "watcher daemon が稼働(glob 監視)"
     - "LiveSync 平文 MD ミラーが最新化されている"
   seeds: []
@@ -144,13 +144,13 @@ audit:
 
 ## 目的(不変)
 
-`/opt/garden/inbox/*.md` に投入された外部情報(議事録・letter・メール抽出 等)から、塚越さん宛のアクション項目を抽出し、backlog の適切なカテゴリへ振り分ける。投入元から塚越さんの「今日やること」への流路を自動化する。
+`/home/vps-harappa/garden-mirror/garden/inbox/*.md` に投入された外部情報(議事録・letter・メール抽出 等)から、塚越さん宛のアクション項目を抽出し、backlog の適切なカテゴリへ振り分ける。投入元から塚越さんの「今日やること」への流路を自動化する。
 
 ## 現状の方法
 
 frontmatter の `execute` / `outputs` を参照。要約:
 
-1. watcher daemon が `/opt/garden/inbox/*.md` の新規 / 変更を検知
+1. watcher daemon が `/home/vps-harappa/garden-mirror/garden/inbox/*.md` の新規 / 変更を検知
 2. 該当ファイルを読む(`source:` frontmatter を尊重)
 3. アクション項目を 0〜N 件抽出
 4. backlog の Level 2 ヘッダ(カテゴリ)へ振り分け追記
@@ -165,7 +165,7 @@ frontmatter の `execute` / `outputs` を参照。要約:
 | 議事録(Plaud) | MD(自動文字起こし) | Plaud → inbox/ 自動投入(Phase 3 横断課題) |
 | letter スキャン | MD | `letter_opener` SKILL(HMC)から手動エクスポート |
 | メール抽出 | MD | `email_organizer` SKILL(HMC)から手動エクスポート |
-| 手動投入 | MD | 任意の MD ファイルを `/opt/garden/inbox/` に置く |
+| 手動投入 | MD | 任意の MD ファイルを `/home/vps-harappa/garden-mirror/garden/inbox/` に置く |
 
 `letter_opener` / `email_organizer` の自動連携は Phase 3 後フェーズ・Phase 4 課題。
 
@@ -193,9 +193,9 @@ suggested_category: 開発 | 財務 | 営業 | その他    # 任意。種側ヒ
 | 💡 | 処理結果のレビュー | 翌朝の brief で「inbox から N 件追加」と要約表示(morning-briefing 側で実装) | 着手可能 |
 | ❓ | LINE 即時通知の要否 | 現状なし(翌朝 brief で報告)。緊急性高い投入(letter / 重要メール)で即時通知が要るか未検証 | 未検証 |
 | ❓ | watcher daemon の実装方式 | inotify / fsnotify / polling のどれを採用するか未確定。VPS Docker 環境での選択が要 | 未検証(Phase 3a インフラ課題) |
-| ❓ | event 種の trigger.exclude フィールド | スキーマ草案に存在しない。`processed/` 配下を除外するために追加した。妥当性確認要 | 未検証(セッション8 で導入、合意要) |
-| ❓ | event 種の `{event.path}` 変数 | watcher daemon が渡すファイルパス。スキーマ草案には未定義の変数名。命名規約の正式化要 | 未検証(セッション8 で導入、合意要) |
-| ❓ | trigger.debounce フィールド | スキーマ草案に存在しない。連続書き込み中のファイナル状態待ちのために追加。watcher daemon の責務範囲か種側か再検討 | 未検証(セッション8 で導入、合意要) |
+| ✋ | event 種の trigger.exclude フィールド | `processed/` 除外用。[seed-schema-extensions ADR](../../../docs/decisions/2026-05-27-seed-schema-extensions.md) で正式採用済 | **検討済**(S13 で ADR 化) |
+| ✋ | event 種の `{event.path}` 変数 | watcher daemon が渡すマッチパス。同 ADR で正式化 | **検討済**(S13 で ADR 化) |
+| ✋ | trigger.debounce フィールド | 連続書き込みファイナル待ち。同 ADR で正式採用済(実装方式は Phase 3a A-1 で確定) | **検討済**(S13 で ADR 化) |
 | 💡 | atomic 処理 | ファイル → backlog → 移動 の中断時に二重追加するリスク。lockfile or 一時ファイル経由の atomic 化 | 構想中 |
 | ❓ | カテゴリマッピングの保守 | 投入元 → カテゴリ のマッピング表を MD で持つか、Claude の判断に任せるか | 未検証 |
 
@@ -228,8 +228,8 @@ suggested_category: 開発 | 財務 | 営業 | その他    # 任意。種側ヒ
 ### Phase 3a 由来の前提(全種共通)
 
 1. 種ランチャー(VPS cron → `claude -p` 起動)→ 本種では cron ではなく watcher 駆動
-2. **watcher daemon**(`/opt/garden/inbox/*.md` 監視 → 本種起動 + on_failure)— **本種が前提とする必須インフラ**
-3. **平文 MD ミラー daemon**(CouchDB `_changes` → `/opt/garden/inbox/*.md` 同期)
+2. **watcher daemon**(`/home/vps-harappa/garden-mirror/garden/inbox/*.md` 監視 → 本種起動 + on_failure)— **本種が前提とする必須インフラ**
+3. **平文 MD ミラー daemon**(CouchDB `_changes` → `/home/vps-harappa/garden-mirror/garden/inbox/*.md` 同期)
 4. ガクコ `/send`(personal)— on_failure 通知用
 
 ### 本種固有

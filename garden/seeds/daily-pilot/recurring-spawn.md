@@ -27,7 +27,7 @@ trigger:
 engine: claude-code
 execute:
   skill: hmc_pilot (HMC)           # 当面は手順参照のみ。実行は Garden 内 MD の読み書きで完結(HMC 呼び出しなし)
-  working_dir: /opt/garden         # VPS 上の garden ルート(LiveSync 平文 MD ミラー先)
+  working_dir: /home/vps-harappa/garden-mirror   # VPS 上の vault 平文 MD ミラー(mirror-daemon が同期)
   computed_inputs:
     today: "$(date +%Y-%m-%d)"
     today_md: "$(date +%-m/%-d)"
@@ -48,9 +48,9 @@ execute:
 
     手順:
       1. 入力読み込み
-         - /opt/garden/tasks/recurring_master.md を読む
-         - /opt/garden/tasks/backlog.md を読む
-         - /opt/garden/tasks/archive.md を読む
+         - /home/vps-harappa/garden-mirror/hmc_tasks/recurring_master.md を読む
+         - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md を読む
+         - /home/vps-harappa/garden-mirror/hmc_tasks/archive.md を読む
 
       2. recurring_master の各エントリについて、当日対象か判定:
          - 各エントリは `id:` フィールド必須(例: `r001`)。ID 欠落エントリは警告ログのみで skip
@@ -91,9 +91,9 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: backlog
-    path: /opt/garden/tasks/backlog.md
+    path: /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md
   - kind: log
-    path: /opt/garden/seeds/.log/{today}-recurring-spawn.log
+    path: /home/vps-harappa/garden-mirror/garden/log/{today}-recurring-spawn.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:
@@ -131,9 +131,9 @@ on_failure:
 depends_on:
   workflow: daily-cycle
   state:
-    - "/opt/garden/tasks/recurring_master.md が存在・有効 + 各エントリに `id:` 振られている"
-    - "/opt/garden/tasks/backlog.md が存在(空でも可)"
-    - "/opt/garden/tasks/archive.md が存在(空でも可)"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/recurring_master.md が存在・有効 + 各エントリに `id:` 振られている"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/backlog.md が存在(空でも可)"
+    - "/home/vps-harappa/garden-mirror/hmc_tasks/archive.md が存在(空でも可)"
     - "LiveSync 平文 MD ミラーが最新化されている(_changes feed daemon 稼働中)"
     - "night-review が `[x]` → archive 転記時に元行を完全保持(recur マーカー含む)している"
   seeds: []
@@ -244,7 +244,7 @@ last_updated: YYYY-MM-DD
 | ❓ | monthly の period 表現 | 現状は `day: N` のみ。月末(`last`)・第N曜日(`first_monday`)・月初N営業日 等の柔軟性をどこまで持たせるか | 未検証(Phase 3a 着手時に確定) |
 | ❓ | archive 走査の負荷 | archive 1ファイル無制限成長で grep 負荷増大。**archive を月単位ファイル分割**(`archive/2026-06.md`)に切り替える余地。本種は archive ファイル群を走査するように改訂が要 | 構想中(archive 数千行を超えたら検討) |
 | ❓ | `pruning.channel: none` を新設 | スキーマ草案には `line/board_with_notify/board` の3種のみ記載。自律完結種のために `none` を追加した。妥当性を確認 → seeds/README.md にも反映済 | 未検証(セッション8 で導入、合意要) |
-| ❓ | `/opt/garden` を VPS マウント先と仮定 | 実装フェーズで確定。マウント方式(LiveSync 平文ミラー先)・権限・所有ユーザの設計が必要 | 未検証(Phase 3a インフラ課題) |
+| ✋ | VPS マウントパス = `/home/vps-harappa/garden-mirror/` | mirror-daemon(セッション12)で確定。LiveSync 平文 MD ミラー先。`hmc_tasks/` が BAA 実体、`garden/` が HMG 新設領域 | **検討済**([vault-folder-layout ADR](../../../docs/decisions/2026-05-27-vault-folder-layout.md)) |
 | 💡 | recurring_master の例外日対応 | 祝日 API(国民の祝日) + 庭師個別休業日リストの併用で例外日スキップ | 構想中 |
 
 ## 関連
@@ -263,7 +263,7 @@ last_updated: YYYY-MM-DD
 - [ ] backlog の Level 2 ヘッダ規約の確定(category マッピング)
 - [ ] HMG-native の操作手順書化(`hmc_pilot` 依存を切る)
 - [ ] `pruning.channel: none` のスキーマ追加合意(seeds/README.md 更新)→ 完了済
-- [ ] VPS Garden マウントパス(`/opt/garden`)の確定
+- [x] VPS Garden マウントパス確定 = `/home/vps-harappa/garden-mirror/`(セッション12 mirror-daemon + S13 vault-folder-layout ADR)
 - [ ] 既存の recurring(HMC 側 / 紙ベース)から `recurring_master.md` への移行計画
 - [ ] archive 月単位分割への切替判断基準(行数閾値)
 
@@ -274,7 +274,7 @@ last_updated: YYYY-MM-DD
 ### Phase 3a 由来の前提(全種共通)
 
 1. 種ランチャー(VPS cron → `claude -p` 起動 + ログ + on_failure)
-2. **平文 MD ミラー daemon**(CouchDB `_changes` → `/opt/garden/tasks/*.md` 同期)
+2. **平文 MD ミラー daemon**(CouchDB `_changes` → `/home/vps-harappa/garden-mirror/hmc_tasks/*.md` 同期)
 3. recurring_master.md 本体の整備(現状 HMC/Obsidian 側にある場合は移行が要)
 4. backlog.md の Level 2 ヘッダ規約の確定
 
