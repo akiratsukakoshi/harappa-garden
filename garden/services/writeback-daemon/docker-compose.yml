@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  writeback-daemon:
+    build: .
+    container_name: garden-writeback-daemon
+    restart: unless-stopped
+    user: "1000:1000"               # vps-harappa(host)と一致
+    environment:
+      COUCHDB_URL: ${COUCHDB_URL:-http://garden-couchdb:5984}
+      COUCHDB_USER: ${COUCHDB_USER}
+      COUCHDB_PASS: ${COUCHDB_PASS}
+      DATABASE: ${DATABASE:-gakuchovault}
+      E2EE_PASSPHRASE: ${E2EE_PASSPHRASE}
+      MIRROR_DIR: /mirror
+      DEBOUNCE_MS: ${DEBOUNCE_MS:-1500}
+    volumes:
+      - ${MIRROR_HOST_PATH}:/mirror:ro    # 読み専用マウント(書き戻しは CouchDB 経由なので mirror への書き込み不要)
+    networks:
+      - couchdb
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  couchdb:
+    external: true
+    name: garden-couchdb_default

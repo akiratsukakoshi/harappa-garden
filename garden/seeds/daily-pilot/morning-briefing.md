@@ -32,12 +32,13 @@ execute:
   computed_inputs:
     today: "$(date +%Y-%m-%d)"
     today_md: "$(date +%-m/%-d)"
+    today_slash: "$(date +%Y/%m/%d)"
     today_jp: "$(date +%-m月%-d日)"
-    weekday_jp: "$(LANG=ja_JP.UTF-8 date +%A)"
+    # 曜日は VPS に ja_JP.UTF-8 locale 未導入のため、prompt 内で Claude が today から判定する
   prompt: |
     あなたは daily-pilot 区画の種「morning-briefing」です。
-    目的: 塚越さんが iPhone 一画面で「今日(= {today_jp} {weekday_jp})やること」を把握できる
-          状態を作る。
+    目的: 塚越さんが iPhone 一画面で「今日(= {today_jp}、曜日は {today} から判定)やること」を把握できる
+          状態を作る。曜日は (月)(火)(水)(木)(金)(土)(日) のいずれかで表記する。
 
     手順:
       1. 入力読み込み
@@ -54,17 +55,29 @@ execute:
       3-A. **初回モード**
          a. backlog から **deadline ≦ today** のタスクを active_tasks.md にコピー
             (backlog からは削除しない。マスタは backlog)
-            - 期限超過タスクは `🚨 期限超過` セクションに分けて表示
+            - active_tasks のテンプレ構造: `# Today's Tasks - {today_slash} (曜日)` ヘッダ +
+              `## スケジュール` + `## 運営・企画` + `## 管理事務` + `## 家のこと` + `## 追加` の順
+              ※ 曜日は {today} から判定して (月)(火)(水)(木)(金)(土)(日) のいずれかで表記
+            - 期限超過タスクは `🚨 期限超過` セクションを冒頭に挿入して分けて表示
             - 暫定締切タスク(`・暫定` 付き)は Triage 候補に格上げ(後述 c)
-         b. 取得したカレンダー予定を active_tasks.md の冒頭に「## 本日の予定」として埋め込む
+            - backlog の Level 2 カテゴリ(`## 運営・企画` 等)を尊重して active のセクション分けに反映
+         b. カレンダー予定の埋め込み
+            - **Google Calendar MCP 利用可** → 取得した本日 {today} の予定を active_tasks.md の
+              `## スケジュール` セクションに `- HH:MM タイトル` 形式で埋め込み
+            - **Google Calendar MCP 失敗(認証切れ等)** → `## スケジュール` セクションに
+              `- ⚠️ カレンダー取得失敗(MCP 未認証 or エラー)` と 1 行だけ書いて続行
+              ※ Phase 3 検証中の暫定モード。MCP 認証完了で自動的に通常モードへ
          c. Triage 候補を抽出し、board/{today}-morning-briefing.md に質問入り MD を生成:
             - 暫定締切タスク → 「Q1: 締切確認が必要なタスク」
             - 曖昧期限(「来週」「近日」「ASAP」等の自然言語のみ) → 「Q2: 締切の数値化」
             - AI 支援候補(時間がかかる・要調査・要相談 等) → 「Q3: AI 支援提案」
             - status: awaiting_triage, 質問なし(0件)なら status: confirmed で完結扱い
-         d. LINE 通知(pruning.notify):
-            - Triage 0件 → 「✅ 今日のブリーフ。アクション X件」
-            - Triage 1件以上 → 「📋 ブリーフ + Triage X件あります。確認 → 返信か board 編集で」
+         d. 完了報告のログ出力(LINE 通知はモック化中、ガクコ /send は呼ばない)
+            作成する報告文面を `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` の
+            末尾に **`==NOTIFY==` ブロックで append**(launcher が既存内容を書いた後の末尾に追記):
+            - Triage 0件 → 「✅ {today_jp} ブリーフ。アクション X件 / 予定 Y件」
+            - Triage 1件以上 → 「📋 {today_jp} ブリーフ + Triage X件。board 確認 → 返信か編集で」
+            (Phase 3 で ガクコ /send 連携が組まれたら、この文面を /send に投げる)
 
       3-B. **resume モード**
          a. board/{today}-morning-briefing.md の塚越さん回答(LINE 受信 by gaku-co5.0 or 手動編集)
@@ -74,7 +87,8 @@ execute:
          d. LINE 通知: 「✅ Triage 反映済み。最終ブリーフは active_tasks.md」
 
       4. ログ出力
-         - 抽出件数・カレンダー件数・Triage 件数を {log_path} に記録
+         - 抽出件数・カレンダー件数・Triage 件数を
+           `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` の末尾に追記
 
     重要原則:
       - backlog は読み取り専用(本種では更新しない。night-review が反映する)
@@ -96,11 +110,14 @@ outputs:
     path: /home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log
 
 # === ④ 誰に剪定依頼するか ===
+# 注: Phase 3a 検証中はガクコ /send 呼び出しを行わず、prompt 内で log 末尾に
+#     `==NOTIFY==` ブロックとして書き出すモックモード。連携実装後に有効化する。
 pruning:
   channel: line                    # Triage は軽量・即応性重視(LINE 短文返信が中心)
   approver: "[[akira-tsukakoshi]]"
   notify:
-    via: gaku-co
+    via: mock                      # 当面: log に書き出すだけ
+    # via: gaku-co                 # 将来: ガクコ /send 連携 active 化後
     group: personal
     template_no_triage: |
       ✅ {today_jp} ブリーフ

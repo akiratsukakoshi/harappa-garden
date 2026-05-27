@@ -1,0 +1,10 @@
+{
+  "name": "garden-writeback-daemon",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "plain MD (mirror) -> CouchDB (LiveSync E2EE) write-back daemon",
+  "dependencies": {
+    "octagonal-wheels": "^0.1.45"
+  }
+}
