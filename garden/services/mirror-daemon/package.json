@@ -1,0 +1,10 @@
+{
+  "name": "garden-mirror-daemon",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "CouchDB (LiveSync E2EE) -> plain MD mirror daemon",
+  "dependencies": {
+    "octagonal-wheels": "^0.1.45"
+  }
+}
