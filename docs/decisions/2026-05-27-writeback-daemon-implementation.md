@@ -1,6 +1,6 @@
 # 2026-05-27 ADR — writeback-daemon の実装(MD → CouchDB / LiveSync E2EE 互換)
 
-**ステータス**: Accepted(セッション14 で実装 + 動作確認、Obsidian 反映成功)
+**ステータス**: Accepted(セッション14 で実装 + Obsidian 反映成功 / **セッション15 で 2 つの堅牢化** = reconcile scan backbone + Case-Sensitive OFF 対応)
 
 ## 背景
 
@@ -27,6 +27,39 @@
 **却下した代替案**:
 - (a) mirror-daemon の双方向化 — 同じプロセスで両方向の状態管理が複雑化
 - (b) claude -p が CouchDB に直接 PUT — 暗号化 / chunk 計算を seed 側に埋め込むのは現実的でない
+
+### (1b) 検知方式 = fs.watch + reconcile scan(セッション15 で追加)
+
+**問題**(S15 で発覚): Node の `fs.watch(dir, {recursive:true})` は時間経過で **既存ファイルの変更イベントを silently 取りこぼす**。新規ファイル作成は拾うが、起動から数時間後には既存ファイルの modify を落とすことがある。S14 末で cron 化した翌朝、morning-briefing / recurring-spawn が `active_tasks.md` / `backlog.md` を更新したのに writeback が発火せず、Obsidian に届かなかった。
+
+**修正**: `fs.watch` を唯一の検知手段にせず、**`SCAN_INTERVAL_MS`(既定 15s)ごとの reconcile scan を信頼できる backbone** に据える。
+
+```
+reconcile scan(15s ごと):
+  scopePrefixes 配下を walk
+  各 .md ファイルの mtime を前回値と比較
+  mtime が増えていれば schedulePush(内容比較で dedup)
+```
+
+- `fs.watch` は低レイテンシの fast-path として残す(ベストエフォート)
+- scan は mtime stat だけなので軽量、push は内容比較で冪等
+- どちらが先に拾っても debounce で 1 回にまとまる
+
+### (1c) スコープ限定 + Case-Sensitive OFF 対応(セッション15 で追加)
+
+**問題**(S15 で発覚): reconcile scan 導入時、初回スキャンが vault 全体(58 ファイル)を push 対象にした。その際、LiveSync の **Case-Sensitive = OFF**(本 vault 設定、セッション10)により:
+
+- CouchDB の正規 `_id` = **パスの小文字化**(例 `development/aiと非効率性.md`)
+- `path` フィールド = 元の大文字(例 `development/AIと非効率性.md`)、ディスク上のファイル名も元の大文字
+
+writeback は **ファイル名(大文字)をそのまま `_id`** に使っていたため、`GET` が 404 → **大文字 `_id` の重複 doc を 14 件作成**(`AGENTS.md`, `development/AIと非効率性.md` 等)。
+
+**修正 2 点**:
+
+1. **`_id = path.toLowerCase()`、`path` フィールド = 元の大文字** に変更(LiveSync Case-Sensitive OFF の仕様に一致)。`GET` / `PUT` / 削除すべて小文字 `_id` を使う
+2. **スコープを `WRITEBACK_SCOPE`(既定 `hmc_tasks/,garden/`)に限定**。種(claude -p)が書くのはこの 2 つだけ。それ以外は塚越さんの個人ノートで VPS 側では編集されない → 対象外にして一切触れない
+
+→ 作成済み重複 14 件は `_bulk_docs` で `_deleted:true` 一括削除(原本の小文字 doc は無傷)。スコープ限定により対象が 16 ファイルに絞られ、全て小文字 ASCII パスのため `_id` 衝突も起きない。
 
 ### (2) フィードバックループ防止 = 内容比較 + chunk format 検証(state 不要)
 
@@ -171,6 +204,18 @@ mirror-daemon と同様、`garden-couchdb_default` external network に参加。
 | **Obsidian での反映**(PC / iPhone 両方) | ✅ 塚越さん確認済 |
 | ループ防止(mirror-daemon pull → fs.watch → skip 判定) | ✅ `[skip] xxx.md (no change vs CouchDB)` 出力 |
 
+セッション15(翌朝)にて:
+
+| 項目 | 結果 |
+|---|---|
+| cron 自動発火(06:25 / 06:30) | ✅ launcher 完走、VPS 側で active_tasks / backlog 正しく更新 |
+| **しかし Obsidian に届かず** | ⚠️ fs.watch が既存ファイル変更を取りこぼし(原因1) |
+| reconcile scan backbone 追加 | ✅ |
+| 初回スキャンの burst で重複 doc 14 件作成 | ⚠️ Case-Sensitive OFF の `_id` 小文字化を未対応(原因2) |
+| `_id` 小文字化 + スコープ限定 + 重複 14 件削除 | ✅ |
+| 今朝のタスク(active_tasks rev 112)が CouchDB → Obsidian に到達 | ✅ 塚越さん確認済(全タスク表示) |
+| 修正版の push 動作(scoped / lowercase _id / h:+ chunk) | ✅ ライブテスト OK |
+
 ## 影響
 
 - **Phase 3a 完成**: claude -p (種) → VPS MD → CouchDB → LiveSync → Obsidian の経路が初めて両方向に動く
@@ -182,11 +227,13 @@ mirror-daemon と同様、`garden-couchdb_default` external network に参加。
 
 1. **single chunk**: 分割なし、大ファイルでもメモリに乗る前提(MD なら問題なし)
 2. **conflict skip**: 409 はリトライせず次回変更で再試行(検証フェーズ)
-3. **バッドチャンク掃除未実装**: 初版で作った `h:` プレフィックスの orphan chunks が CouchDB に残置(参照されていないので動作に影響なし)
-4. **削除は file unlink のみ**: mv による rename は doc の path 変更として扱えていない(将来課題)
+3. **バッドチャンク掃除未実装**: 初版で作った `h:` プレフィックスの orphan chunks + S15 重複削除で参照されなくなった chunk が CouchDB に残置(参照されていないので動作に影響なし)
+4. **削除検知は fs.watch のみ**: reconcile scan は mtime 増加でしか発火しないため、**ファイル削除を取りこぼす**(scan は削除を検知できない)。削除を確実に伝播するには別機構が要る(将来課題)
 5. **eden field**: 常に空で運用。本来用途は未調査
-6. **`fs.watch` recursive**: Linux + Node 20+ 必須(本環境は Node 22)
-7. **E2EE オン環境のみサポート**: オフ環境は `h:` プレフィックス + `hashedPassphrase` 不使用に分岐が要る
+6. **scan レイテンシ**: scan backbone は最大 `SCAN_INTERVAL_MS`(15s)の遅延。fs.watch が拾えば即時だが当てにしない
+7. **スコープ外は書き戻さない**: `WRITEBACK_SCOPE`(`hmc_tasks/,garden/`)配下のみ。種が将来別の場所に書くならスコープ追加が要る
+8. **Case-Sensitive OFF 前提**: `_id = path.toLowerCase()`。LiveSync 側で Case-Sensitive を ON に戻すと `_id` 規約が変わるため要再対応
+9. **E2EE オン環境のみサポート**: オフ環境は `h:` プレフィックス + `hashedPassphrase` 不使用に分岐が要る
 
 ## 関連
 

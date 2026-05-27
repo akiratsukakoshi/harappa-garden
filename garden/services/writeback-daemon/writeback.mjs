@@ -34,7 +34,19 @@ const cfg = {
   passphrase: process.env.E2EE_PASSPHRASE,
   mirrorDir: process.env.MIRROR_DIR || "/mirror",
   debounceMs: parseInt(process.env.DEBOUNCE_MS || "1500", 10),
+  // Only push files under these path prefixes. Seeds (claude -p) only write to
+  // hmc_tasks/ and garden/; everything else in the vault is the user's personal
+  // notes that are never edited VPS-side. Scoping avoids touching them entirely.
+  scopePrefixes: (process.env.WRITEBACK_SCOPE || "hmc_tasks/,garden/")
+    .split(",").map((s) => s.trim()).filter(Boolean),
 };
+
+// LiveSync "Case-Sensitive = OFF" stores the canonical doc _id as the LOWERCASED
+// path, while the `path` field keeps the original case (and so does the file on disk).
+// We must mirror this: _id = lowercase(path), path = original. Using the original-case
+// path as _id creates duplicate docs (observed S15).
+const toDocId = (docPath) => docPath.toLowerCase();
+const inScope = (docPath) => cfg.scopePrefixes.some((p) => docPath.startsWith(p));
 
 for (const k of ["url", "user", "pass", "passphrase"]) {
   if (!cfg[k]) {
@@ -141,6 +153,7 @@ function toDocPath(absPath) {
 }
 
 async function pushChange(docPath) {
+  if (!inScope(docPath)) return; // never touch out-of-scope (personal notes)
   let content;
   let stat;
   try {
@@ -155,13 +168,15 @@ async function pushChange(docPath) {
     throw e;
   }
 
-  // fetch current CouchDB doc
-  const cur = await ccGet(encodeURIComponent(docPath));
+  const docId = toDocId(docPath);
+
+  // fetch current CouchDB doc (by canonical lowercase _id)
+  const cur = await ccGet(encodeURIComponent(docId));
   let existing = null;
   if (cur.ok) {
     existing = cur.body;
   } else if (cur.status !== 404) {
-    throw new Error(`GET ${docPath} -> ${cur.status} ${cur.body}`);
+    throw new Error(`GET ${docId} -> ${cur.status} ${cur.body}`);
   }
 
   // loop prevention: if existing children decrypt to same content AND chunks use the
@@ -201,10 +216,10 @@ async function pushChange(docPath) {
     }
   }
 
-  // upsert main doc
+  // upsert main doc — _id is canonical lowercase, path keeps original case
   const now = Date.now();
   const newDoc = {
-    _id: docPath,
+    _id: docId,
     path: docPath,
     type: "plain",
     mtime: stat.mtimeMs ? Math.floor(stat.mtimeMs) : now,
@@ -217,28 +232,29 @@ async function pushChange(docPath) {
     newDoc._rev = existing._rev;
   }
 
-  const r = await ccPutJson(docPath, newDoc);
+  const r = await ccPutJson(docId, newDoc);
   if (!r.ok) {
     if (r.status === 409) {
       log("warn", `409 conflict for ${docPath} — will retry on next change`);
       return;
     }
-    throw new Error(`PUT ${docPath} -> ${r.status} ${r.body}`);
+    throw new Error(`PUT ${docId} -> ${r.status} ${r.body}`);
   }
 
   log("put", `${docPath} (${content.length}B, rev=${r.body.rev})`);
 }
 
 async function pushDelete(docPath) {
-  const cur = await ccGet(encodeURIComponent(docPath));
+  const docId = toDocId(docPath);
+  const cur = await ccGet(encodeURIComponent(docId));
   if (!cur.ok) {
     if (cur.status === 404) return; // already gone
-    throw new Error(`GET ${docPath} -> ${cur.status} ${cur.body}`);
+    throw new Error(`GET ${docId} -> ${cur.status} ${cur.body}`);
   }
   if (cur.body._deleted) return;
 
-  const r = await ccPutJson(docPath, {
-    _id: docPath,
+  const r = await ccPutJson(docId, {
+    _id: docId,
     _rev: cur.body._rev,
     _deleted: true,
   });
@@ -247,7 +263,7 @@ async function pushDelete(docPath) {
       log("warn", `409 conflict on delete ${docPath}`);
       return;
     }
-    throw new Error(`PUT (delete) ${docPath} -> ${r.status} ${r.body}`);
+    throw new Error(`PUT (delete) ${docId} -> ${r.status} ${r.body}`);
   }
   log("del", docPath);
 }
@@ -268,32 +284,96 @@ function schedulePush(docPath) {
   pending.set(docPath, { timer, lastSeen: Date.now() });
 }
 
+// ---- periodic reconcile scan (reliable backbone) ----
+// Node's fs.watch(recursive) silently drops events for existing-file modifications
+// over time (observed S14→S15). The scan is the source of truth; fs.watch is a
+// best-effort low-latency fast-path on top.
+const SCAN_INTERVAL_MS = parseInt(process.env.SCAN_INTERVAL_MS || "15000", 10);
+const lastMtime = new Map(); // docPath -> mtimeMs seen at last scan
+
+async function walkMd(dir, acc = []) {
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return acc;
+  }
+  for (const ent of entries) {
+    const abs = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      if (ent.name.startsWith(".")) continue; // skip hidden dirs
+      await walkMd(abs, acc);
+    } else if (ent.isFile() && isTargetMd(abs)) {
+      acc.push(abs);
+    }
+  }
+  return acc;
+}
+
+let scanRunning = false;
+async function reconcileScan() {
+  if (scanRunning) return;
+  scanRunning = true;
+  try {
+    // Only walk scoped directories (hmc_tasks/, garden/) — never the whole vault
+    const files = [];
+    for (const prefix of cfg.scopePrefixes) {
+      await walkMd(path.join(cfg.mirrorDir, prefix), files);
+    }
+    for (const abs of files) {
+      const docPath = toDocPath(abs);
+      if (!docPath || !inScope(docPath)) continue;
+      try {
+        const st = await fs.stat(abs);
+        const prev = lastMtime.get(docPath);
+        if (prev === undefined || st.mtimeMs > prev) {
+          lastMtime.set(docPath, st.mtimeMs);
+          // pushChange dedups via content comparison; safe to call on every mtime bump
+          schedulePush(docPath);
+        }
+      } catch {
+        /* file vanished mid-scan; ignore */
+      }
+    }
+  } finally {
+    scanRunning = false;
+  }
+}
+
 // initial: ensure mirror dir exists
 await fs.mkdir(cfg.mirrorDir, { recursive: true });
 
-log("watch", `watching ${cfg.mirrorDir} (recursive, debounce=${cfg.debounceMs}ms)`);
+// fs.watch fast-path (best effort; may silently stop — scan is the backbone)
+let watcher;
+try {
+  watcher = fsWatch(cfg.mirrorDir, { recursive: true }, (eventType, filename) => {
+    if (!filename) return;
+    const abs = path.join(cfg.mirrorDir, filename);
+    if (!isTargetMd(abs)) return;
+    const docPath = toDocPath(abs);
+    if (!docPath || !inScope(docPath)) return;
+    schedulePush(docPath);
+  });
+  watcher.on("error", (e) => log("err", `watcher: ${e.message}`));
+} catch (e) {
+  log("warn", `fs.watch unavailable (${e.message}); relying on scan only`);
+}
 
-const watcher = fsWatch(cfg.mirrorDir, { recursive: true }, (eventType, filename) => {
-  if (!filename) return;
-  const abs = path.join(cfg.mirrorDir, filename);
-  if (!isTargetMd(abs)) return;
-  const docPath = toDocPath(abs);
-  if (!docPath) return;
-  schedulePush(docPath);
-});
+log("watch", `fs.watch on ${cfg.mirrorDir} + reconcile scan every ${SCAN_INTERVAL_MS}ms (debounce=${cfg.debounceMs}ms)`);
 
-watcher.on("error", (e) => {
-  log("err", `watcher: ${e.message}`);
-});
+// run an initial reconcile, then schedule periodic scans
+await reconcileScan();
+log("init", `initial reconcile done (${lastMtime.size} md files tracked)`);
+setInterval(() => reconcileScan().catch((e) => log("err", `scan: ${e.message}`)), SCAN_INTERVAL_MS);
 
 // keep alive
 process.on("SIGTERM", () => {
   log("init", "SIGTERM received, shutting down");
-  watcher.close();
+  if (watcher) watcher.close();
   process.exit(0);
 });
 process.on("SIGINT", () => {
   log("init", "SIGINT received, shutting down");
-  watcher.close();
+  if (watcher) watcher.close();
   process.exit(0);
 });

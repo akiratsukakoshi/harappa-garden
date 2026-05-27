@@ -84,16 +84,31 @@ docker logs -f garden-writeback-daemon
 
 ## 動作の仕組み
 
-### 監視対象
+### 監視対象(スコープ限定)
 
 - `MIRROR_DIR`(`/mirror` = `/home/vps-harappa/garden-mirror/`)配下の `.md` ファイル
-- `node:fs.watch(dir, { recursive: true })` で再帰監視
+- **`WRITEBACK_SCOPE`(既定 `hmc_tasks/,garden/`)のプレフィックス配下のみ** が対象
+  - 種(claude -p)が書くのは `hmc_tasks/` と `garden/` だけ。それ以外は塚越さんの個人ノートで VPS 側では編集されない → 対象外にして一切触れない
+  - スコープ外を push すると無関係なノートを巻き込む + 大文字小文字問題(後述)を踏むため、限定が安全(S15 教訓)
 - 隠しファイル(`.` 始まり)、tmp ファイル(`.tmp.` 含む)はスキップ
+
+### 2 系統の検知: fs.watch + reconcile scan
+
+- **fs.watch**(`recursive: true`): 低レイテンシの fast-path(ベストエフォート)
+- **reconcile scan**(`SCAN_INTERVAL_MS` 既定 15s): スコープ配下を mtime ベースで走査する **信頼できる backbone**
+- 理由: Node の `fs.watch` recursive は時間経過で **既存ファイルの変更イベントを silently 取りこぼす**(S14→S15 で実機確認)。新規ファイル作成は拾うが、既存ファイルの modify を落とす。scan を真の source of truth にする
 
 ### debounce
 
 - 同じパスへの連続変更は `DEBOUNCE_MS`(既定 1500ms)後に 1 回だけ処理
-- claude や Obsidian の連続書き込みを 1 リクエストにまとめる
+- fs.watch と scan の両方が同じパスを叩いても 1 回にまとまる
+
+### 大文字小文字(LiveSync Case-Sensitive = OFF 対応)
+
+LiveSync は **Case-Sensitive = OFF**(本 vault の設定)のとき、doc の `_id` を **パスの小文字化** で保存し、`path` フィールドに元の大文字を保持する。ファイルもディスク上は元の大文字。
+
+→ 書き戻し時は **`_id = path.toLowerCase()`、`path` フィールド = 元の大文字** にしなければならない。
+元の大文字を `_id` に使うと、`AGENTS.md`(`_id=agents.md` が正)に対して `_id=AGENTS.md` の **重複 doc** を作ってしまう(S15 で発生・修復済)。
 
 ### 単一 chunk 戦略
 
