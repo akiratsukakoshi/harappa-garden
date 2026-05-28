@@ -7,11 +7,12 @@
 HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォーム。
 庭師=塚越さん、エージェント群=自律的に育つ生態系。HMC(操縦席)からの進化版(庭=育てる生態系)。
 
-## 現在地 @2026-05-27
+## 現在地 @2026-05-28
 
-- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種 draft 5本 + **Phase 3a 完成** = mirror-daemon(S12)+ launcher 本番(S13)+ **writeback-daemon(S14)で書き戻し経路完成** + night-review 実走完動作 + cron 化(06:25/06:30/22:30)
-- **直近セッション**: [2026-05-27 セッション14](../docs/sessions/2026-05-27-session14.md) — night-review 副作用あり実走完動作 / morning-briefing dry-run / cron 設定 / **書き戻し経路実装(writeback-daemon)** / **LiveSync 互換 chunk ID 仕様解析 + 実装(`h:+<xxhash64-base36>`)** / Obsidian 反映成功 → **Phase 3a の最後のピース完成**
-- **直近の重要決定**: 書き戻し経路 = 別 daemon(mirror-daemon は触らない)/ 単一 chunk 戦略 / フィードバック防止 = 内容比較 + chunk format 検証 / archive 既存規約継続 / LINE 通知は当面モック化(log 末尾 `==NOTIFY==`)/ 曜日表記は Claude が today から判定(ja_JP locale 不要)
+- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種 draft 5本 + **Phase 3a 完成 + cron 無人実証(S15)** = mirror-daemon(S12)+ launcher 本番(S13)+ writeback-daemon(S14, S15 で堅牢化)+ **daily-pilot 3本 active 化(S15)**
+- **直近セッション**: [2026-05-28 セッション15](../docs/sessions/2026-05-28-session15.md) — **cron 自動発火を無人で実証**(06:25/06:30 完走 → Obsidian 反映)/ そこで露見した 2 バグ修正(**writeback-daemon 堅牢化** = reconcile scan backbone + Case-Sensitive OFF 対応)/ **daily-pilot 3本(recurring-spawn / morning-briefing / night-review)を active 化宣言**
+- **直近の重要決定**: writeback の検知 backbone = reconcile scan(`fs.watch` は経年取りこぼし)/ `_id = path.toLowerCase()`(Case-Sensitive OFF 対応)/ writeback スコープ = `hmc_tasks/,garden/` 限定 / cron 実証完了をもって daily-pilot 3本 active 化(inbox-process は据え置き)
+- **直近の宿題(最優先)**: **COUCHDB_PASS の rotation**(S14 露出・未対応)/ 今晩 22:30 night-review が 5/28 分を完全自律で実変換することの確認
 
 ## 区画別ステータス
 
@@ -30,11 +31,11 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-events | [soil/events/](soil/events/) | ⬜ | 個別イベント |
 | 土壌-meetings | [soil/meetings/](soil/meetings/) | ⬜ | 議事録インデックス(Plaud等) |
 | 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
-| 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + **スキーマ拡張5項目 ADR 化(S13)** + draft 5本(全パス基準統一済)+ **案 E 正式 ADR(S13)** + **本番ランチャー初版 + VPS 実走 OK(S13)** |
-| サービス (services) | [garden/services/](services/) | 🌱 | **garden-couchdb(S10)+ garden-mirror-daemon(S12)+ garden-launcher(S13)+ garden-writeback-daemon(S14)稼働中** |
+| 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + スキーマ拡張5項目 ADR + 案 E 正式 ADR + 本番ランチャー + **daily-pilot 3本 active 化(S15, cron 無人実証済)**。inbox-process / monthly-shift-survey は draft |
+| サービス (services) | [garden/services/](services/) | 🌳 | **garden-couchdb(S10)+ garden-mirror-daemon(S12)+ garden-launcher(S13)+ garden-writeback-daemon(S14, S15 堅牢化)稼働中**。3 daemon 健全 |
 | 平文 MD ミラー | `~/garden-mirror/`(VPS) | 🌳 | **両方向同期完成(S14)**:CouchDB → MD = mirror-daemon、MD → CouchDB = writeback-daemon。LiveSync 互換 chunk ID 実装で Obsidian 完全反映 |
-| 本番ランチャー | [garden/services/launcher/](services/launcher/) | 🌳 | **S13 完動 + S14 で night-review 副作用あり実走完全成功**(8件 archive、2件 backlog 追加、recur マーカー保持)。cron 化済(06:25/06:30/22:30) |
-| 書き戻し daemon | [garden/services/writeback-daemon/](services/writeback-daemon/) | 🌱 | **S14 完成**:fs.watch + 内容比較 + LiveSync E2EE 互換 chunk ID(`h:+<xxhash64-base36>`)+ 単一 chunk 戦略 + ループ防止 + Obsidian 反映確認 |
+| 本番ランチャー | [garden/services/launcher/](services/launcher/) | 🌳 | **S13 完動 + S14 night-review 実走成功 + S15 で cron 無人実走を実証**(06:25/06:30 自動発火 → 完走 → Obsidian 反映)。cron 化済(06:25/06:30/22:30) |
+| 書き戻し daemon | [garden/services/writeback-daemon/](services/writeback-daemon/) | 🌳 | **S14 完成 + S15 堅牢化**:reconcile scan backbone(`fs.watch` 取りこぼし対策)+ `_id` 小文字化(Case-Sensitive OFF)+ スコープ限定(`hmc_tasks/,garden/`)+ LiveSync E2EE 互換 chunk ID + ループ防止 |
 | VPS 管理 | [vps/](../vps/) | 🌱 | **本 repo で正本管理開始(S11)**。proxy-manager / ig_scheduler / cron 構成ミラー + NPM backup 取得 + dev-flow + recovery 整備 |
 | 区画 (plots) | garden/plots/ | ⬜ | HMC SKILL の Garden 化版 |
 | 番人 (watchers) | garden/watchers/ | ⬜ | 監視エージェント |
@@ -103,11 +104,13 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [x] **night-review 副作用あり実走完動作**(S14)— 8件 archive、2件 backlog 追加、recur マーカー保持、既存 archive 規約準拠
 - [x] **cron 化**(S14)— 06:25 recurring-spawn / 06:30 morning-briefing / 22:30 night-review、すべての daily-pilot cron 種が自動発火状態
 - [x] **書き戻し経路完成 = writeback-daemon**(S14)— mirror-daemon と並列稼働、LiveSync 互換 chunk ID 実装、Obsidian 反映確認済
+- [x] **cron 無人自動発火の実証 + writeback 堅牢化**(S15)— 06:25/06:30 が無人で完走 → Obsidian 反映。露見した 2 バグ(`fs.watch` 取りこぼし / Case-Sensitive OFF の `_id` 重複)を reconcile scan backbone + 小文字化 + スコープ限定で修正
+- [x] **daily-pilot 3 本 正式 active 化**(S15)— recurring-spawn / morning-briefing / night-review。inbox-process は draft 据え置き(watcher daemon 待ち)
 - [ ] **A-1 続き**: on_failure.retry の自動化・fallback の LINE 通知発火・audit の永続化整理
 - [ ] **watcher daemon 実装**(event 種用、glob 監視 + board resume)
 - [ ] **gaku-co5.0 側「LINE 返信 → board MD 書き戻し」処理を実装**
-- [ ] **(明朝)** cron 自動発火結果検証 → daily-pilot 3 本(recurring-spawn / morning-briefing / night-review)正式 active 化
-- [ ] **バッドチャンク掃除**(writeback 初版で誤って push した `h:` プレフィックスのみの orphan chunks の削除)
+- [ ] **(今晩確認)** 22:30 night-review が 5/28 分を完全自律で実変換(完了 archive 転記 + active クリア + 翌日テンプレ)→ Obsidian 反映
+- [ ] **バッドチャンク掃除**(writeback 初版の `h:` のみ orphan + S15 重複削除で参照されなくなった chunk の削除)
 - [ ] **Google Calendar MCP の VPS 認証**(morning-briefing フル機能化)
 - [ ] **recurring_master.md のスキーマ確定 + 既存 recurring の棚卸し + 移行計画**
 
@@ -171,8 +174,9 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [x] **(済)** vault 内 `garden/` フォルダ新設(Obsidian 作業完了)
 - [x] **(済)** `hmc_tasks/recurring_master.md` に id 後付け(15 件)
 - [ ] **(継続)** **テスト残骸の整理** = LiveSync 削除イベント不帰問題として継続調査(Obsidian の "Deleted files" 設定 / LiveSync 設定の確認が必要)
-- [ ] **(S14 最優先)** **明朝 2026-05-28 の cron 自動発火結果確認**(Obsidian / VPS log 両方)
-- [ ] **(S14 セキュリティ)** **COUCHDB_PASS の rotation**(S14 でデバッグ中露出)
+- [x] **(済 S15)** ~~明朝 2026-05-28 の cron 自動発火結果確認~~ — 06:25/06:30 完走 → 2 バグ修正 → Obsidian 反映確認
+- [ ] **(最優先・セキュリティ)** **COUCHDB_PASS の rotation**(S14 でデバッグ中露出、S15 でも未対応)
+- [ ] **(S15 今晩)** 22:30 night-review が 5/28 分を完全自律で実変換することの確認(これまでの cron 実走は手動処理済みデータでの再実行)
 - [ ] **(継続)** Google Calendar MCP の VPS 認証
 
 ### Claude
@@ -184,7 +188,7 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [x] **Phase 3a A-3 平文 MD ミラー daemon 実装完了**(セッション12 完了)
 - [x] **セッション13 で 5 本立て全走完了 + 続編で A-1 完動作**: A-1 ランチャー初版 + 連絡板 ADR + vault layout ADR + 案 E ADR + 拡張 5 項目 ADR + mirror-daemon 観察ログ + permission mode 確立 + mirror-daemon 権限修正 + recurring-spawn 副作用あり実走成功
 - [x] **セッション14 で Phase 3a 最後のピース完成**: night-review 副作用あり実走 + cron 化 + writeback-daemon 実装 + LiveSync 互換 chunk ID 解析 + Obsidian 反映成功
-- [ ] **(明朝確認後)** daily-pilot 3 本(recurring-spawn / morning-briefing / night-review)正式 active 化宣言
+- [x] **セッション15 で cron 無人実証 + writeback 堅牢化 + daily-pilot 3本 active 化宣言**
 - [ ] **次回本命候補(1)**: watcher daemon 実装(event 種・inbox-process / board resume の入口)
 - [ ] **次回本命候補(2)**: gaku-co5.0「LINE 返信 → board MD 書き戻し」連携(morning-briefing resume の完成)
 - [ ] **次回本命候補(3)**: A-1 後追い(on_failure.retry の自動化・fallback LINE 通知発火)
@@ -275,9 +279,13 @@ HMC SKILL を順次 HMG に移植・自律化。
 | 単一 chunk 戦略(LiveSync は連結読みするので互換)+ フィードバック防止 = 内容比較 + chunk format 検証 | 2026-05-27 (S14) | 同上 |
 | LiveSync 暗号化 chunk ID = `"h:+" + xxhash.h64(`piece-hashedPassphrase-length`).toString(36)` | 2026-05-27 (S14) | 同上 |
 | Phase 3a daily-pilot cron 化(06:25 recurring-spawn / 06:30 morning-briefing / 22:30 night-review) | 2026-05-27 (S14) | [sessions/2026-05-27-session14.md](../docs/sessions/2026-05-27-session14.md) |
+| writeback 検知 backbone = reconcile scan(`fs.watch` は経年取りこぼし、mtime scan 15s が source of truth) | 2026-05-28 (S15) | [decisions/2026-05-27-writeback-daemon-implementation.md](../docs/decisions/2026-05-27-writeback-daemon-implementation.md) |
+| writeback `_id = path.toLowerCase()`(Case-Sensitive OFF 対応)+ スコープ `hmc_tasks/,garden/` 限定 | 2026-05-28 (S15) | 同上 |
+| cron 無人実証完了をもって daily-pilot 3本 active 化(inbox-process は据え置き) | 2026-05-28 (S15) | [sessions/2026-05-28-session15.md](../docs/sessions/2026-05-28-session15.md) |
 
 ## 直近のセッション
 
+- [2026-05-28 セッション15](../docs/sessions/2026-05-28-session15.md) — **cron 無人実証 + writeback 堅牢化 + active 化宣言**:06:25/06:30 が無人で完走 → Obsidian 反映を実証 / 露見した 2 バグ(`fs.watch` 取りこぼし / Case-Sensitive OFF の `_id` 重複)を reconcile scan + 小文字化 + スコープ限定で修正 / **daily-pilot 3本を draft → active 化**
 - [2026-05-27 セッション14](../docs/sessions/2026-05-27-session14.md) — **Phase 3a 最後のピース完成**:night-review 副作用あり実走完動作 / morning-briefing dry-run / cron 設定 / **書き戻し経路実装(writeback-daemon)** / LiveSync 互換 chunk ID 仕様解析 + 実装 / **Obsidian 反映成功** → 種 → VPS → CouchDB → LiveSync → Obsidian の循環完成
 - [2026-05-27 セッション13](../docs/sessions/2026-05-27-session13.md) — **5本立て全走**:案 E + 拡張5項目 を正式 ADR 化 / vault layout ADR / board structure ADR / 既存 draft パス統一 / **本番ランチャー初版 + VPS 実走で claude -p が種を完全実行** / mirror-daemon 運用観察ログ
 - [2026-05-27 セッション12](../docs/sessions/2026-05-27-session12.md) — **Phase 3a A-3 完了: 平文 MD ミラー daemon 実装**(`garden-mirror-daemon` 稼働、56 ファイル初期同期 + ライブ更新動作確認)

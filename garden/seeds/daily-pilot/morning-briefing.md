@@ -3,14 +3,15 @@ type: seed
 name: morning-briefing
 plot: daily-pilot
 description: 毎日 06:30 に backlog → active 抽出 + calendar 取得 + Triage 質問生成 + LINE 通知する種
-status: draft
+status: active
 phase: 3a
 execution_host: vps
 hmc_dependency: none
 version: 1
 created: 2026-05-25
 created_by: claude (with 塚越さん, セッション8)
-last_updated: 2026-05-25
+last_updated: 2026-05-28
+activated: 2026-05-28   # セッション15: cron 06:30 自動発火 → backlog→active 抽出 + Triage 生成を実証して active 化(calendar MCP 認証は後追い)
 linked_workflows:
   - "[[daily-cycle]]"   # ステップ2
 linked_skills:

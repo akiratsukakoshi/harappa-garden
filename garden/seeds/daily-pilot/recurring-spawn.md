@@ -3,14 +3,15 @@ type: seed
 name: recurring-spawn
 plot: daily-pilot
 description: 毎日 06:25 に recurring_master を読み、当該期間の定期タスクを backlog に展開する種
-status: draft
+status: active
 phase: 3a
 execution_host: vps
 hmc_dependency: none
 version: 1
 created: 2026-05-25
 created_by: claude (with 塚越さん, セッション8)
-last_updated: 2026-05-25
+last_updated: 2026-05-28
+activated: 2026-05-28   # セッション15: cron 06:25 自動発火 → 完走 → Obsidian 反映を実証して active 化
 linked_workflows:
   - "[[daily-cycle]]"   # ステップ1
 linked_skills:

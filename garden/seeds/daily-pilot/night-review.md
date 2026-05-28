@@ -3,14 +3,15 @@ type: seed
 name: night-review
 plot: daily-pilot
 description: 毎日 22:30 に active_tasks を読み、[x]/[ ]/追加 を backlog/archive に反映 + active クリア + LINE 報告する種
-status: draft
+status: active
 phase: 3a
 execution_host: vps
 hmc_dependency: none
 version: 1
 created: 2026-05-25
 created_by: claude (with 塚越さん, セッション8)
-last_updated: 2026-05-25
+last_updated: 2026-05-28
+activated: 2026-05-28   # セッション15: cron 22:30 自動発火 → 完走(再実行で冪等性も確認)を実証して active 化。完全自律での実変換は今晩 5/28 分が初回
 linked_workflows:
   - "[[daily-cycle]]"   # ステップ4
 linked_skills:
