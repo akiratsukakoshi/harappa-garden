@@ -9,10 +9,10 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 ## 現在地 @2026-05-28
 
-- **設計フェーズ**: 土壌の最小実装(Phase 1)+ 種 draft 5本 + **Phase 3a 完成 + cron 無人実証(S15)** = mirror-daemon(S12)+ launcher 本番(S13)+ writeback-daemon(S14, S15 で堅牢化)+ **daily-pilot 3本 active 化(S15)**
-- **直近セッション**: [2026-05-28 セッション15](../docs/sessions/2026-05-28-session15.md) — **cron 自動発火を無人で実証**(06:25/06:30 完走 → Obsidian 反映)/ そこで露見した 2 バグ修正(**writeback-daemon 堅牢化** = reconcile scan backbone + Case-Sensitive OFF 対応)/ **daily-pilot 3本(recurring-spawn / morning-briefing / night-review)を active 化宣言**
-- **直近の重要決定**: writeback の検知 backbone = reconcile scan(`fs.watch` は経年取りこぼし)/ `_id = path.toLowerCase()`(Case-Sensitive OFF 対応)/ writeback スコープ = `hmc_tasks/,garden/` 限定 / cron 実証完了をもって daily-pilot 3本 active 化(inbox-process は据え置き)
-- **直近の宿題(最優先)**: **COUCHDB_PASS の rotation**(S14 露出・未対応)/ 今晩 22:30 night-review が 5/28 分を完全自律で実変換することの確認
+- **設計フェーズ**: Phase 3a 完成 + cron 無人実証(S15)に加え、**Garden の対話層 garden-gaku-co を立ち上げ(S16)** = 夜のレポート(cron 22:40)+ 喋るガクコ(Discord 常駐・オンライン)稼働
+- **直近セッション**: [2026-05-28 セッション16](../docs/sessions/2026-05-28-session16.md) — **gaku-co を Garden の対話層として統合する設計を確定(ADR)+ garden-gaku-co を最小ネイティブで立ち上げ**。夜のレポート(振り返り完了 + 件数 + 正常/異常確認 + ひとこと)と、Discord で喋るガクコ(claude -p 脳・read-only)を一晩で稼働
+- **直近の重要決定**: gaku-co = 接客器官 / Garden = 奥座敷、真実は MD 一箇所 / 頭脳はチャネル単位(ガクチョ=Discord+claude -p、チーム=gaku-co API、社外=隔離)/ 内側(garden-gaku-co)と外側(社外ガクコ)をデプロイ分離 / master = Discord / 最小ネイティブから育てる
+- **直近の宿題(最優先)**: **COUCHDB_PASS の rotation**(S14 露出・未対応)/ garden-gaku-co の次段(**会話でタスク更新** = read-only 解除)/ 段4(チーム channel + gaku-co 記憶・承認の移植)/ 社外ガクコの分離
 
 ## 区画別ステータス
 
@@ -32,7 +32,8 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-meetings | [soil/meetings/](soil/meetings/) | ⬜ | 議事録インデックス(Plaud等) |
 | 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
 | 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + スキーマ拡張5項目 ADR + 案 E 正式 ADR + 本番ランチャー + **daily-pilot 3本 active 化(S15, cron 無人実証済)**。inbox-process / monthly-shift-survey は draft |
-| サービス (services) | [garden/services/](services/) | 🌳 | **garden-couchdb(S10)+ garden-mirror-daemon(S12)+ garden-launcher(S13)+ garden-writeback-daemon(S14, S15 堅牢化)稼働中**。3 daemon 健全 |
+| サービス (services) | [garden/services/](services/) | 🌳 | **garden-couchdb(S10)+ mirror-daemon(S12)+ launcher(S13)+ writeback-daemon(S14/S15)+ garden-gaku-co(S16)稼働中** |
+| 対話層 garden-gaku-co | [garden/services/garden-gaku-co/](services/garden-gaku-co/) | 🌱 | **S16 立ち上げ**:夜のレポート(cron 22:40・件数 + 正常/異常確認)+ 喋るガクコ(Discord 常駐・オンライン・claude -p 脳・read-only)。ペルソナ = G-gaku-co(中性的・理知的)。次段 = 会話でタスク更新 / チーム channel |
 | 平文 MD ミラー | `~/garden-mirror/`(VPS) | 🌳 | **両方向同期完成(S14)**:CouchDB → MD = mirror-daemon、MD → CouchDB = writeback-daemon。LiveSync 互換 chunk ID 実装で Obsidian 完全反映 |
 | 本番ランチャー | [garden/services/launcher/](services/launcher/) | 🌳 | **S13 完動 + S14 night-review 実走成功 + S15 で cron 無人実走を実証**(06:25/06:30 自動発火 → 完走 → Obsidian 反映)。cron 化済(06:25/06:30/22:30) |
 | 書き戻し daemon | [garden/services/writeback-daemon/](services/writeback-daemon/) | 🌳 | **S14 完成 + S15 堅牢化**:reconcile scan backbone(`fs.watch` 取りこぼし対策)+ `_id` 小文字化(Case-Sensitive OFF)+ スコープ限定(`hmc_tasks/,garden/`)+ LiveSync E2EE 互換 chunk ID + ループ防止 |
@@ -282,9 +283,14 @@ HMC SKILL を順次 HMG に移植・自律化。
 | writeback 検知 backbone = reconcile scan(`fs.watch` は経年取りこぼし、mtime scan 15s が source of truth) | 2026-05-28 (S15) | [decisions/2026-05-27-writeback-daemon-implementation.md](../docs/decisions/2026-05-27-writeback-daemon-implementation.md) |
 | writeback `_id = path.toLowerCase()`(Case-Sensitive OFF 対応)+ スコープ `hmc_tasks/,garden/` 限定 | 2026-05-28 (S15) | 同上 |
 | cron 無人実証完了をもって daily-pilot 3本 active 化(inbox-process は据え置き) | 2026-05-28 (S15) | [sessions/2026-05-28-session15.md](../docs/sessions/2026-05-28-session15.md) |
+| gaku-co = Garden の対話層(接客)/ Garden = 奥座敷。真実は MD 一箇所、橋は mirror/writeback | 2026-05-28 (S16) | [decisions/2026-05-28-garden-gaku-co-interaction-layer.md](../docs/decisions/2026-05-28-garden-gaku-co-interaction-layer.md) |
+| 頭脳はチャネル単位(ガクチョ=Discord+claude -p / チーム=gaku-co API / 社外=隔離)+ 内側/外側をデプロイ分離 | 2026-05-28 (S16) | 同上 |
+| master チャネル = Discord(proactive push 無料無制限・表示・スレッド)/ garden-gaku-co は本 repo・最小ネイティブから育てる | 2026-05-28 (S16) | 同上 |
+| ガクチョ呼称(音引きなし)を全プロジェクト共通で `~/.claude/CLAUDE.md` に記憶 | 2026-05-28 (S16) | [sessions/2026-05-28-session16.md](../docs/sessions/2026-05-28-session16.md) |
 
 ## 直近のセッション
 
+- [2026-05-28 セッション16](../docs/sessions/2026-05-28-session16.md) — **gaku-co を Garden の対話層に統合(ADR)+ garden-gaku-co 立ち上げ**:夜のレポート(振り返り完了 + 件数 + 正常/異常確認 + ひとこと、cron 22:40)+ 喋るガクコ(Discord 常駐・オンライン・claude -p 脳・read-only)を一晩で稼働。ペルソナ G-gaku-co(中性的・理知的)
 - [2026-05-28 セッション15](../docs/sessions/2026-05-28-session15.md) — **cron 無人実証 + writeback 堅牢化 + active 化宣言**:06:25/06:30 が無人で完走 → Obsidian 反映を実証 / 露見した 2 バグ(`fs.watch` 取りこぼし / Case-Sensitive OFF の `_id` 重複)を reconcile scan + 小文字化 + スコープ限定で修正 / **daily-pilot 3本を draft → active 化**
 - [2026-05-27 セッション14](../docs/sessions/2026-05-27-session14.md) — **Phase 3a 最後のピース完成**:night-review 副作用あり実走完動作 / morning-briefing dry-run / cron 設定 / **書き戻し経路実装(writeback-daemon)** / LiveSync 互換 chunk ID 仕様解析 + 実装 / **Obsidian 反映成功** → 種 → VPS → CouchDB → LiveSync → Obsidian の循環完成
 - [2026-05-27 セッション13](../docs/sessions/2026-05-27-session13.md) — **5本立て全走**:案 E + 拡張5項目 を正式 ADR 化 / vault layout ADR / board structure ADR / 既存 draft パス統一 / **本番ランチャー初版 + VPS 実走で claude -p が種を完全実行** / mirror-daemon 運用観察ログ
