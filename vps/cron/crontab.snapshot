@@ -4,6 +4,7 @@
 # Garden daily-pilot seeds (S14: 2026-05-27 設定)
 25 6 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/recurring-spawn >> /home/vps-harappa/garden-mirror/garden/log/cron-launcher.log 2>&1
 30 6 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/morning-briefing >> /home/vps-harappa/garden-mirror/garden/log/cron-launcher.log 2>&1
+40 6 * * * /home/vps-harappa/garden/services/garden-gaku-co/run-morning-greet.sh >> /home/vps-harappa/garden-mirror/garden/log/morning-greet.log 2>&1
 30 22 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/night-review >> /home/vps-harappa/garden-mirror/garden/log/cron-launcher.log 2>&1
 40 22 * * * /home/vps-harappa/garden/services/garden-gaku-co/run-night-cheer.sh >> /home/vps-harappa/garden-mirror/garden/log/night-cheer.log 2>&1
 */2 * * * * /home/vps-harappa/garden/services/garden-gaku-co/run-bot.sh >> /home/vps-harappa/garden-mirror/garden/log/bot-keepalive.log 2>&1

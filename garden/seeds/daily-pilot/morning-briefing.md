@@ -36,6 +36,9 @@ execute:
     today_slash: "$(date +%Y/%m/%d)"
     today_jp: "$(date +%-m月%-d日)"
     # 曜日は VPS に ja_JP.UTF-8 locale 未導入のため、prompt 内で Claude が today から判定する
+    # カレンダーは launcher が事前取得して注入(claude には credential/MCP を渡さない)。
+    # 失敗時も calendar_cli が `- ⚠️ カレンダー取得失敗（…）` を1行返す(常に exit 0)。
+    calendar_block: "$(/home/vps-harappa/garden/services/garden-gaku-co/venv/bin/python3 /home/vps-harappa/garden/services/calendar/calendar_cli.py briefing 2>/dev/null)"
   prompt: |
     あなたは daily-pilot 区画の種「morning-briefing」です。
     目的: 塚越さんが iPhone 一画面で「今日(= {today_jp}、曜日は {today} から判定)やること」を把握できる
@@ -45,7 +48,7 @@ execute:
       1. 入力読み込み
          - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(deadline = {today} or それ以前のタスクを抽出)
          - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md(前夜に night-review がクリアしているはず)
-         - Google Calendar(MCP)から本日 {today} の予定取得
+         - 本日 {today} の予定は launcher が事前取得済み(下記 calendar_block を使う。MCP は使わない)
          - /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md(存在すれば「resume モード」、後述)
 
       2. **resume モード判定**
@@ -57,22 +60,29 @@ execute:
          a. backlog から **deadline ≦ today** のタスクを active_tasks.md にコピー
             (backlog からは削除しない。マスタは backlog)
             - active_tasks のテンプレ構造: `# Today's Tasks - {today_slash} (曜日)` ヘッダ +
-              `## スケジュール` + `## 運営・企画` + `## 管理事務` + `## 家のこと` + `## 追加` の順
+              `## スケジュール` + `## 運営・企画` + `## 管理事務` + `## 家のこと` + `## 追加` +
+              **`## 🔖 Triage(対話で消化 / 詳細は board)`(最下段)** の順
               ※ 曜日は {today} から判定して (月)(火)(水)(木)(金)(土)(日) のいずれかで表記
             - 期限超過タスクは `🚨 期限超過` セクションを冒頭に挿入して分けて表示
             - 暫定締切タスク(`・暫定` 付き)は Triage 候補に格上げ(後述 c)
             - backlog の Level 2 カテゴリ(`## 運営・企画` 等)を尊重して active のセクション分けに反映
          b. カレンダー予定の埋め込み
-            - **Google Calendar MCP 利用可** → 取得した本日 {today} の予定を active_tasks.md の
-              `## スケジュール` セクションに `- HH:MM タイトル` 形式で埋め込み
-            - **Google Calendar MCP 失敗(認証切れ等)** → `## スケジュール` セクションに
-              `- ⚠️ カレンダー取得失敗(MCP 未認証 or エラー)` と 1 行だけ書いて続行
-              ※ Phase 3 検証中の暫定モード。MCP 認証完了で自動的に通常モードへ
+            - 本日 {today} の予定は以下(launcher が calendar_cli で事前取得済み)。
+              この内容を active_tasks.md の `## スケジュール` セクションに**そのまま転記**する:
+              ----
+              {calendar_block}
+              ----
+            - 予定がなければ `- (予定なし)`、取得失敗なら `- ⚠️ カレンダー取得失敗（…）` の
+              1 行が上に入っているので、それをそのまま書けばよい(整形・補完しない)
          c. Triage 候補を抽出し、board/{today}-morning-briefing.md に質問入り MD を生成:
             - 暫定締切タスク → 「Q1: 締切確認が必要なタスク」
             - 曖昧期限(「来週」「近日」「ASAP」等の自然言語のみ) → 「Q2: 締切の数値化」
             - AI 支援候補(時間がかかる・要調査・要相談 等) → 「Q3: AI 支援提案」
             - status: awaiting_triage, 質問なし(0件)なら status: confirmed で完結扱い
+         c-2. **active_tasks.md の最下段 `## 🔖 Triage` セクションに、上記 Triage を簡潔ミラー**:
+            - 1 項目 1 行: `- {タスク名} → {問いの要点}`(選択肢 a/b/c は出さない=board が詳細)
+            - 目的: 庭師が対話せずとも1画面で「判断ほしいこと」を把握できる
+            - Triage 0 件なら `- (なし)` の1行。詳細回答は board or 朝の対話で消化
          d. 完了報告のログ出力(LINE 通知はモック化中、ガクコ /send は呼ばない)
             作成する報告文面を `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` の
             末尾に **`==NOTIFY==` ブロックで append**(launcher が既存内容を書いた後の末尾に追記):
@@ -98,7 +108,7 @@ execute:
 
     失敗時:
       - backlog.md 読み取り失敗 → on_failure に従う(致命的)
-      - calendar(MCP)失敗 → 続行(警告のみ)
+      - calendar 取得失敗 → calendar_block に警告1行が入るのでそのまま転記して続行
       - board ファイル書き込み失敗 → on_failure に従う
 
 # === ③ 結果をどこに置くか ===
@@ -164,7 +174,7 @@ depends_on:
   state:
     - "/home/vps-harappa/garden-mirror/hmc_tasks/backlog.md が存在・有効"
     - "/home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md が前夜の night-review でクリア済み"
-    - "Google Calendar MCP が稼働(失敗時は警告のみで続行)"
+    - "garden/services/calendar/calendar_cli.py + token.json が稼働(失敗時は警告1行で続行)"
     - "ガクコ /send が利用可能(personal グループ)"
     - "board ファイルの resume を起動する watcher daemon が稼働(Phase 3a インフラ)"
   seeds:
@@ -189,7 +199,7 @@ frontmatter の `execute` / `outputs` / `pruning` を参照。要約:
 
 1. cron 毎日 06:30 発火(recurring-spawn の 5 分後)
 2. backlog から deadline ≦ today を active_tasks に抽出
-3. Google Calendar(MCP)から本日予定取得し active 冒頭に貼る
+3. launcher が `calendar_cli briefing` で本日予定を事前取得 → prompt に注入 → active の `## スケジュール` に転記
 4. Triage 候補(暫定締切 / 曖昧期限 / AI 支援候補)を board/{today}-morning-briefing.md に生成
 5. LINE 通知(Triage 0 件 / 1 件以上で文面差)
 6. 塚越さんが返信 or board 編集 → watcher daemon が **resume モード** で本種を再起動

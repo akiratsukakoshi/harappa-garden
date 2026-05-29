@@ -246,7 +246,7 @@ function evaluateComputedInputs(rawInputs, extraVars) {
     const m = v.match(/^\$\((.+)\)$/);
     if (m) {
       try {
-        const out = execSync(m[1], { encoding: 'utf8', timeout: 5000 }).trim();
+        const out = execSync(m[1], { encoding: 'utf8', timeout: 15000 }).trim();
         result[k] = out;
       } catch (e) {
         result[k] = `<eval_error: ${e.message}>`;

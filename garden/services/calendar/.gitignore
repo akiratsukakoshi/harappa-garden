@@ -1,0 +1,4 @@
+# 認証情報は VPS 上のみ(chmod 600)。リポジトリには絶対に入れない。
+oauth_credentials.json
+token.json
+venv/

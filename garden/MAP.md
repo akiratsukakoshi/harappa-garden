@@ -7,12 +7,12 @@
 HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォーム。
 庭師=塚越さん、エージェント群=自律的に育つ生態系。HMC(操縦席)からの進化版(庭=育てる生態系)。
 
-## 現在地 @2026-05-28
+## 現在地 @2026-05-29
 
-- **設計フェーズ**: Phase 3a 完成 + cron 無人実証(S15)に加え、**Garden の対話層 garden-gaku-co を立ち上げ(S16)** = 夜のレポート(cron 22:40)+ 喋るガクコ(Discord 常駐・オンライン)稼働
-- **直近セッション**: [2026-05-28 セッション16](../docs/sessions/2026-05-28-session16.md) — **gaku-co を Garden の対話層として統合する設計を確定(ADR)+ garden-gaku-co を最小ネイティブで立ち上げ**。夜のレポート(振り返り完了 + 件数 + 正常/異常確認 + ひとこと)と、Discord で喋るガクコ(claude -p 脳・read-only)を一晩で稼働
-- **直近の重要決定**: gaku-co = 接客器官 / Garden = 奥座敷、真実は MD 一箇所 / 頭脳はチャネル単位(ガクチョ=Discord+claude -p、チーム=gaku-co API、社外=隔離)/ 内側(garden-gaku-co)と外側(社外ガクコ)をデプロイ分離 / master = Discord / 最小ネイティブから育てる
-- **直近の宿題(最優先)**: **COUCHDB_PASS の rotation**(S14 露出・未対応)/ garden-gaku-co の次段(**会話でタスク更新** = read-only 解除)/ 段4(チーム channel + gaku-co 記憶・承認の移植)/ 社外ガクコの分離
+- **設計フェーズ**: garden-gaku-co(S16)に続き、**朝の対話を立ち上げ(S17)** = カレンダー認証移植 + 朝の口火(06:40)+ **会話の書き戻し(read-only 解除)**。朝が一気通貫(06:30 ブリーフ → 06:40 口火 → Discord 対話 → 当日確定)で回る状態に
+- **直近セッション**: [2026-05-29 セッション17](../docs/sessions/2026-05-29-session17.md) — 「朝のガクコ連絡が届かない」=未実装の発見 → **朝は対話型**に決定。HMC の Google Calendar 認証を `garden/services/calendar/` に移植(MCP 不要化・Production トークン再発行)、morning-briefing に配線、triage を active 最下段にミラー(#1)、朝の口火 `morning_greet.py`(#2)、bot の会話書き戻し(#3/#4・sandbox 検証 → 本番投入)
+- **直近の重要決定**: 朝は対話型(夜レポートの朝版は作らない)/ カレンダーは MCP でなく HMC 認証移植で実現 / bot 書き戻し = settings.json path-scoped・即書き＋軽い報告・自動確定しない / **開発フロー = UX 先行**(memory 記録)
+- **直近の宿題(最優先)**: **COUCHDB_PASS の rotation**(S14 露出・未対応)/ reschedule 経路のライブ確認 / calendar token 7日後の寿命確認 / 段4(チーム channel + gaku-co 記憶・承認の移植)/ 社外ガクコの分離
 
 ## 区画別ステータス
 
@@ -32,8 +32,9 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 土壌-meetings | [soil/meetings/](soil/meetings/) | ⬜ | 議事録インデックス(Plaud等) |
 | 土壌-concepts | [soil/concepts/](soil/concepts/) | 🌱 | [[kodomon]] 1件(外部システム) |
 | 種 (seeds) | [garden/seeds/](seeds/) | 🌱 | README + スキーマ拡張5項目 ADR + 案 E 正式 ADR + 本番ランチャー + **daily-pilot 3本 active 化(S15, cron 無人実証済)**。inbox-process / monthly-shift-survey は draft |
-| サービス (services) | [garden/services/](services/) | 🌳 | **garden-couchdb(S10)+ mirror-daemon(S12)+ launcher(S13)+ writeback-daemon(S14/S15)+ garden-gaku-co(S16)稼働中** |
-| 対話層 garden-gaku-co | [garden/services/garden-gaku-co/](services/garden-gaku-co/) | 🌱 | **S16 立ち上げ**:夜のレポート(cron 22:40・件数 + 正常/異常確認)+ 喋るガクコ(Discord 常駐・オンライン・claude -p 脳・read-only)。ペルソナ = G-gaku-co(中性的・理知的)。次段 = 会話でタスク更新 / チーム channel |
+| サービス (services) | [garden/services/](services/) | 🌳 | **garden-couchdb(S10)+ mirror-daemon(S12)+ launcher(S13)+ writeback-daemon(S14/S15)+ garden-gaku-co(S16)+ calendar(S17)稼働中** |
+| カレンダー calendar | [garden/services/calendar/](services/calendar/) | 🌳 | **S17: HMC の Google Calendar 認証を移植**(MCP 不要に)。token は Production 化後の再同意でクリーン発行。morning-briefing の📅欄に注入(launcher computed_inputs)。bot 対話でも利用予定 |
+| 対話層 garden-gaku-co | [garden/services/garden-gaku-co/](services/garden-gaku-co/) | 🌳 | **S16 立ち上げ + S17 朝の対話**:夜のレポート(22:40)+ 喋るガクコ(常駐)+ **朝の口火 morning_greet.py(06:40)** + **会話の書き戻し(read-only 解除)= 完了/追加/締切/Triage を MD 編集、即書き＋軽い報告、自動確定しない**。次段 = チーム channel / 永続記憶 |
 | 平文 MD ミラー | `~/garden-mirror/`(VPS) | 🌳 | **両方向同期完成(S14)**:CouchDB → MD = mirror-daemon、MD → CouchDB = writeback-daemon。LiveSync 互換 chunk ID 実装で Obsidian 完全反映 |
 | 本番ランチャー | [garden/services/launcher/](services/launcher/) | 🌳 | **S13 完動 + S14 night-review 実走成功 + S15 で cron 無人実走を実証**(06:25/06:30 自動発火 → 完走 → Obsidian 反映)。cron 化済(06:25/06:30/22:30) |
 | 書き戻し daemon | [garden/services/writeback-daemon/](services/writeback-daemon/) | 🌳 | **S14 完成 + S15 堅牢化**:reconcile scan backbone(`fs.watch` 取りこぼし対策)+ `_id` 小文字化(Case-Sensitive OFF)+ スコープ限定(`hmc_tasks/,garden/`)+ LiveSync E2EE 互換 chunk ID + ループ防止 |
@@ -112,7 +113,8 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [ ] **gaku-co5.0 側「LINE 返信 → board MD 書き戻し」処理を実装**
 - [ ] **(今晩確認)** 22:30 night-review が 5/28 分を完全自律で実変換(完了 archive 転記 + active クリア + 翌日テンプレ)→ Obsidian 反映
 - [ ] **バッドチャンク掃除**(writeback 初版の `h:` のみ orphan + S15 重複削除で参照されなくなった chunk の削除)
-- [ ] **Google Calendar MCP の VPS 認証**(morning-briefing フル機能化)
+- [x] **Google Calendar 認証(S17)** — MCP ではなく HMC 認証を `garden/services/calendar/` に移植して解決。morning-briefing の📅欄に launcher computed_inputs で注入
+- [x] **朝の対話(S17)** — 朝の口火 `morning_greet.py`(06:40)+ triage を active 最下段にミラー + bot の会話書き戻し(read-only 解除)。明朝が初のフル稼働ライブ
 - [ ] **recurring_master.md のスキーマ確定 + 既存 recurring の棚卸し + 移行計画**
 
 #### Phase 3b: HMC の VPS 移植 + secret 管理設計
@@ -178,7 +180,8 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [x] **(済 S15)** ~~明朝 2026-05-28 の cron 自動発火結果確認~~ — 06:25/06:30 完走 → 2 バグ修正 → Obsidian 反映確認
 - [ ] **(最優先・セキュリティ)** **COUCHDB_PASS の rotation**(S14 でデバッグ中露出、S15 でも未対応)
 - [ ] **(S15 今晩)** 22:30 night-review が 5/28 分を完全自律で実変換することの確認(これまでの cron 実走は手動処理済みデータでの再実行)
-- [ ] **(継続)** Google Calendar MCP の VPS 認証
+- [x] **(済 S17)** ~~Google Calendar MCP の VPS 認証~~ → MCP ではなく HMC 認証を `garden/services/calendar/` に移植して解決。token は Production 再同意でクリーン発行。明朝 06:30 の morning-briefing が📅欄を実際に埋めるのが初回ライブ確認
+- [ ] **(継続・監視)** calendar token の寿命確認 — HMC は Production 化済だが、移植 token が Testing 由来の7日クロックを引きずっていないか(再同意済なので無期限のはず)。約7日後も生きていれば確定
 
 ### Claude
 - [ ] 次回セッション開始時に本 MAP.md + 直近セッション(14)サマリ + [2026-05-27-writeback-daemon-implementation ADR](../docs/decisions/2026-05-27-writeback-daemon-implementation.md) + [writeback-daemon README](services/writeback-daemon/README.md) + 明朝の cron-launcher.log + morning-briefing.log を読む
@@ -287,9 +290,15 @@ HMC SKILL を順次 HMG に移植・自律化。
 | 頭脳はチャネル単位(ガクチョ=Discord+claude -p / チーム=gaku-co API / 社外=隔離)+ 内側/外側をデプロイ分離 | 2026-05-28 (S16) | 同上 |
 | master チャネル = Discord(proactive push 無料無制限・表示・スレッド)/ garden-gaku-co は本 repo・最小ネイティブから育てる | 2026-05-28 (S16) | 同上 |
 | ガクチョ呼称(音引きなし)を全プロジェクト共通で `~/.claude/CLAUDE.md` に記憶 | 2026-05-28 (S16) | [sessions/2026-05-28-session16.md](../docs/sessions/2026-05-28-session16.md) |
+| 朝は対話型(夜レポートの朝版=一方向は作らない)/ 口火は gaku-co から声がけ 06:40 | 2026-05-29 (S17) | [sessions/2026-05-29-session17.md](../docs/sessions/2026-05-29-session17.md) |
+| カレンダーは MCP でなく HMC 認証(`manage_calendar.py`)を `garden/services/calendar/` に移植 / launcher computed_inputs で prompt 注入 | 2026-05-29 (S17) | 同上 |
+| calendar token は Production 再同意でクリーン発行(access=約1h・refresh=Production無期限)/ HMC とクライアント共有 | 2026-05-29 (S17) | [services/calendar/README.md](services/calendar/README.md) |
+| bot 書き戻し = settings.json path-scoped(hmc_tasks/garden)・即書き＋軽い報告・Triage 全消化で確認・自動確定しない | 2026-05-29 (S17) | 同上 |
+| 開発フロー = UX 先行(実装前に想定 UX を確認、当初計画＋高解像度 UX で方向確定)| 2026-05-29 (S17) | memory `ux-first-dev-flow` |
 
 ## 直近のセッション
 
+- [2026-05-29 セッション17](../docs/sessions/2026-05-29-session17.md) — **朝の対話を立ち上げ**:「朝のガクコ連絡が届かない」=未実装の発見 → 朝は対話型に決定。カレンダー認証を HMC から移植(MCP 不要化)、triage を active 最下段にミラー(#1)、朝の口火 morning_greet.py 06:40(#2)、bot の会話書き戻し=read-only 解除(#3/#4・sandbox 検証→本番)。開発フロー UX 先行を memory 記録
 - [2026-05-28 セッション16](../docs/sessions/2026-05-28-session16.md) — **gaku-co を Garden の対話層に統合(ADR)+ garden-gaku-co 立ち上げ**:夜のレポート(振り返り完了 + 件数 + 正常/異常確認 + ひとこと、cron 22:40)+ 喋るガクコ(Discord 常駐・オンライン・claude -p 脳・read-only)を一晩で稼働。ペルソナ G-gaku-co(中性的・理知的)
 - [2026-05-28 セッション15](../docs/sessions/2026-05-28-session15.md) — **cron 無人実証 + writeback 堅牢化 + active 化宣言**:06:25/06:30 が無人で完走 → Obsidian 反映を実証 / 露見した 2 バグ(`fs.watch` 取りこぼし / Case-Sensitive OFF の `_id` 重複)を reconcile scan + 小文字化 + スコープ限定で修正 / **daily-pilot 3本を draft → active 化**
 - [2026-05-27 セッション14](../docs/sessions/2026-05-27-session14.md) — **Phase 3a 最後のピース完成**:night-review 副作用あり実走完動作 / morning-briefing dry-run / cron 設定 / **書き戻し経路実装(writeback-daemon)** / LiveSync 互換 chunk ID 仕様解析 + 実装 / **Obsidian 反映成功** → 種 → VPS → CouchDB → LiveSync → Obsidian の循環完成
