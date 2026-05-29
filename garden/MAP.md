@@ -9,10 +9,11 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 ## 現在地 @2026-05-29
 
-- **設計フェーズ**: garden-gaku-co(S16)に続き、**朝の対話を立ち上げ(S17)** = カレンダー認証移植 + 朝の口火(06:40)+ **会話の書き戻し(read-only 解除)**。朝が一気通貫(06:30 ブリーフ → 06:40 口火 → Discord 対話 → 当日確定)で回る状態に
-- **直近セッション**: [2026-05-29 セッション17](../docs/sessions/2026-05-29-session17.md) — 「朝のガクコ連絡が届かない」=未実装の発見 → **朝は対話型**に決定。HMC の Google Calendar 認証を `garden/services/calendar/` に移植(MCP 不要化・Production トークン再発行)、morning-briefing に配線、triage を active 最下段にミラー(#1)、朝の口火 `morning_greet.py`(#2)、bot の会話書き戻し(#3/#4・sandbox 検証 → 本番投入)
-- **直近の重要決定**: 朝は対話型(夜レポートの朝版は作らない)/ カレンダーは MCP でなく HMC 認証移植で実現 / bot 書き戻し = settings.json path-scoped・即書き＋軽い報告・自動確定しない / **開発フロー = UX 先行**(memory 記録)
-- **直近の宿題(最優先)**: ~~COUCHDB_PASS の rotation~~ **(済 2026-05-29: _config API で変更・5消費者全反映・旧失効)** / reschedule 経路のライブ確認 / calendar token 7日後の寿命確認 / 段4(チーム channel + gaku-co 記憶・承認の移植)/ 社外ガクコの分離
+- **設計フェーズ**: 朝の対話を立ち上げ(S17)に続き、**S18 はセキュリティ債の返済と保守**。朝が一気通貫(06:30 ブリーフ → 06:40 口火 → Discord 対話 → 当日確定)で回る器官は揃い、**明朝5/30 が初フル稼働ライブ**
+- **直近セッション**: [2026-05-29 セッション18](../docs/sessions/2026-05-29-session18.md) — **COUCHDB_PASS rotation**(3セッション持ち越しの最優先債を返済・`_config` API・5消費者全反映・旧失効)+ **旧 n8n 撤去**(~320M を shred 後削除・履歴 scrub)+ **明朝チェーンの事前点検**(bot が古い Triage を誤認 / morning_greet ヘッダ正規表現が厳格、の2点を発見 → 実装は明朝観察後に繰り越し)
+- **直近の重要決定**: rotation は `_config` API で host `local.ini` に永続(コンテナ recreate でも生存)/ 秘密の受け渡しは VPS chmod 600 ファイル + ガクチョ自身のターミナル(AI チャット非経由)/ 朝チェーンの改善は明朝のライブ挙動を見てから着手
+- **(S17 重要決定)**: 朝は対話型(夜レポートの朝版は作らない)/ カレンダーは MCP でなく HMC 認証移植 / bot 書き戻し = settings.json path-scoped・即書き＋軽い報告・自動確定しない / **開発フロー = UX 先行**(memory 記録)
+- **直近の宿題(最優先)**: **(明朝)5/30 朝チェーン初フル稼働の観察** → その後に**朝チェーン改善2点**(bot を今日の triage board のみに絞る / morning_greet ヘッダ正規表現を緩める)を実装 / NPM UI から旧 n8n proxy host 削除(庭師)/ reschedule 経路の検証 / calendar token 7日後の寿命確認 / 段4(チーム channel + gaku-co 記憶・承認の移植)
 
 ## 区画別ステータス
 
@@ -300,6 +301,7 @@ HMC SKILL を順次 HMG に移植・自律化。
 
 ## 直近のセッション
 
+- [2026-05-29 セッション18](../docs/sessions/2026-05-29-session18.md) — **COUCHDB_PASS rotation + 旧 n8n 撤去 + 明朝チェーン事前点検**:3セッション持ち越しの最優先セキュリティ債を返済(`_config` API・5消費者全反映・host local.ini 永続・旧失効)。派生で旧 n8n を完全撤去(~320M shred 後削除 + 履歴 scrub、残=NPM proxy host 削除)。明朝5/30 初ライブに向け朝チェーンを点検し改善2点を発見(bot の古 Triage 誤認 / morning_greet ヘッダ厳格)→ 実装は明朝観察後に繰り越し
 - [2026-05-29 セッション17](../docs/sessions/2026-05-29-session17.md) — **朝の対話を立ち上げ**:「朝のガクコ連絡が届かない」=未実装の発見 → 朝は対話型に決定。カレンダー認証を HMC から移植(MCP 不要化)、triage を active 最下段にミラー(#1)、朝の口火 morning_greet.py 06:40(#2)、bot の会話書き戻し=read-only 解除(#3/#4・sandbox 検証→本番)。開発フロー UX 先行を memory 記録
 - [2026-05-28 セッション16](../docs/sessions/2026-05-28-session16.md) — **gaku-co を Garden の対話層に統合(ADR)+ garden-gaku-co 立ち上げ**:夜のレポート(振り返り完了 + 件数 + 正常/異常確認 + ひとこと、cron 22:40)+ 喋るガクコ(Discord 常駐・オンライン・claude -p 脳・read-only)を一晩で稼働。ペルソナ G-gaku-co(中性的・理知的)
 - [2026-05-28 セッション15](../docs/sessions/2026-05-28-session15.md) — **cron 無人実証 + writeback 堅牢化 + active 化宣言**:06:25/06:30 が無人で完走 → Obsidian 反映を実証 / 露見した 2 バグ(`fs.watch` 取りこぼし / Case-Sensitive OFF の `_id` 重複)を reconcile scan + 小文字化 + スコープ限定で修正 / **daily-pilot 3本を draft → active 化**
