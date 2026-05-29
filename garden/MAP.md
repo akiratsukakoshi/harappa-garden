@@ -12,7 +12,7 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - **設計フェーズ**: garden-gaku-co(S16)に続き、**朝の対話を立ち上げ(S17)** = カレンダー認証移植 + 朝の口火(06:40)+ **会話の書き戻し(read-only 解除)**。朝が一気通貫(06:30 ブリーフ → 06:40 口火 → Discord 対話 → 当日確定)で回る状態に
 - **直近セッション**: [2026-05-29 セッション17](../docs/sessions/2026-05-29-session17.md) — 「朝のガクコ連絡が届かない」=未実装の発見 → **朝は対話型**に決定。HMC の Google Calendar 認証を `garden/services/calendar/` に移植(MCP 不要化・Production トークン再発行)、morning-briefing に配線、triage を active 最下段にミラー(#1)、朝の口火 `morning_greet.py`(#2)、bot の会話書き戻し(#3/#4・sandbox 検証 → 本番投入)
 - **直近の重要決定**: 朝は対話型(夜レポートの朝版は作らない)/ カレンダーは MCP でなく HMC 認証移植で実現 / bot 書き戻し = settings.json path-scoped・即書き＋軽い報告・自動確定しない / **開発フロー = UX 先行**(memory 記録)
-- **直近の宿題(最優先)**: **COUCHDB_PASS の rotation**(S14 露出・未対応)/ reschedule 経路のライブ確認 / calendar token 7日後の寿命確認 / 段4(チーム channel + gaku-co 記憶・承認の移植)/ 社外ガクコの分離
+- **直近の宿題(最優先)**: ~~COUCHDB_PASS の rotation~~ **(済 2026-05-29: _config API で変更・5消費者全反映・旧失効)** / reschedule 経路のライブ確認 / calendar token 7日後の寿命確認 / 段4(チーム channel + gaku-co 記憶・承認の移植)/ 社外ガクコの分離
 
 ## 区画別ステータス
 
@@ -178,7 +178,9 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [x] **(済)** `hmc_tasks/recurring_master.md` に id 後付け(15 件)
 - [ ] **(継続)** **テスト残骸の整理** = LiveSync 削除イベント不帰問題として継続調査(Obsidian の "Deleted files" 設定 / LiveSync 設定の確認が必要)
 - [x] **(済 S15)** ~~明朝 2026-05-28 の cron 自動発火結果確認~~ — 06:25/06:30 完走 → 2 バグ修正 → Obsidian 反映確認
-- [ ] **(最優先・セキュリティ)** **COUCHDB_PASS の rotation**(S14 でデバッグ中露出、S15 でも未対応)
+- [x] **(済 2026-05-29・セキュリティ)** ~~COUCHDB_PASS の rotation~~ — `_config` API で変更、CouchDB/mirror/writeback/Obsidian PC・iPhone の 5 消費者へ反映、旧パス失効。記録: [incidents/2026-05-29_couchdb_pass_rotation.md](../docs/security/incidents/2026-05-29_couchdb_pass_rotation.md)
+- [x] **(済 2026-05-29)** ~~旧 n8n の残存~~ — `~/.n8n`(166M)+ `~/.n8n_backup_1.81`(154M)を shred 後削除、bash 履歴の n8n 36行を scrub。**残: NPM の proxy host #1 `n8n-harappa.duckdns.org`(upstream 消失=502 のダングリング)を NPM UI から削除**(手で .conf を消すと DB から再生成されるため UI/API 経由が正道)
+- [ ] **(改善余地)** LiveSync 用に非 admin 専用 CouchDB ユーザーを分離(現状は単一 admin 共有 = rotation 時 blast radius 大)
 - [ ] **(S15 今晩)** 22:30 night-review が 5/28 分を完全自律で実変換することの確認(これまでの cron 実走は手動処理済みデータでの再実行)
 - [x] **(済 S17)** ~~Google Calendar MCP の VPS 認証~~ → MCP ではなく HMC 認証を `garden/services/calendar/` に移植して解決。token は Production 再同意でクリーン発行。明朝 06:30 の morning-briefing が📅欄を実際に埋めるのが初回ライブ確認
 - [ ] **(継続・監視)** calendar token の寿命確認 — HMC は Production 化済だが、移植 token が Testing 由来の7日クロックを引きずっていないか(再同意済なので無期限のはず)。約7日後も生きていれば確定
