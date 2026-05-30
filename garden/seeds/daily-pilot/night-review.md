@@ -40,93 +40,39 @@ execute:
     # 曜日は VPS に ja_JP.UTF-8 locale 未導入のため、prompt 内で Claude が today/tomorrow から判定する
   prompt: |
     あなたは daily-pilot 区画の種「night-review」です。
-    目的: 当日({today})の active_tasks の状態を backlog / archive に反映し、active を翌日のために
-          クリアする。ADR セッション6 決定6・決定7 に従う。
 
-    手順:
-      1. 入力読み込み
-         - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md
-         - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md
-         - /home/vps-harappa/garden-mirror/hmc_tasks/archive.md
+    まず /home/vps-harappa/garden/plots/daily-pilot/SKILL.md を Read してください。
+    SKILL の **"Mode 3: Night Review"** の全 Step(Step 1〜7)に従って、本日 {today} の振り返りを実行します。
+    特に Step 4 の **active 編集の反映ロジック**(active 上で締切が書き換えられていたら backlog を更新)を厳守。
 
-      2. **対象外セクションの除外(処理開始前に判定)**
-         active_tasks 内の以下のセクション配下の行は **backlog/archive 反映対象外**:
-           - `## スケジュール`(カレンダー由来の予定表示)
-           - `## 本日の予定`(同上、morning-briefing が貼る別名)
-         これらのセクションは [x]/[ ] 判定もせず、ステップ5の active クリアでまとめて消える。
+    今回の動的入力:
+      - today: {today}, today_md: {today_md}, today_slash: {today_slash}, today_month: {today_month}
+      - tomorrow: {tomorrow}, tomorrow_md: {tomorrow_md}, tomorrow_slash: {tomorrow_slash}
 
-      3. **チェック済みタスク(`[x]`)処理**(対象外セクションを除く)
-         a. 該当タスクの記述を backlog から削除
-            - マッチキー = タスク名(余裕があれば deadline 併用)
-            - 行末の `<!-- recur:{id}@{period_id} -->` コメントマーカーがあれば、
-              それをキーに用いる(タスク名表記揺れに対する一次マッチ)
-         b. archive.md に追記(既存規約に揃える)
-            - **月単位ヘッダ**: `## {today_month}`(例 `## 2026/05`)が無ければ末尾に新設
-            - **日単位ヘッダ**: `### {today_slash} (曜日)` を該当月ヘッダ配下に追記
-              ※ 曜日は **{today} から判定し** (月)(火)(水)(木)(金)(土)(日) のいずれかで表記
-              ※ 例: today=2026-05-27(水曜) → `### 2026/05/27 (水)`
-              ※ 同日ヘッダが既存なら追記しない
-            - 日ヘッダ直後に **1行コメント**(本日のサマリ)を 1 行で残す(無くてもよい場合は空行)
-            - `**Completed Tasks:**` セクションを設け、`[x]` 行を **元の backlog 行を完全保持して転記**
-              (recur マーカーや締切表記を保つ。recurring-spawn が archive を grep して再 spawn 防止する前提)
-            - 未完了で backlog 残存させたタスクは `**Carried Over & Added:**` セクションに `[ ]` で記載
-              (`(MM/DD -> MM/DD)` 形式で持ち越し日を表記 = 既存規約に揃える)
+    操作対象ファイル(SKILL の「ファイルと役割」表を参照):
+      - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md
+      - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md
+      - /home/vps-harappa/garden-mirror/hmc_tasks/archive.md
 
-      4. **未チェックタスク(`[ ]`)処理(`## 追加` セクション外、対象外セクションを除く)**
-         a. backlog にはそのまま残す(削除しない、deadline 変更しない)
-         b. archive の `**Carried Over & Added:**` セクションに記載(持ち越しを記録)
-         c. active から消えるだけ(明日 morning-briefing が backlog から再抽出)
+    曜日表記: today/tomorrow から判定して (月)(火)(水)(木)(金)(土)(日)。
 
-      5. **`## 追加` セクション処理(4 分岐)**
-         a. `[x]` → archive の `**Completed Tasks:**` に追記
-         b. `[ ]` + 締切記述あり → backlog の適切なカテゴリへ追記(deadline は記述を尊重)+
-            archive の `**Carried Over & Added:**` に `[🆕]` マーカー付きで記録
-         c. `[ ]` + 締切なし → **翌日デフォルト暫定締切付与** → backlog へ追記 +
-            archive の `**Carried Over & Added:**` に `[🆕]` 付きで記録
-            フォーマット: `- [ ] **{タスク}** ({tomorrow_md}締切・暫定)`
-         d. 空行 → 何もしない
-
-      6. **active_tasks クリア**
-         - active_tasks.md をテンプレ初期状態に戻す
-         - 1 行目ヘッダ: `# Today's Tasks - {tomorrow_slash} (曜日)`
-           ※ 曜日は {tomorrow} から判定(月/火/水/木/金/土/日)
-         - 以下、空セクション順序(タスク行なし、ヘッダのみ):
-           `## スケジュール` / `## 運営・企画` / `## 管理事務` / `## 家のこと` / `## 追加`
-         - 翌朝 morning-briefing が再構築する前提
-
-      7. **完了報告のログ出力**(LINE 通知はモック化中、ガクコ /send は呼ばない)
-         作成する報告文面を `/home/vps-harappa/garden-mirror/garden/log/{today}-night-review.log` の
-         末尾に **`==NOTIFY==` ブロックで appendして書き出す**(launcher が既存のヘッダ+vars+promptを
-         書いた後の末尾に追記する):
-         ```
-         ==NOTIFY==
-         🌱 夜のレビュー {today_md}
-         ✅ 完了: {done_count}件 (archive へ)
-         🔄 持ち越し: {keep_count}件 (backlog 残存)
-         ➕ 新規追加: {added_count}件
-         🚨 期限超過(明日): {overdue_next_count}件
-         ==END==
-         ```
-         (Phase 3 で ガクコ /send 連携が組まれたら、この文面を /send に投げる)
-
-    重要原則(ADR セッション6 決定6):
-      - active は **常にクリア**(差分なし = 未編集の日も処理続行、報告は 0件 表示)
-      - 差分マージはしない(backlog がマスタ、active は派生ビュー)
-      - 暫定締切は **翌日デフォルト**(営業日ロジック等は導入しない)
-
-    案 E(セッション8)由来の責務:
-      - 完了タスクを archive に転記する際、**元の backlog 行を完全保持**(recur マーカー含む)
-      - これは recurring-spawn が archive を grep して再 spawn 防止する前提
-
-    archive 既存規約に揃える理由:
-      - HMC 期から続く `### YYYY/MM/DD (曜日)` + `**Completed Tasks:**` + `**Carried Over & Added:**` の
-        2 セクション構造に統一(過去ログとの連続性確保)
-      - セッション14 で塚越さんと合意
+    完了報告(LINE 通知はモック化中、ガクコ /send は呼ばない):
+      `/home/vps-harappa/garden-mirror/garden/log/{today}-night-review.log` の末尾に
+      **`==NOTIFY==` ブロックで append**:
+      ```
+      ==NOTIFY==
+      🌱 夜のレビュー {today_md}
+      ✅ 完了: {done_count}件 (archive へ)
+      🔄 持ち越し: {keep_count}件 (backlog 残存)
+      🔁 締切更新: {modified_count}件 (active 編集を backlog へ反映)
+      ➕ 新規追加: {added_count}件
+      🚨 期限超過(明日): {overdue_next_count}件
+      ==END==
+      ```
 
     失敗時:
       - active_tasks.md 読み取り失敗 → on_failure に従う(致命的)
       - backlog / archive 書き込み失敗 → on_failure に従う
-      - 部分書き込み中断時の整合性復旧は別仕組み(❓ Improvement Hints 参照)
 
 # === ③ 結果をどこに置くか ===
 outputs:
@@ -163,6 +109,7 @@ on_complete:
       🌱 夜のレビュー {today_md}
       ✅ 完了: {done_count}件 (archive へ)
       🔄 持ち越し: {keep_count}件 (backlog 残存)
+      🔁 締切更新: {modified_count}件 (active → backlog 反映)
       ➕ 新規追加: {added_count}件
       🚨 期限超過(明日): {overdue_next_count}件
 

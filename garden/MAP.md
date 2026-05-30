@@ -7,13 +7,12 @@
 HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォーム。
 庭師=塚越さん、エージェント群=自律的に育つ生態系。HMC(操縦席)からの進化版(庭=育てる生態系)。
 
-## 現在地 @2026-05-29
+## 現在地 @2026-05-30
 
-- **設計フェーズ**: 朝の対話を立ち上げ(S17)に続き、**S18 はセキュリティ債の返済と保守**。朝が一気通貫(06:30 ブリーフ → 06:40 口火 → Discord 対話 → 当日確定)で回る器官は揃い、**明朝5/30 が初フル稼働ライブ**
-- **直近セッション**: [2026-05-29 セッション18](../docs/sessions/2026-05-29-session18.md) — **COUCHDB_PASS rotation**(3セッション持ち越しの最優先債を返済・`_config` API・5消費者全反映・旧失効)+ **旧 n8n 撤去**(~320M を shred 後削除・履歴 scrub)+ **明朝チェーンの事前点検**(bot が古い Triage を誤認 / morning_greet ヘッダ正規表現が厳格、の2点を発見 → 実装は明朝観察後に繰り越し)
-- **直近の重要決定**: rotation は `_config` API で host `local.ini` に永続(コンテナ recreate でも生存)/ 秘密の受け渡しは VPS chmod 600 ファイル + ガクチョ自身のターミナル(AI チャット非経由)/ 朝チェーンの改善は明朝のライブ挙動を見てから着手
-- **(S17 重要決定)**: 朝は対話型(夜レポートの朝版は作らない)/ カレンダーは MCP でなく HMC 認証移植 / bot 書き戻し = settings.json path-scoped・即書き＋軽い報告・自動確定しない / **開発フロー = UX 先行**(memory 記録)
-- **直近の宿題(最優先)**: **(明朝)5/30 朝チェーン初フル稼働の観察** → その後に**朝チェーン改善2点**(bot を今日の triage board のみに絞る / morning_greet ヘッダ正規表現を緩める)を実装 / NPM UI から旧 n8n proxy host 削除(庭師)/ reschedule 経路の検証 / calendar token 7日後の寿命確認 / 段4(チーム channel + gaku-co 記憶・承認の移植)
+- **設計フェーズ**: 朝チェーン初フル稼働(S18 仕込み)の体感ライブから、**4 課題の根本原因を HMC SKILL との比較で特定 → daily-pilot 区画 SKILL.md を新設し 5 経路を SKILL 参照型に振り替え**(Phase 4 前倒し着手・区画第1号)。当日中に **reschedule ライブ検証成功**(S17/S18 持ち越し3セッション消化)。今夜 22:30 / 明朝 06:30 が **SKILL ベース初本格稼働**
+- **直近セッション**: [2026-05-30 セッション19](../docs/sessions/2026-05-30-session19.md) — **朝の体感改善 + SKILLベース化(plots 第1号) + reschedule ライブ検証成功**:朝チェーン初フル稼働の体感4課題(振り返り漏れ / 表示 / Triage 構成 / 締めの一言)を、(1)短期対応3つ(night-review active→backlog 反映 / morning_greet 改行 / bot 視野今日のみ)+ (2)**SKILL ベース化**(daily-pilot SKILL.md 355行新設 + 種2本 + bot + morning_greet + night_cheer の 5 経路を SKILL 参照型に振り替え)+ (3)古い triage board 退避 + (4)ADR 化 で根本治療
+- **直近の重要決定**: **種(seed) と SKILL の責務分離** = 種 = 発火ディスパッチャ(trigger + execute・「いつ」「どんな入力で」)/ SKILL = 業務観モジュール(Core Philosophy + Mode + Output Style・「何者として」「どんな原則で」)。モデル独立・チャネル独立を SKILL が保証 = HMC の「SKILL を書くだけで実装」軽さが Garden で復活
+- **直近の宿題(最優先)**: **(今夜・明朝)SKILL ベース初稼働の体感観察**(22:30 night-review + active→backlog 反映 / 22:40 night_cheer / 06:30 morning-briefing 横串 Triage / 06:40 morning_greet) / calendar token 7日後の寿命確認(約 6/5) / 次の区画候補 = shift_manager SKILL 移植(Phase 3c 着手時)
 
 ## 区画別ステータス
 
@@ -40,7 +39,8 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 本番ランチャー | [garden/services/launcher/](services/launcher/) | 🌳 | **S13 完動 + S14 night-review 実走成功 + S15 で cron 無人実走を実証**(06:25/06:30 自動発火 → 完走 → Obsidian 反映)。cron 化済(06:25/06:30/22:30) |
 | 書き戻し daemon | [garden/services/writeback-daemon/](services/writeback-daemon/) | 🌳 | **S14 完成 + S15 堅牢化**:reconcile scan backbone(`fs.watch` 取りこぼし対策)+ `_id` 小文字化(Case-Sensitive OFF)+ スコープ限定(`hmc_tasks/,garden/`)+ LiveSync E2EE 互換 chunk ID + ループ防止 |
 | VPS 管理 | [vps/](../vps/) | 🌱 | **本 repo で正本管理開始(S11)**。proxy-manager / ig_scheduler / cron 構成ミラー + NPM backup 取得 + dev-flow + recovery 整備 |
-| 区画 (plots) | garden/plots/ | ⬜ | HMC SKILL の Garden 化版 |
+| 区画 (plots) | [garden/plots/](plots/) | 🌱 | **S19: daily-pilot SKILL.md 新設(355行・区画第1号)**。Core Philosophy + Mode別Step + Output Style を集約 → 5 経路(種2本 + bot + morning_greet + night_cheer)が SKILL 参照型 |
+| 区画-daily-pilot | [garden/plots/daily-pilot/](plots/daily-pilot/) | 🌳 | **S19 立ち上げ**:HMC hmc_pilot SKILL を起源として継承 + Triage 3軸(過ごし方提案 / AI 支援提案 / 判断ほしい)再設計 + active→backlog 反映ロジックを Mode 3 に明示 + 良い締めの例/悪い締めの例を Output Style に明示 |
 | 番人 (watchers) | garden/watchers/ | ⬜ | 監視エージェント |
 | 苗床 (nursery) | garden/nursery/ | ⬜ | 試行領域 |
 | 蔵 (kura) | garden/kura/ | ⬜ | 長期アーカイブ |
@@ -144,10 +144,12 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [ ] MCP server 実装(土壌へのアクセス層)
 - [ ] 既存ソース(Square予約・Notion・Plaud)の ingest
 
-### Phase 4: 区画の Garden 化
+### Phase 4: 区画の Garden 化 ← **S19 で前倒し着手(daily-pilot 第1号)**
 
 HMC SKILL を順次 HMG に移植・自律化。
 
+- [x] **daily-pilot SKILL.md 新設**(S19) — HMC hmc_pilot を起源継承 + Garden 語彙再構築 + Triage 3軸再設計。5 経路(種2本 + bot + morning_greet + night_cheer)を SKILL 参照型に振り替え。[ADR](../docs/decisions/2026-05-30-skill-and-seed-separation.md) で「種 = 発火ディスパッチャ / SKILL = 業務観モジュール」のレイヤ分けを正式化
+- [ ] HMC SKILL の Garden 化(次候補: `shift_manager` SKILL 移植・Phase 3c 着手と同期)
 - [ ] HMC SKILL の Garden 化(finance_importer → invoice_processor → ...)
 - [ ] 番人エージェントの実装(`garden/watchers/`)
 - [ ] チームメンバー(LINE 経由)への開放準備
@@ -180,14 +182,14 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [ ] **(継続)** **テスト残骸の整理** = LiveSync 削除イベント不帰問題として継続調査(Obsidian の "Deleted files" 設定 / LiveSync 設定の確認が必要)
 - [x] **(済 S15)** ~~明朝 2026-05-28 の cron 自動発火結果確認~~ — 06:25/06:30 完走 → 2 バグ修正 → Obsidian 反映確認
 - [x] **(済 2026-05-29・セキュリティ)** ~~COUCHDB_PASS の rotation~~ — `_config` API で変更、CouchDB/mirror/writeback/Obsidian PC・iPhone の 5 消費者へ反映、旧パス失効。記録: [incidents/2026-05-29_couchdb_pass_rotation.md](../docs/security/incidents/2026-05-29_couchdb_pass_rotation.md)
-- [x] **(済 2026-05-29)** ~~旧 n8n の残存~~ — `~/.n8n`(166M)+ `~/.n8n_backup_1.81`(154M)を shred 後削除、bash 履歴の n8n 36行を scrub。**残: NPM の proxy host #1 `n8n-harappa.duckdns.org`(upstream 消失=502 のダングリング)を NPM UI から削除**(手で .conf を消すと DB から再生成されるため UI/API 経由が正道)
+- [x] **(済 2026-05-30 S19)** ~~NPM UI から proxy host `n8n-harappa.duckdns.org` 削除~~ — 庭師作業完了
 - [ ] **(改善余地)** LiveSync 用に非 admin 専用 CouchDB ユーザーを分離(現状は単一 admin 共有 = rotation 時 blast radius 大)
-- [ ] **(S15 今晩)** 22:30 night-review が 5/28 分を完全自律で実変換することの確認(これまでの cron 実走は手動処理済みデータでの再実行)
 - [x] **(済 S17)** ~~Google Calendar MCP の VPS 認証~~ → MCP ではなく HMC 認証を `garden/services/calendar/` に移植して解決。token は Production 再同意でクリーン発行。明朝 06:30 の morning-briefing が📅欄を実際に埋めるのが初回ライブ確認
-- [ ] **(継続・監視)** calendar token の寿命確認 — HMC は Production 化済だが、移植 token が Testing 由来の7日クロックを引きずっていないか(再同意済なので無期限のはず)。約7日後も生きていれば確定
+- [ ] **(継続・監視)** calendar token の寿命確認 — HMC は Production 化済だが、移植 token が Testing 由来の7日クロックを引きずっていないか(再同意済なので無期限のはず)。約7日後 6/5 も生きていれば確定
+- [x] **(済 S19)** ~~reschedule(締切変更→backlog 編集)経路のライブ検証~~ — S17 sandbox 通過後、S17/S18 持ち越し3セッション分が S19 当日中の Discord 対話で自然消化。期限超過7件 + 追加3件が backlog/active に同期反映、bot 独自の `## 運営・企画(繰越)` セクション新設という先回りも観察
 
 ### Claude
-- [ ] 次回セッション開始時に本 MAP.md + 直近セッション(14)サマリ + [2026-05-27-writeback-daemon-implementation ADR](../docs/decisions/2026-05-27-writeback-daemon-implementation.md) + [writeback-daemon README](services/writeback-daemon/README.md) + 明朝の cron-launcher.log + morning-briefing.log を読む
+- [ ] 次回セッション開始時に本 MAP.md + 直近セッション(19)サマリ + [skill-and-seed-separation ADR](../docs/decisions/2026-05-30-skill-and-seed-separation.md) + [daily-pilot SKILL](plots/daily-pilot/SKILL.md) + 当日の 22:30/22:40/06:30/06:40 cron ログを読む
 - [x] 種の YAML スキーマ設計 + `monthly-shift-survey` draft(セッション7 完了)
 - [x] daily-pilot 系 4種の draft 起草(セッション8 完了)
 - [x] VPS 現状把握 + Claude Code 動作確認 + 最小ランチャー試作の cron 検証(セッション9 完了)
@@ -196,11 +198,13 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [x] **セッション13 で 5 本立て全走完了 + 続編で A-1 完動作**: A-1 ランチャー初版 + 連絡板 ADR + vault layout ADR + 案 E ADR + 拡張 5 項目 ADR + mirror-daemon 観察ログ + permission mode 確立 + mirror-daemon 権限修正 + recurring-spawn 副作用あり実走成功
 - [x] **セッション14 で Phase 3a 最後のピース完成**: night-review 副作用あり実走 + cron 化 + writeback-daemon 実装 + LiveSync 互換 chunk ID 解析 + Obsidian 反映成功
 - [x] **セッション15 で cron 無人実証 + writeback 堅牢化 + daily-pilot 3本 active 化宣言**
-- [ ] **次回本命候補(1)**: watcher daemon 実装(event 種・inbox-process / board resume の入口)
-- [ ] **次回本命候補(2)**: gaku-co5.0「LINE 返信 → board MD 書き戻し」連携(morning-briefing resume の完成)
-- [ ] **次回本命候補(3)**: A-1 後追い(on_failure.retry の自動化・fallback LINE 通知発火)
-- [ ] **次回本命候補(4)**: バッドチャンク掃除(`h:` で `+` がない orphan chunks の削除スクリプト)
-- [ ] **次回本命候補(5)**: Calendar MCP VPS 認証
+- [x] **セッション19 で plots 第1号 = daily-pilot SKILL.md 新設(355行) + 5経路振り替え + reschedule ライブ検証成功 + ADR 化**
+- [ ] **次回本命候補(1)**: SKILL ベース初稼働(22:30/22:40/06:30/06:40)の挙動観察 → 違和感あれば SKILL Output Style / Mode 手順を磨く
+- [ ] **次回本命候補(2)**: 次の区画候補 = `garden/plots/shift_manager/SKILL.md`(HMC 移植第1号、Phase 3c 着手と同期)
+- [ ] **次回本命候補(3)**: watcher daemon 実装(event 種・inbox-process / board resume の入口、完成したら SKILL に Mode 4 追記)
+- [ ] **次回本命候補(4)**: gaku-co5.0「LINE 返信 → board MD 書き戻し」連携(チーム channel 開放準備)
+- [ ] **次回本命候補(5)**: A-1 後追い(on_failure.retry の自動化・fallback LINE 通知発火)
+- [ ] **次回本命候補(6)**: バッドチャンク掃除(`h:` で `+` がない orphan chunks の削除スクリプト)
 - [ ] **workflow 書き直し残り(A 案テンプレ適用)**:
   - [ ] `garden/soil/workflows/annual-quarterly-planning.md`
   - [ ] `garden/soil/workflows/program-execution.md`
@@ -298,9 +302,14 @@ HMC SKILL を順次 HMG に移植・自律化。
 | calendar token は Production 再同意でクリーン発行(access=約1h・refresh=Production無期限)/ HMC とクライアント共有 | 2026-05-29 (S17) | [services/calendar/README.md](services/calendar/README.md) |
 | bot 書き戻し = settings.json path-scoped(hmc_tasks/garden)・即書き＋軽い報告・Triage 全消化で確認・自動確定しない | 2026-05-29 (S17) | 同上 |
 | 開発フロー = UX 先行(実装前に想定 UX を確認、当初計画＋高解像度 UX で方向確定)| 2026-05-29 (S17) | memory `ux-first-dev-flow` |
+| 種(seed) と SKILL の責務分離(種 = 発火ディスパッチャ / SKILL = 業務観モジュール、モデル独立・チャネル独立) | 2026-05-30 (S19) | [decisions/2026-05-30-skill-and-seed-separation.md](../docs/decisions/2026-05-30-skill-and-seed-separation.md) |
+| daily-pilot 区画 SKILL 新設 = plots 第1号(Phase 4 前倒し)+ HMC hmc_pilot を起源継承 + Triage 3軸(過ごし方提案 / AI 支援提案 / 判断ほしい)再設計 | 2026-05-30 (S19) | [plots/daily-pilot/SKILL.md](plots/daily-pilot/SKILL.md) |
+| 5 経路(種2本 + bot + morning_greet + night_cheer)を SKILL 参照型に振り替え + active→backlog 反映ロジックを Mode 3 に明示 | 2026-05-30 (S19) | [sessions/2026-05-30-session19.md](../docs/sessions/2026-05-30-session19.md) |
+| reschedule 経路(Discord 対話 → backlog/active 同期反映)のライブ検証成功 | 2026-05-30 (S19) | 同上 |
 
 ## 直近のセッション
 
+- [2026-05-30 セッション19](../docs/sessions/2026-05-30-session19.md) — **朝の体感改善 + SKILLベース化(plots 第1号) + reschedule ライブ検証成功**:朝チェーン初フル稼働の体感4課題(振り返り漏れ / 表示 / Triage 構成 / 締めの一言)を、(1)短期対応3つ +(2)**SKILL ベース化**(daily-pilot SKILL.md 355行新設 + 5経路を SKILL 参照型に振り替え)+(3)古い triage board 退避 +(4)ADR 化(種 = 発火ディスパッチャ / SKILL = 業務観モジュール)で根本治療。当日中に **reschedule ライブ検証成功**(S17/S18 持ち越し3セッション消化)
 - [2026-05-29 セッション18](../docs/sessions/2026-05-29-session18.md) — **COUCHDB_PASS rotation + 旧 n8n 撤去 + 明朝チェーン事前点検**:3セッション持ち越しの最優先セキュリティ債を返済(`_config` API・5消費者全反映・host local.ini 永続・旧失効)。派生で旧 n8n を完全撤去(~320M shred 後削除 + 履歴 scrub、残=NPM proxy host 削除)。明朝5/30 初ライブに向け朝チェーンを点検し改善2点を発見(bot の古 Triage 誤認 / morning_greet ヘッダ厳格)→ 実装は明朝観察後に繰り越し
 - [2026-05-29 セッション17](../docs/sessions/2026-05-29-session17.md) — **朝の対話を立ち上げ**:「朝のガクコ連絡が届かない」=未実装の発見 → 朝は対話型に決定。カレンダー認証を HMC から移植(MCP 不要化)、triage を active 最下段にミラー(#1)、朝の口火 morning_greet.py 06:40(#2)、bot の会話書き戻し=read-only 解除(#3/#4・sandbox 検証→本番)。開発フロー UX 先行を memory 記録
 - [2026-05-28 セッション16](../docs/sessions/2026-05-28-session16.md) — **gaku-co を Garden の対話層に統合(ADR)+ garden-gaku-co 立ち上げ**:夜のレポート(振り返り完了 + 件数 + 正常/異常確認 + ひとこと、cron 22:40)+ 喋るガクコ(Discord 常駐・オンライン・claude -p 脳・read-only)を一晩で稼働。ペルソナ G-gaku-co(中性的・理知的)

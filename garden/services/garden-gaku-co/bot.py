@@ -29,27 +29,17 @@ MASTER_CHANNEL_ID = int(os.environ["DISCORD_MASTER_CHANNEL_ID"])
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 HERE = os.path.dirname(os.path.abspath(__file__))
+# daily-pilot 区画 SKILL(業務観・編集ルール・Output Style の単一の真実)。
+# 起動時に同梱し、対話の判断知識として claude に渡す。SKILL を更新したら bot 再起動が必要。
+SKILL_PATH = os.environ.get(
+    "DAILY_PILOT_SKILL",
+    "/home/vps-harappa/garden/plots/daily-pilot/SKILL.md",
+)
 
 PERSONA = open(os.path.join(HERE, "persona", "g-gaku-co.md"), encoding="utf-8").read()
+SKILL = open(SKILL_PATH, encoding="utf-8").read()
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
-
-
-def read_garden_context() -> str:
-    """今日の active_tasks と board/triage を read-only で読み、文脈にする。"""
-    parts = []
-    active = os.path.join(MIRROR_DIR, "hmc_tasks", "active_tasks.md")
-    if os.path.exists(active):
-        parts.append("## active_tasks.md\n" + open(active, encoding="utf-8").read())
-    triage_dir = os.path.join(MIRROR_DIR, "garden", "board", "triage")
-    if os.path.isdir(triage_dir):
-        for name in sorted(os.listdir(triage_dir)):
-            if name.endswith(".md"):
-                parts.append(
-                    f"## board/triage/{name}\n"
-                    + open(os.path.join(triage_dir, name), encoding="utf-8").read()
-                )
-    return "\n\n".join(parts)[:6000]  # 長すぎる場合は安全に切る
 
 
 ACTIVE_PATH = os.path.join(MIRROR_DIR, "hmc_tasks", "active_tasks.md")
@@ -61,38 +51,48 @@ def triage_board_path(d: datetime.date) -> str:
                         f"{d.isoformat()}-morning-briefing.md")
 
 
+def read_garden_context(today: datetime.date) -> str:
+    """今日の active_tasks と今日の triage board を read-only で読み、文脈にする。
+
+    過去日の board は読まない(古い Triage を「今の判断事項」と誤認するのを防ぐ)。
+    過去ログを参照したい時は会話の中で claude が Read することで取りに行く。
+    """
+    parts = []
+    active = os.path.join(MIRROR_DIR, "hmc_tasks", "active_tasks.md")
+    if os.path.exists(active):
+        parts.append("## active_tasks.md\n" + open(active, encoding="utf-8").read())
+    today_board = triage_board_path(today)
+    if os.path.exists(today_board):
+        parts.append(
+            f"## board/triage/{os.path.basename(today_board)}\n"
+            + open(today_board, encoding="utf-8").read()
+        )
+    return "\n\n".join(parts)[:6000]  # 長すぎる場合は安全に切る
+
+
 def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) -> str:
-    ctx = read_garden_context()
+    ctx = read_garden_context(now.date())
     weekday = WEEKDAY_JA[now.weekday()]
-    board = triage_board_path(now.date())
     return (
-        "あなたは Discord で庭師ガクチョと会話しています。朝の対話では、会話の結論を"
-        "Garden のタスク MD に**書き戻す**ことができます。\n\n"
+        "あなたは Discord master channel で庭師ガクチョと会話しています。\n"
+        "判断知識は下記の daily-pilot SKILL に集約されています。SKILL の "
+        "**Core Philosophy / Mode 2 (Conversation) / Output Style** に従って返答してください。\n"
+        "編集権限の表 (active / backlog / board / スケジュール) は SKILL の Mode 2 を厳守。\n\n"
+        + "──── daily-pilot SKILL ────\n"
+        + SKILL
+        + "\n──── SKILL ここまで ────\n\n"
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"
+        + f"[操作対象ファイル(SKILL の編集権限表に従って使う)]\n"
+        + f"- active_tasks: {ACTIVE_PATH}\n"
+        + f"- backlog(締切の正本): {BACKLOG_PATH}\n"
+        + f"- 今日の Triage board: {triage_board_path(now.date())}\n\n"
         + (f"[Garden の状況(現時点)]\n{ctx}\n\n" if ctx else "")
         + (f"[これまでの会話]\n{convo}\n\n" if convo else "")
         + f"[ガクチョの新しい発言]\n{user_text}\n\n"
-        + "── 返答の方針 ──\n"
-        + "ガクコとして簡潔・自然に返す。挨拶には挨拶で返す。畳みかけない。\n\n"
-        + "── タスク変更の書き戻し(明確な指示があった時だけ) ──\n"
-        + "対象を Read してから Edit する。編集対象:\n"
-        + f"- active_tasks: {ACTIVE_PATH}\n"
-        + f"- backlog(締切の正本): {BACKLOG_PATH}\n"
-        + f"- 今日の Triage board: {board}\n"
-        + "ルール:\n"
-        + "- 完了(「終わった」等): active の該当行を `- [ ]` → `- [x]`(夜の night-review が archive に転記)。\n"
-        + "- 締切変更(「金曜に」「来週」等): backlog.md の該当タスクの締切を書き換える(正本)。active の `(MM/DD締切)` 表記も揃える。\n"
-        + "- 追加(「〇〇追加して」): active の `## 追加` セクションに `- [ ] 〇〇` を足す。\n"
-        + "- Triage への回答: board の該当 Q の選択肢にチェックを入れる。回答が新タスクを生むなら `## 追加` にも足す。\n"
-        + "- 今日はやらない/後回し: active で `- [ ]` のまま(夜に自動で持ち越される)。無理に消さない。\n"
-        + "- `## スケジュール`(カレンダー)は編集しない。\n"
-        + "- 解釈に迷う指示は、書く前にひとこと確認する。\n"
-        + "変更したら「反映した: …」と簡潔に報告(即書き＋軽い報告)。\n"
-        + "普通の会話・挨拶・質問では**ファイルを編集せず**会話だけ返す。\n\n"
-        + "── Triage の締め ──\n"
-        + "その日の Triage を全部消化したら『今日のブリーフ、これで確定でいい?』と一度だけ確認する"
-        + "(勝手に確定にしない)。ガクチョが ok 等で答えたら board の status を triage-done に更新する。\n"
+        + "返答は SKILL の Output Style と persona に従って簡潔・自然に。\n"
+        + "編集を行ったときは「反映した: …」と一行報告(即書き＋軽い報告)。\n"
+        + "普通の会話・挨拶ではファイルを触らず会話だけ返す。\n"
     )
 
 

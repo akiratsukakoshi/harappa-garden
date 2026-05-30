@@ -25,6 +25,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 NO_TOOLS = "Bash Edit Read Write Glob Grep WebFetch WebSearch NotebookEdit TodoWrite Task"
+SKILL_PATH = os.environ.get(
+    "DAILY_PILOT_SKILL",
+    "/home/vps-harappa/garden/plots/daily-pilot/SKILL.md",
+)
+# 集計とエラー検出は決め打ち(確実性優先)。トーンとひとことだけ SKILL + persona に従う。
+SKILL = open(SKILL_PATH, encoding="utf-8").read()
+PERSONA = open(os.path.join(HERE, "persona", "g-gaku-co.md"), encoding="utf-8").read()
 
 
 def today_jst() -> datetime.date:
@@ -73,18 +80,25 @@ def todays_completed(d: datetime.date) -> str:
 
 
 def compose_comment(completed_block: str, d: datetime.date) -> str:
-    persona = open(os.path.join(HERE, "persona", "g-gaku-co.md"), encoding="utf-8").read()
     ctx = completed_block or "今日は archive に完了記録がありませんでした。"
     prompt = (
-        persona + "\n\n---\n\n"
+        "あなたは daily-pilot 区画の Vice Pilot(ガクコ)として、夜のレビュー後の"
+        "「ねぎらいのひとこと」を Discord に投稿します。\n\n"
+        + "──── daily-pilot SKILL ────\n"
+        + SKILL
+        + "\n──── SKILL ここまで ────\n\n"
         + f"【夜のレビューのひとこと】\n今日({fmt_date(d)})の完了記録:\n\n{ctx}\n\n"
-        + "上記を踏まえ、ガクチョへの“ねぎらいの一言”を **1文だけ** 書いてください。\n"
-        + "自然で、肩の力の抜けた口語。理知的・中性的・偏りなく。誇張しない。\n"
-        + "完了が無くても責めず淡々と。出力は本文のみ(前置き・記号囲みなし)。"
+        + "SKILL の Core Philosophy(Empowerment & Proactivity)と Output Style、"
+        + "そしてあなたの persona(中性的・理知的・偏りなく)を踏まえ、"
+        + "ガクチョへの“ねぎらいの一言”を **1文だけ** 書いてください。\n"
+        + "自然で、肩の力の抜けた口語。誇張しない。完了が無くても責めず淡々と。\n"
+        + "出力は本文のみ(前置き・記号囲みなし)。"
     )
     try:
         proc = subprocess.run(
-            [CLAUDE_BIN, "-p", prompt, "--strict-mcp-config",
+            [CLAUDE_BIN, "-p", prompt,
+             "--system-prompt", PERSONA,
+             "--strict-mcp-config",
              "--disallowedTools", NO_TOOLS, "--model", "sonnet"],
             capture_output=True, text=True, timeout=150,
         )

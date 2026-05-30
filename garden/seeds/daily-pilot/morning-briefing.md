@@ -41,70 +41,38 @@ execute:
     calendar_block: "$(/home/vps-harappa/garden/services/garden-gaku-co/venv/bin/python3 /home/vps-harappa/garden/services/calendar/calendar_cli.py briefing 2>/dev/null)"
   prompt: |
     あなたは daily-pilot 区画の種「morning-briefing」です。
-    目的: 塚越さんが iPhone 一画面で「今日(= {today_jp}、曜日は {today} から判定)やること」を把握できる
-          状態を作る。曜日は (月)(火)(水)(木)(金)(土)(日) のいずれかで表記する。
 
-    手順:
-      1. 入力読み込み
-         - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(deadline = {today} or それ以前のタスクを抽出)
-         - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md(前夜に night-review がクリアしているはず)
-         - 本日 {today} の予定は launcher が事前取得済み(下記 calendar_block を使う。MCP は使わない)
-         - /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md(存在すれば「resume モード」、後述)
+    まず /home/vps-harappa/garden/plots/daily-pilot/SKILL.md を Read してください。
+    SKILL の **"Mode 1: Morning Briefing"** の全 Step(Step 1〜4)と Core Philosophy・Output Style に
+    従って、本日 {today_jp} のブリーフを実行します。
 
-      2. **resume モード判定**
-         - {today}-morning-briefing.md が存在し、`status: awaiting_triage` または塚越さんの
-           回答(LINE 短文返信 or board 直接編集)が反映されている → resume モードへ
-         - 存在しない → 通常の初回起動モード
+    今回の動的入力:
+      - today: {today}
+      - today_md: {today_md}
+      - today_slash: {today_slash}
+      - today_jp: {today_jp}
+      - 本日のカレンダー(launcher が calendar_cli で事前取得済):
+        ----
+        {calendar_block}
+        ----
 
-      3-A. **初回モード**
-         a. backlog から **deadline ≦ today** のタスクを active_tasks.md にコピー
-            (backlog からは削除しない。マスタは backlog)
-            - active_tasks のテンプレ構造: `# Today's Tasks - {today_slash} (曜日)` ヘッダ +
-              `## スケジュール` + `## 運営・企画` + `## 管理事務` + `## 家のこと` + `## 追加` +
-              **`## 🔖 Triage(対話で消化 / 詳細は board)`(最下段)** の順
-              ※ 曜日は {today} から判定して (月)(火)(水)(木)(金)(土)(日) のいずれかで表記
-            - 期限超過タスクは `🚨 期限超過` セクションを冒頭に挿入して分けて表示
-            - 暫定締切タスク(`・暫定` 付き)は Triage 候補に格上げ(後述 c)
-            - backlog の Level 2 カテゴリ(`## 運営・企画` 等)を尊重して active のセクション分けに反映
-         b. カレンダー予定の埋め込み
-            - 本日 {today} の予定は以下(launcher が calendar_cli で事前取得済み)。
-              この内容を active_tasks.md の `## スケジュール` セクションに**そのまま転記**する:
-              ----
-              {calendar_block}
-              ----
-            - 予定がなければ `- (予定なし)`、取得失敗なら `- ⚠️ カレンダー取得失敗（…）` の
-              1 行が上に入っているので、それをそのまま書けばよい(整形・補完しない)
-         c. Triage 候補を抽出し、board/{today}-morning-briefing.md に質問入り MD を生成:
-            - 暫定締切タスク → 「Q1: 締切確認が必要なタスク」
-            - 曖昧期限(「来週」「近日」「ASAP」等の自然言語のみ) → 「Q2: 締切の数値化」
-            - AI 支援候補(時間がかかる・要調査・要相談 等) → 「Q3: AI 支援提案」
-            - status: awaiting_triage, 質問なし(0件)なら status: confirmed で完結扱い
-         c-2. **active_tasks.md の最下段 `## 🔖 Triage` セクションに、上記 Triage を簡潔ミラー**:
-            - 1 項目 1 行: `- {タスク名} → {問いの要点}`(選択肢 a/b/c は出さない=board が詳細)
-            - 目的: 庭師が対話せずとも1画面で「判断ほしいこと」を把握できる
-            - Triage 0 件なら `- (なし)` の1行。詳細回答は board or 朝の対話で消化
-         d. 完了報告のログ出力(LINE 通知はモック化中、ガクコ /send は呼ばない)
-            作成する報告文面を `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` の
-            末尾に **`==NOTIFY==` ブロックで append**(launcher が既存内容を書いた後の末尾に追記):
-            - Triage 0件 → 「✅ {today_jp} ブリーフ。アクション X件 / 予定 Y件」
-            - Triage 1件以上 → 「📋 {today_jp} ブリーフ + Triage X件。board 確認 → 返信か編集で」
-            (Phase 3 で ガクコ /send 連携が組まれたら、この文面を /send に投げる)
+    操作対象ファイル(SKILL の「ファイルと役割」表を参照):
+      - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(読み取り。マスタ。本種では更新しない)
+      - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md(本種が再構築)
+      - /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md(Triage 生成先)
 
-      3-B. **resume モード**
-         a. board/{today}-morning-briefing.md の塚越さん回答(LINE 受信 by gaku-co5.0 or 手動編集)
-            を読み解く
-         b. 回答を active_tasks.md / backlog.md(締切修正等)に反映
-         c. board ファイルの status を `triage-done` に更新
-         d. LINE 通知: 「✅ Triage 反映済み。最終ブリーフは active_tasks.md」
+    モード判定:
+      - {today}-morning-briefing.md が存在し status: awaiting_triage または回答反映済
+        → SKILL Mode 1 の resume 相当(回答を読み解いて active / backlog に反映 → status: triage-done)
+      - 存在しない → 初回モード(Step 1〜4 を順に実行)
 
-      4. ログ出力
-         - 抽出件数・カレンダー件数・Triage 件数を
-           `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` の末尾に追記
+    曜日表記: {today} から判定して (月)(火)(水)(木)(金)(土)(日)。
 
-    重要原則:
-      - backlog は読み取り専用(本種では更新しない。night-review が反映する)
-      - active_tasks は毎朝再構築(前夜にクリアされている前提)
-      - カレンダー取得失敗 → 「⚠️ カレンダー取得失敗」を active 冒頭に表示するだけで処理続行
+    完了報告(LINE 通知はモック化中、ガクコ /send は呼ばない):
+      `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` の末尾に
+      **`==NOTIFY==` ブロックで append**:
+      - Triage 0件 → 「✅ {today_jp} ブリーフ。アクション X件 / 予定 Y件」
+      - Triage 1件以上 → 「📋 {today_jp} ブリーフ + Triage X件。board 確認 → 返信か編集で」
 
     失敗時:
       - backlog.md 読み取り失敗 → on_failure に従う(致命的)
