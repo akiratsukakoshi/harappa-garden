@@ -1,0 +1,12 @@
+# Secrets (VPS only, 600 perm)
+secrets/
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local
+*.log

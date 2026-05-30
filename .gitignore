@@ -1,6 +1,9 @@
 # System
 .DS_Store
 
+# Claude Code local settings (個人的な許可リスト等、git に上げない)
+.claude/
+
 # Python
 venv/
 .venv/

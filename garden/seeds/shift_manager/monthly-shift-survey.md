@@ -2,19 +2,21 @@
 type: seed
 name: monthly-shift-survey
 plot: shift_manager
-description: 月初1日に翌々月のシフト募集フォームを下書き → 庭師剪定 → staff LINE 配信する種
-status: draft
-phase: 3c                    # HMC 依存種(seeds/README.md「実装ロードマップ」参照)
-execution_host: vps          # cron 起動・Claude Code ヘッドレスはすべて VPS
-hmc_dependency: required     # HMC のスクリプト + credentials が必要
-version: 1
+description: 月初1日に翌々月のシフト募集フォームを Garden 内で生成 → board に剪定依頼 → 庭師承認後に staff LINE 配信する種
+status: draft                     # 6/1 cron 仕込み + post_approval 経路 + credentials VPS 配置で active へ
+phase: 3a                         # Garden 完結化(セッション21 で HMC 依存を撤廃)
+execution_host: vps
+hmc_dependency: none              # Garden services/shift-manager/ に移植済み(セッション21)
+version: 2                        # v1: HMC 直叩き / v2: Garden 完結
 created: 2026-05-25
-created_by: claude (with 塚越さん, セッション7)
-last_updated: 2026-05-25
+created_by: claude (with ガクチョ, セッション7)
+last_updated: 2026-05-30
 linked_workflows:
-  - "[[monthly-cycle]]"   # ステップ 2(a) 翌々月シフトアンケート送信
+  - "[[monthly-cycle]]"           # ステップ 2(a) 翌々月シフトアンケート送信
 linked_skills:
-  - "shift_manager (HMC)"
+  - "garden/plots/shift_manager/SKILL.md"
+linked_services:
+  - "garden/services/shift-manager/generate_shift_form.py"
 linked_concepts: []
 
 # === ① いつ点火するか ===
@@ -22,55 +24,73 @@ trigger:
   type: cron
   schedule: "0 8 1 * *"           # 毎月1日 08:00 JST
   timezone: Asia/Tokyo
-  # 議論余地: 06:30 morning-briefing と同じ朝枠に寄せるか、もう少し後にずらすか
 
 # === ② 何を実行するか ===
 engine: claude-code
 execute:
-  skill: shift_manager (HMC)
-  working_dir: /home/tukapontas/harappa-cockpit
+  working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
-    target_month: "$(date -d '+2 months' +%Y-%m)"   # 翌々月。月初1日に発火するため、当月+2 = N+2月分
+    target_month: "$(date -d '+2 months' +%Y-%m)"
     target_month_jp: "$(date -d '+2 months' +%-m)月"
+    target_year: "$(date -d '+2 months' +%Y)"
     today: "$(date +%Y-%m-%d)"
   prompt: |
-    あなたは原っぱ大学の庭師(塚越さん)を支える種「monthly-shift-survey」です。
-    目的: 翌々月({target_month_jp})のスタッフシフトを集めるための募集フォームを
-          下書きまで自動化し、staff LINE への配信は庭師の剪定承認を経て行う。
+    あなたは shift_manager 区画の種「monthly-shift-survey」です。
 
-    手順:
-      1. **前提確認**
-         - HMC の月次シート(プログラムカレンダー新)で {target_month} の Q列「アンケート」が
-           募集対象プログラムに正しくチェック済みか確認する
-         - 未チェック or 不明な場合は、本種は処理を中断し、board に
-           「Q列チェック未完了」の剪定依頼を出して終了(generate_shift_form.py は実行しない)
-         - 参照: garden/soil/workflows/monthly-cycle.md ステップ2(a) の改善余地表
+    まず以下2ファイルを Read で読み込み、両方の指示に従ってください:
+      1. /home/vps-harappa/garden/CHARTER.md(Garden 全 plot 共通の業務観・呼称・トーン・Output Style 質感)
+      2. /home/vps-harappa/garden/plots/shift_manager/SKILL.md(本区画の Mode 2)
+    SKILL は CHARTER を継承して書かれています。両方を参照してください。
 
-      2. **フォーム生成(HMC SKILL 利用)**
-         - HMC の shift_manager SKILL の手順に従い、以下を実行:
-           ```bash
-           cd /home/tukapontas/harappa-cockpit
-           source venv/bin/activate
-           python apps/shift_manager/logic/generate_shift_form.py --month {target_month}
-           ```
-         - 生成された Google フォーム URL を取得・記録する
+    その上で、SKILL の **"Mode 2: Month-start Survey"** の全 Step(Step 1〜5)に従って、
+    {target_year}年{target_month_jp}(= {target_month})のシフト募集フォーム生成と
+    board 剪定依頼の起草を行います。
 
-      3. **board に剪定依頼を起草**
-         - /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md を作成
-         - 内容(後述のテンプレ参照):
-           a. 配信予定の LINE 本文(編集可)
-           b. フォーム URL
-           c. 配信先(staff グループ)
-           d. 配信タイミング(承認後すぐ / 時刻指定)
-           e. 庭師の承認/修正/却下の操作ガイド
+    今回の動的入力:
+      - today: {today}
+      - target_month: {target_month}(翌々月、generate_shift_form.py に渡す)
+      - target_month_jp: {target_month_jp}
 
-      4. **庭師への通知**
-         - pruning.notify(後述)に従い、ガクコ /send で personal グループに LINE 通知
+    操作対象ファイル / コマンド:
+      - 月次シート Q列チェック確認: Monthly UI Sheet({target_month} タブ・Q列)
+        ※ Q列確認は Google Sheets 側のため、種内では「未確認の前提」で扱い、Step 3 の board に
+           「Q列チェック実施済か?」のチェック項目を必ず含める(SKILL Mode 2 Step 1 の判断ルール参照)
+      - フォーム生成コマンド:
+          .venv/bin/python /home/vps-harappa/garden/services/shift-manager/generate_shift_form.py --month {target_month}
+        ※ コマンドが成功すれば最終行に `Shift Form URL: https://...` が出力される
+        ※ 失敗時は on_failure に従う
+      - board 起草先: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md
+      - log: /home/vps-harappa/garden-mirror/garden/log/{today}-monthly-shift-survey.log
+
+    べき等性:
+      - 同月の board(pending or processed)が既存なら **新規発火しない**
+        グロブ: garden/board/pending/*-monthly-shift-survey.md と garden/board/processed/*-monthly-shift-survey.md を
+        ともに grep し、frontmatter `target_month: {target_month}` を含むファイルがあれば
+        log に「skipped: already exists」と書いて exit 0
+      - フォーム生成は冪等(既存 shift_form_id を上書き)。実行重複は board レイヤで止める
+
+    完了時:
+      - board ファイルに frontmatter を必ず含める:
+        ---
+        type: pruning_request
+        from_seed: shift_manager/monthly-shift-survey
+        target_month: {target_month}
+        form_url: <generate_shift_form.py の出力 URL>
+        status: pending
+        created: {today}T08:00:00+09:00
+        scheduled_send: {today}T19:00:00+09:00   # send_pending.py が この時刻まで待機して staff 配信
+        ---
+      - 配信本文(編集可)をコードブロックで囲む(SKILL Mode 2 Step 3 のテンプレ参照)
+      - board の「庭師アクション」セクションには以下の選択肢を含める:
+        - status: test に変更 → 保存 → 約1分以内に **ガクチョ個人 LINE にテスト配信** + status は自動で pending に戻る(何度でも繰り返し可)
+        - status: approved に変更 → 保存 → scheduled_send の時刻に **staff グループに本配信**
+        - status: rejected に変更 → 保存 → 配信せずに却下
+      - 庭師通知は当面モック化: log の末尾に `==NOTIFY==` ブロックで append
+        「📋 {target_month_jp}シフトアンケートの下書きあります → board/pending/{today}-monthly-shift-survey.md」
 
     失敗時:
-      - HMC コマンドが失敗 → on_failure に従う
-      - フォーム URL 取得失敗 → board ファイルにエラー記載 + 庭師通知
-      - Q列未完了が3ヶ月連続 → warning レベルで MAP.md に「Q列運用未確定」を再掲
+      - generate_shift_form.py が exit !=0 → on_failure に従う
+      - Q列が空 = 0 件 target だった場合 → フォームは未更新で警告ログ、board に「Q列未チェックの可能性」と記載 + pending 配置(庭師判断)
 
 # === ③ 結果をどこに置くか ===
 outputs:
@@ -78,46 +98,46 @@ outputs:
     path: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md
   - kind: log
     path: /home/vps-harappa/garden-mirror/garden/log/{today}-monthly-shift-survey.log
-  # フォーム生成は副作用として Google Sheets / Forms に直接書き込まれる
-  # (HMC SKILL の責務)
+  # フォーム生成の副作用は Google Forms / Sheets に直接(generate_shift_form.py の責務)
 
 # === ④ 誰に剪定依頼するか ===
 pruning:
-  channel: board_with_notify       # 配信文の確認が要るので「中」の重さ
+  channel: board_with_notify       # 配信文確認が要るので「中」の重さ
   approver: "[[akira-tsukakoshi]]"
   notify:
-    via: gaku-co
-    group: personal
+    via: mock                      # 当面: log に書き出すだけ(garden-gaku-co/send 連携後に切替)
+    # via: gaku-co
+    group: master                  # Discord master channel(個人 LINE ではなく Discord)
     template: |
-      📋 {target_month_jp}シフトアンケート 下書きあります
-      → /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md
+      📋 {target_month_jp}シフトアンケートの下書きあります
+      → board/pending/{today}-monthly-shift-survey.md
       確認 → 承認で staff LINE 配信
 
 # === ⑤ 承認後の振る舞い ===
 post_approval:
-  via: gaku-co
-  endpoint: /send
+  via: gaku-co                     # garden-gaku-co/send_pending.py(cron 1分毎)が検知
+  endpoint: /send                  # LINE Bot 経由 staff グループ送信
   body:
     group: staff
-    require_approval: false         # 既に剪定承認済み
+    require_approval: false        # board 段階で剪定承認済み
     message_from: |
-      board ファイル `## 配信本文` セクション全文を message として送信。
+      board ファイルの `## 配信本文` セクション内のコードブロック全文を message として送信。
       フォーム URL を含む。
   on_send_success:
-    - board ファイルを /home/vps-harappa/garden-mirror/garden/board/processed/ へ移動
+    - board ファイルを garden/board/processed/ へ移動
     - audit.last_outcome = "sent"
-    - LINE で庭師に完了通知(personal)
+    - log に完了記録 + 庭師通知(Discord master)
   on_send_failure:
-    - board ファイルは pending に残置
+    - board ファイルは pending 残置
     - audit.last_outcome = "send_failed"
-    - LINE で庭師にエラー通知(personal)
+    - 庭師通知(Discord master、エラー詳細つき)
 
 # === ⑥ べき等性 ===
 idempotency:
   key: monthly-shift-survey-{target_month}
   guard: |
-    既に /home/vps-harappa/garden-mirror/garden/board/pending/ or .../processed/ に {target_month} 用の本種ファイルが
-    あれば、新規発火しない(2重実行防止)。
+    garden/board/pending/*-monthly-shift-survey.md または garden/board/processed/*-monthly-shift-survey.md に
+    frontmatter `target_month: {target_month}` を含むファイルが既存なら新規発火しない(2重実行防止)。
 
 # === ⑦ 失敗時の振る舞い ===
 on_failure:
@@ -126,21 +146,21 @@ on_failure:
     backoff: 30m
   fallback:
     via: gaku-co
-    group: personal
+    group: master
     template: |
       ❌ monthly-shift-survey 失敗
       対象月: {target_month}
       理由: {error_summary}
       詳細: {log_path}
-      → 手動で SKILL 実行を検討
+      → 手動で /home/vps-harappa/garden/services/shift-manager/generate_shift_form.py を実行検討
 
 # === ⑧ 依存 ===
 depends_on:
   workflow: monthly-cycle
   state:
-    - "月次シートの Q列(アンケート)が募集対象にチェック済み"
-    - "HMC の venv が起動可能"
-    - "ガクコ /send が利用可能(personal/staff 両方)"
+    - "Monthly UI Sheet の {target_month} タブの Q列(アンケート)が募集対象にチェック済み"
+    - "/home/vps-harappa/garden/services/shift-manager/ が稼働(venv + secrets/credentials.json + secrets/token.json)"
+    - "garden-gaku-co/send_pending.py(cron 1分毎)が稼働(post_approval 経路、Phase 3a 後半で実装)"
   seeds: []
 
 # === ⑨ 監査 ===
@@ -150,7 +170,7 @@ audit:
   next_fire_estimate: 2026-06-01T08:00:00+09:00
 ---
 
-# monthly-shift-survey — 翌々月シフトアンケート
+# monthly-shift-survey — 翌々月シフトアンケート(Garden 完結 v2)
 
 ## 目的(不変)
 
@@ -161,14 +181,16 @@ audit:
 frontmatter の `execute` / `pruning` / `post_approval` を参照。要約:
 
 1. cron 月初1日 08:00 発火
-2. Claude Code が HMC の shift_manager SKILL を呼び、`generate_shift_form.py --month {N+2}` を実行
-3. 生成された Google フォーム URL を取り、board/pending/ に下書きを置く
-4. 庭師にガクコ経由で LINE 通知(personal)
-5. 庭師が board を確認・編集 → 承認 → ガクコ /send で staff へ配信
+2. Garden CHARTER + shift_manager SKILL を読み込んだ Claude Code が、Mode 2 の手順に従って:
+   a. `garden/services/shift-manager/generate_shift_form.py --month {翌々月}` を実行
+   b. 生成された Google フォーム URL を取得
+   c. `garden/board/pending/{today}-monthly-shift-survey.md` に剪定依頼を起草
+3. 庭師がガクコ(Discord master)で通知を受け、board を確認・編集 → status: approved に変更
+4. `garden/services/garden-gaku-co/send_pending.py`(cron 1分毎)が approved を検知 → staff LINE 配信
 
-## board ファイルのテンプレ(後述)
+## board ファイルのテンプレ
 
-`/home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md`:
+`garden/board/pending/{today}-monthly-shift-survey.md`:
 
 ```markdown
 ---
@@ -177,21 +199,21 @@ from_seed: shift_manager/monthly-shift-survey
 target_month: 2026-07
 form_url: https://docs.google.com/forms/d/.../viewform
 status: pending
-created: 2026-05-25T08:00:00+09:00
+created: 2026-06-01T08:00:00+09:00
 ---
 
 # 2026年7月 シフトアンケート 配信下書き
 
 ## 配信本文
 
-(↓ ここをスタッフへの LINE 本文として配信します。編集可)
+(↓ ここをスタッフへの LINE 本文として配信します。編集可。コードブロック内の全文を配信します。)
 
-```
+​```
 📅 2026年7月のシフト募集のお知らせ
 回答期限: 6/10(水) まで
-フォーム: https://docs.google.com/forms/...
+フォーム: https://docs.google.com/forms/.../viewform
 不明点は LINE で塚越まで
-```
+​```
 
 ## 配信先
 
@@ -205,14 +227,18 @@ created: 2026-05-25T08:00:00+09:00
 
 ## 庭師アクション
 
-承認(staff 配信実行): board ファイル上部 status を `approved` に変更 → 保存
-修正: 本文を編集 → status を `approved` に変更 → 保存
-却下: status を `rejected` に変更 → 保存
+**テスト配信(ガクチョ個人 LINE、何度でも繰り返し可)**:
+  frontmatter `status: pending` → `test` に変更 → 保存
+  → 約1分以内にガクチョ個人 LINE に配信、status は自動で pending に戻る + 末尾に `<!-- test_sent_at: ... -->` 履歴追記
 
-LINE 短文返信なら:
-  「OK」 → approved(本文・タイミング既定値で実行)
-  「NG」 → rejected
-  「9時にして」 → 配信タイミングを 09:00 に変更して approved
+**本配信(staff グループ)**:
+  本文を編集して納得したら `status: pending` → `approved` に変更 → 保存
+  → `scheduled_send` の時刻(デフォルト 19:00)に staff グループへ配信
+  → 配信後 board は `garden/board/processed/` へ移動
+
+**却下**: `status: rejected` に変更 → 保存
+
+**配信タイミング変更**: frontmatter `scheduled_send: 2026-06-01T19:00:00+09:00` を書き換え → 保存(approved の前後どちらでも OK)
 ```
 
 ## 改善余地(Improvement Hints)
@@ -220,50 +246,35 @@ LINE 短文返信なら:
 | # | 現状の方法 | 改善余地 | ステータス |
 |---|---|---|---|
 | ❓ | 月次シートの Q列チェックが手動 + 誰がいつ入れるか未確定 | Q列入力担当・タイミングの確定 → 自動チェック化 → 種側で「未完了なら処理中断」の自動判定が機能する | **未検証**(monthly-cycle ステップ2(a) と同期) |
-| ❓ | post_approval.body.message_from = board ファイル本文 | board ファイルの「配信本文」セクション切り出し規約(コードブロック内 / セクション全体 / frontmatter フィールド) | 未検証 |
+| ❓ | post_approval.body.message_from = board ファイル本文 | board ファイルの「配信本文」セクション切り出し規約(コードブロック内 / セクション全体 / frontmatter フィールド)→ コードブロック内採用予定 | **未検証**(send_pending.py 実装と同期) |
 | 💡 | 配信は剪定承認後に1回 | 5日経過しても回答が一定数に満たない → リマインド送信種(`monthly-shift-survey-reminder`)を別途 | 構想中 |
 | ✋ | Q列の見せ方(スタッフ稼働確認の見せ方とは別議論) | 別種(monthly-working-hours-confirmation)の改善余地表で塚越さん検討中。重複提案禁止 | 検討中(workflow 側で進行) |
-| ❓ | 発火時刻 08:00 | 6:30 morning-briefing と同枠に統合? もしくは 9:00 等に遅らせるか? 早すぎると HMC 起動が間に合わない可能性 | **未検証** |
-| ❓ | computed_inputs の `$(date ...)` 評価主体 | ランチャー側(シェル)で評価 vs Claude Code 側で評価。前者がシンプル(prompt 渡し時には値が確定) | 未検証 |
+| ❓ | 発火時刻 08:00 | 6:30 morning-briefing と同枠に統合? もしくは 9:00 等に遅らせるか? | 未検証 |
+| ✋ | HMC 直叩き | セッション21 で Garden 完結化(`garden/services/shift-manager/`) | **済 v2** |
 
 ## 関連
 
+- 区画 SKILL: [garden/plots/shift_manager/SKILL.md](../../plots/shift_manager/SKILL.md)
 - workflow: [[monthly-cycle]] ステップ2(a)
-- HMC SKILL: `shift_manager` → `generate_shift_form.py`
-- HMC マニュアル: [/home/tukapontas/harappa-cockpit/docs/manuals/shift_manager.md](file:///home/tukapontas/harappa-cockpit/docs/manuals/shift_manager.md) 「3.シフト管理」
+- Python service: [garden/services/shift-manager/generate_shift_form.py](../../services/shift-manager/generate_shift_form.py)
+- 配信経路: [garden/services/garden-gaku-co/](../../services/garden-gaku-co/) `/send`
 - ガクコ INTERFACE: [/home/tukapontas/gaku-co5.0/INTERFACE.md](file:///home/tukapontas/gaku-co5.0/INTERFACE.md) `/send` `require_approval`
-- ADR セッション4: 種設計の方針(剪定振り分け)
-- ADR セッション5: workflow 正本性
-- ADR セッション6: Claude Code ヘッドレス + LINE+board ハイブリッド
-- 関連種: `shift_manager/monthly-working-hours-confirmation`(同タイミング・別責務)
+- 関連種: `shift_manager/month-end-working-hours-prep`(月末・前段準備)
 
 ## TODO(本種に固有)
 
-- [ ] 月次シートの Q列チェック運用の確定(workflow 側に依存)
-- [ ] board ファイルの「配信本文」セクション切り出し規約
-- [ ] 発火時刻の最終決定(現状 08:00 暫定)
-- [ ] post_approval の garden → gaku-co `/send` 接続実装(セッション6 宿題と同期)
-- [ ] computed_inputs の評価主体(ランチャー vs Claude Code)
-- [ ] active 化に必要なインフラ: 種ランチャー / board ディレクトリ / ガクコ連携
+- [ ] **VPS への garden/services/shift-manager/ 配置 + secrets/.env 配置**(ガクチョ作業、手順書要)
+- [ ] **garden-gaku-co/send_pending.py 実装**(post_approval 経路、cron 1分毎)
+- [ ] **6/1 08:00 cron 仕込み**(`garden/services/launcher/launcher.js` に登録 + crontab 確認)
+- [ ] Q列チェック運用の確定(workflow 側依存)
+- [ ] 発火時刻の最終決定
 
-## active 化条件(Phase 3c の入口)
+## active 化条件
 
-本種は **HMC 依存種**(`hmc_dependency: required`)なので、Phase 3a の Garden 内完結種より一段あとに位置する。draft → active に移すために必要なもの:
+セッション21 で以下を満たせば active へ:
 
-### Phase 3a 由来の前提(全種共通)
-
-1. 種ランチャー(VPS cron → `claude -p` 起動 + ログ + on_failure)
-2. `/home/vps-harappa/garden-mirror/garden/board/pending/` と `/home/vps-harappa/garden-mirror/garden/board/processed/` ディレクトリの構造設計と作成
-3. ガクコ `/send` 経由配信の最小ループ(LINE 短文返信→board 書き戻しは後追い可)
-
-### Phase 3b 由来の前提(本種固有)
-
-4. **HMC の VPS 移植 or 必要部分切り出し** — `generate_shift_form.py` が VPS から実行可能
-5. **HMC credentials の VPS 配置** — Google OAuth(Drive/Sheets/Forms)・section_mapping.json 等
-6. **secret 管理設計の確定** — セッション7 議論 B の結論を反映(保管方式・rotation・信頼境界)
-7. HMC venv の VPS 上での再現(Python バージョン・依存パッケージ)
-
-### 本種固有
-
-8. Q列チェック運用の確定(workflow 側 — 欠けるとガード条件で常に中断する)
-9. board ファイルの「配信本文」セクション切り出し規約
+1. [x] **garden/services/shift-manager/ コード移植**(セッション21)
+2. [ ] **credentials VPS 配置**(secrets/credentials.json + secrets/token.json + .env)
+3. [ ] **send_pending.py 実装**(post_approval 経路)
+4. [ ] **6/1 cron 登録**
+5. [ ] **dry-run 検証**(`--dry-run` 相当の手動実行で URL 取得確認)
