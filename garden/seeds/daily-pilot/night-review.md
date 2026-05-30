@@ -41,8 +41,12 @@ execute:
   prompt: |
     あなたは daily-pilot 区画の種「night-review」です。
 
-    まず /home/vps-harappa/garden/plots/daily-pilot/SKILL.md を Read してください。
-    SKILL の **"Mode 3: Night Review"** の全 Step(Step 1〜7)に従って、本日 {today} の振り返りを実行します。
+    まず以下2ファイルを Read で読み込み、両方の指示に従ってください:
+      1. /home/vps-harappa/garden/CHARTER.md(Garden 全 plot 共通の業務観・呼称・トーン・Output Style 質感)
+      2. /home/vps-harappa/garden/plots/daily-pilot/SKILL.md(本区画の Mode 3)
+    SKILL は CHARTER を継承して書かれています。両方を参照してください。
+
+    その上で、SKILL の **"Mode 3: Night Review"** の全 Step(Step 1〜7)に従って、本日 {today} の振り返りを実行します。
     特に Step 4 の **active 編集の反映ロジック**(active 上で締切が書き換えられていたら backlog を更新)を厳守。
 
     今回の動的入力:

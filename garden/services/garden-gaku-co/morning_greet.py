@@ -22,12 +22,17 @@ JST = datetime.timezone(datetime.timedelta(hours=9))
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 HERE = os.path.dirname(os.path.abspath(__file__))
+CHARTER_PATH = os.environ.get(
+    "GARDEN_CHARTER",
+    "/home/vps-harappa/garden/CHARTER.md",
+)
 SKILL_PATH = os.environ.get(
     "DAILY_PILOT_SKILL",
     "/home/vps-harappa/garden/plots/daily-pilot/SKILL.md",
 )
 
 PERSONA = open(os.path.join(HERE, "persona", "g-gaku-co.md"), encoding="utf-8").read()
+CHARTER = open(CHARTER_PATH, encoding="utf-8").read()
 SKILL = open(SKILL_PATH, encoding="utf-8").read()
 
 
@@ -55,8 +60,12 @@ def header_date(text: str):
 
 def build_greet_prompt(d: datetime.date, active_text: str, board_text: str) -> str:
     return (
-        "あなたは daily-pilot 区画の Vice Pilot(ガクコ)として、今朝の口火を "
-        "Discord master channel に投稿します。\n\n"
+        "あなたはガクコ(daily-pilot 区画の声)として、今朝の口火を "
+        "Discord master channel に投稿します。判断知識は CHARTER(全 plot 共通)と "
+        "daily-pilot SKILL(本区画固有)の二段で集約されています。SKILL は CHARTER を継承します。\n\n"
+        + "──── Garden CHARTER ────\n"
+        + CHARTER
+        + "\n──── CHARTER ここまで ────\n\n"
         + "──── daily-pilot SKILL ────\n"
         + SKILL
         + "\n──── SKILL ここまで ────\n\n"
@@ -66,9 +75,10 @@ def build_greet_prompt(d: datetime.date, active_text: str, board_text: str) -> s
         + "\n----\n\n"
         + (f"[今朝の Triage board]\n----\n{board_text}\n----\n\n" if board_text else "")
         + "上の active と Triage を **横串で読み**、SKILL の Mode 1 Step 4(口火)と "
-        + "Output Style に従って、Discord に投稿する口火文面を生成してください。\n"
+        + "CHARTER の Output Style 質感・SKILL の Output Style(daily-pilot 固有)に従って、"
+        + "Discord に投稿する口火文面を生成してください。\n"
         + "- 1タスク1行・セクション順は SKILL の Output Style を厳守。\n"
-        + "- 締めは **具体的な過ごし方の提案 + AI 支援の提案を1〜2文** で。汎用文「どう組む?」は禁止。\n"
+        + "- 締めは **具体的な過ごし方の提案 + AI 支援の提案を1〜2文** で。汎用文は禁止。\n"
         + "- 出力は Discord に投げる本文のみ。前置きや説明は不要。\n"
         + "- 1900文字以内(Discord 1メッセージ制限の安全側)。\n"
     )

@@ -29,14 +29,20 @@ MASTER_CHANNEL_ID = int(os.environ["DISCORD_MASTER_CHANNEL_ID"])
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 HERE = os.path.dirname(os.path.abspath(__file__))
-# daily-pilot 区画 SKILL(業務観・編集ルール・Output Style の単一の真実)。
-# 起動時に同梱し、対話の判断知識として claude に渡す。SKILL を更新したら bot 再起動が必要。
+# Garden CHARTER(全 plot 共通の業務観・呼称・トーン・Output Style 質感)+ daily-pilot SKILL
+# (本区画固有の手順・ファイル・判断ルール)を二段で同梱。SKILL は CHARTER を継承する。
+# 更新したら bot 再起動が必要。
+CHARTER_PATH = os.environ.get(
+    "GARDEN_CHARTER",
+    "/home/vps-harappa/garden/CHARTER.md",
+)
 SKILL_PATH = os.environ.get(
     "DAILY_PILOT_SKILL",
     "/home/vps-harappa/garden/plots/daily-pilot/SKILL.md",
 )
 
 PERSONA = open(os.path.join(HERE, "persona", "g-gaku-co.md"), encoding="utf-8").read()
+CHARTER = open(CHARTER_PATH, encoding="utf-8").read()
 SKILL = open(SKILL_PATH, encoding="utf-8").read()
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -75,9 +81,13 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
     weekday = WEEKDAY_JA[now.weekday()]
     return (
         "あなたは Discord master channel で庭師ガクチョと会話しています。\n"
-        "判断知識は下記の daily-pilot SKILL に集約されています。SKILL の "
-        "**Core Philosophy / Mode 2 (Conversation) / Output Style** に従って返答してください。\n"
+        "判断知識は CHARTER(Garden 全 plot 共通の業務観・呼称・トーン・Output Style 質感)と "
+        "daily-pilot SKILL(本区画固有の手順・ファイル・判断ルール)の二段で集約されています。\n"
+        "両方に従って返答してください。SKILL は CHARTER を継承します。\n"
         "編集権限の表 (active / backlog / board / スケジュール) は SKILL の Mode 2 を厳守。\n\n"
+        + "──── Garden CHARTER ────\n"
+        + CHARTER
+        + "\n──── CHARTER ここまで ────\n\n"
         + "──── daily-pilot SKILL ────\n"
         + SKILL
         + "\n──── SKILL ここまで ────\n\n"

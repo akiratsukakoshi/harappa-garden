@@ -9,10 +9,10 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 
 ## 現在地 @2026-05-30
 
-- **設計フェーズ**: 朝チェーン初フル稼働(S18 仕込み)の体感ライブから、**4 課題の根本原因を HMC SKILL との比較で特定 → daily-pilot 区画 SKILL.md を新設し 5 経路を SKILL 参照型に振り替え**(Phase 4 前倒し着手・区画第1号)。当日中に **reschedule ライブ検証成功**(S17/S18 持ち越し3セッション消化)。今夜 22:30 / 明朝 06:30 が **SKILL ベース初本格稼働**
-- **直近セッション**: [2026-05-30 セッション19](../docs/sessions/2026-05-30-session19.md) — **朝の体感改善 + SKILLベース化(plots 第1号) + reschedule ライブ検証成功**:朝チェーン初フル稼働の体感4課題(振り返り漏れ / 表示 / Triage 構成 / 締めの一言)を、(1)短期対応3つ(night-review active→backlog 反映 / morning_greet 改行 / bot 視野今日のみ)+ (2)**SKILL ベース化**(daily-pilot SKILL.md 355行新設 + 種2本 + bot + morning_greet + night_cheer の 5 経路を SKILL 参照型に振り替え)+ (3)古い triage board 退避 + (4)ADR 化 で根本治療
-- **直近の重要決定**: **種(seed) と SKILL の責務分離** = 種 = 発火ディスパッチャ(trigger + execute・「いつ」「どんな入力で」)/ SKILL = 業務観モジュール(Core Philosophy + Mode + Output Style・「何者として」「どんな原則で」)。モデル独立・チャネル独立を SKILL が保証 = HMC の「SKILL を書くだけで実装」軽さが Garden で復活
-- **直近の宿題(最優先)**: **(今夜・明朝)SKILL ベース初稼働の体感観察**(22:30 night-review + active→backlog 反映 / 22:40 night_cheer / 06:30 morning-briefing 横串 Triage / 06:40 morning_greet) / calendar token 7日後の寿命確認(約 6/5) / 次の区画候補 = shift_manager SKILL 移植(Phase 3c 着手時)
+- **設計フェーズ**: S19 で daily-pilot SKILL を立ち上げた直後、第2号(shift_manager)着手前の周辺設計 5 論点を一気に整理 → **CHARTER 新設 + 菌糸(Mycelium) 立ち上げ + 永続記憶設計合意** まで詰めた。実装は次回以降に段階着手
+- **直近セッション**: [2026-05-30 セッション20](../docs/sessions/2026-05-30-session20.md) — **CHARTER 化 + 菌糸新設 + 創発取扱い + 永続記憶設計**:論点1=SKILL 共通パーツを CHARTER に集約(全 plot 継承)+ ガクコ位置づけ再定義(「補佐」→「橋渡し役・木の精」)+ トーン統一(ですます調)、論点2=plot 間の越境ルール(案 D:独自 picker+loader、Claude Code 標準 Skills は不採用=ベンダー中立)、論点3=soil 参照規約 + **菌糸(Mycelium)を Garden 語彙に新規追加**(土壌維持エージェント、Stage 1 から段階着手)、論点4=創発の取扱い(評価駆動で SKILL 書き戻し)、論点5=**永続記憶は gaku-co5.0 memory システム(LLM Wiki方式・スコープ分離・SQLite 不要)を移植**(マスター透視権は Stage D で追加)
+- **直近の重要決定**: **CHARTER + 菌糸 + 永続記憶** の3本立てが固まった。① CHARTER = 全 plot 共通の業務観モジュール(loader 機構なし・各 consumer が物理ロード) ② 菌糸 = 土壌維持エージェントの独立カテゴリ(番人と兄弟ではない、責務「分解・運搬」が違う) ③ 永続記憶 = gaku-co5.0 を再発明せず移植(RAW→WIKI 2 段・夜間バッチ・スコープ分離)
+- **直近の宿題(最優先)**: **(今夜・明朝)SKILL+CHARTER 二段ロード初稼働の体感観察**(22:30 night-review / 22:40 night_cheer / 06:30 morning-briefing / 06:40 morning_greet)/ 次回着手 = **菌糸 Stage 1(Mode 3: Index 更新)** が shift_manager より先(staff 29 名分の index 最新化が前提)/ 並行で **永続記憶 Stage A**(gaku-co5.0 app/memory/ 移植 + master スコープで RAW logging 開始)
 
 ## 区画別ステータス
 
@@ -39,8 +39,11 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 | 本番ランチャー | [garden/services/launcher/](services/launcher/) | 🌳 | **S13 完動 + S14 night-review 実走成功 + S15 で cron 無人実走を実証**(06:25/06:30 自動発火 → 完走 → Obsidian 反映)。cron 化済(06:25/06:30/22:30) |
 | 書き戻し daemon | [garden/services/writeback-daemon/](services/writeback-daemon/) | 🌳 | **S14 完成 + S15 堅牢化**:reconcile scan backbone(`fs.watch` 取りこぼし対策)+ `_id` 小文字化(Case-Sensitive OFF)+ スコープ限定(`hmc_tasks/,garden/`)+ LiveSync E2EE 互換 chunk ID + ループ防止 |
 | VPS 管理 | [vps/](../vps/) | 🌱 | **本 repo で正本管理開始(S11)**。proxy-manager / ig_scheduler / cron 構成ミラー + NPM backup 取得 + dev-flow + recovery 整備 |
-| 区画 (plots) | [garden/plots/](plots/) | 🌱 | **S19: daily-pilot SKILL.md 新設(355行・区画第1号)**。Core Philosophy + Mode別Step + Output Style を集約 → 5 経路(種2本 + bot + morning_greet + night_cheer)が SKILL 参照型 |
-| 区画-daily-pilot | [garden/plots/daily-pilot/](plots/daily-pilot/) | 🌳 | **S19 立ち上げ**:HMC hmc_pilot SKILL を起源として継承 + Triage 3軸(過ごし方提案 / AI 支援提案 / 判断ほしい)再設計 + active→backlog 反映ロジックを Mode 3 に明示 + 良い締めの例/悪い締めの例を Output Style に明示 |
+| 共通規範 CHARTER | [garden/CHARTER.md](CHARTER.md) | 🌳 | **S20 新設**:全 plot SKILL 共通の業務観・呼称・トーン・Output Style 質感・Plot 間越境・soil 参照規約・創発取扱い。loader 機構なし(各 consumer が物理ロード) |
+| 区画 (plots) | [garden/plots/](plots/) | 🌱 | **S19: daily-pilot SKILL.md 新設(区画第1号)**。S20: CHARTER 継承型に圧縮(355→220行)+ Vice Pilot 表現削除 + ですます調統一 |
+| 区画-daily-pilot | [garden/plots/daily-pilot/](plots/daily-pilot/) | 🌳 | **S19 立ち上げ / S20 CHARTER 継承化**:HMC hmc_pilot 起源 + Triage 3軸再設計 + active→backlog 反映 Mode 3 明示 + frontmatter `topics:` declare(越境 picker 用) |
+| 菌糸 (mycelium) ← **NEW** | [garden/mycelium/](mycelium/) | 🌱 | **S20 新設**(Garden 語彙追加):土壌維持エージェント。Mode 1 Ingest / Mode 2 Lint / Mode 3 Index 更新 / Mode 4 関係性編み直し。Stage 1(Mode 3)は shift_manager より先に実装予定 |
+| 記憶 (memory) ← **NEW** | (未配置 → `garden/memory/`予定) | ⬜ | **S20 設計合意**:gaku-co5.0 app/memory/ を移植。スコープ分離(master/core_team/staff_all/discord_*/aibou)+ RAW(日次14日保持)+ WIKI(夜間バッチで LLM 抽出統合)+ SQLite 不要。マスター透視権は Stage D |
 | 番人 (watchers) | garden/watchers/ | ⬜ | 監視エージェント |
 | 苗床 (nursery) | garden/nursery/ | ⬜ | 試行領域 |
 | 蔵 (kura) | garden/kura/ | ⬜ | 長期アーカイブ |
@@ -144,15 +147,20 @@ HARAPPA Management Garden (HMG) は AI中心の経営運用プラットフォー
 - [ ] MCP server 実装(土壌へのアクセス層)
 - [ ] 既存ソース(Square予約・Notion・Plaud)の ingest
 
-### Phase 4: 区画の Garden 化 ← **S19 で前倒し着手(daily-pilot 第1号)**
+### Phase 4: 区画の Garden 化 ← **S19 で前倒し着手(daily-pilot 第1号)/ S20 で CHARTER + 菌糸基盤整備**
 
-HMC SKILL を順次 HMG に移植・自律化。
+HMC SKILL を順次 HMG に移植・自律化。S20 で「共通根 CHARTER + 土壌維持役 菌糸 + 永続記憶」の周辺設計が固まる。
 
-- [x] **daily-pilot SKILL.md 新設**(S19) — HMC hmc_pilot を起源継承 + Garden 語彙再構築 + Triage 3軸再設計。5 経路(種2本 + bot + morning_greet + night_cheer)を SKILL 参照型に振り替え。[ADR](../docs/decisions/2026-05-30-skill-and-seed-separation.md) で「種 = 発火ディスパッチャ / SKILL = 業務観モジュール」のレイヤ分けを正式化
-- [ ] HMC SKILL の Garden 化(次候補: `shift_manager` SKILL 移植・Phase 3c 着手と同期)
+- [x] **daily-pilot SKILL.md 新設**(S19) — HMC hmc_pilot 起源継承 + Garden 語彙再構築 + Triage 3軸再設計。5 経路を SKILL 参照型に
+- [x] **Garden CHARTER 新設**(S20) — 全 plot SKILL 共通の業務観モジュール。daily-pilot SKILL は CHARTER 継承型に圧縮。トーン統一(ですます調)。[ADR](../docs/decisions/2026-05-30-garden-charter.md)
+- [x] **菌糸(Mycelium)を Garden 語彙に追加 + ディレクトリ立ち上げ**(S20) — 土壌維持エージェント。[ADR](../docs/decisions/2026-05-30-mycelium-and-soil-reference.md)
+- [x] **永続記憶の設計合意**(S20) — gaku-co5.0 memory システム(LLM Wiki 方式・スコープ分離)を移植。マスター透視権は Stage D で追加
+- [ ] **菌糸 Stage 1(Mode 3 Index 更新)実装** ← **次回着手**(shift_manager より先)
+- [ ] **永続記憶 Stage A(gaku-co5.0 memory 移植 + master scope RAW logging)** ← 並行着手可
+- [ ] HMC SKILL の Garden 化(次候補: `shift_manager` SKILL 移植・Phase 3c 着手と同期 / 菌糸 Stage 1 完了が前提)
 - [ ] HMC SKILL の Garden 化(finance_importer → invoice_processor → ...)
 - [ ] 番人エージェントの実装(`garden/watchers/`)
-- [ ] チームメンバー(LINE 経由)への開放準備
+- [ ] チームメンバー(LINE 経由)への開放準備(永続記憶 Stage D = マスター透視権実装と同期)
 
 ## 直近の宿題
 
@@ -199,12 +207,15 @@ HMC SKILL を順次 HMG に移植・自律化。
 - [x] **セッション14 で Phase 3a 最後のピース完成**: night-review 副作用あり実走 + cron 化 + writeback-daemon 実装 + LiveSync 互換 chunk ID 解析 + Obsidian 反映成功
 - [x] **セッション15 で cron 無人実証 + writeback 堅牢化 + daily-pilot 3本 active 化宣言**
 - [x] **セッション19 で plots 第1号 = daily-pilot SKILL.md 新設(355行) + 5経路振り替え + reschedule ライブ検証成功 + ADR 化**
-- [ ] **次回本命候補(1)**: SKILL ベース初稼働(22:30/22:40/06:30/06:40)の挙動観察 → 違和感あれば SKILL Output Style / Mode 手順を磨く
-- [ ] **次回本命候補(2)**: 次の区画候補 = `garden/plots/shift_manager/SKILL.md`(HMC 移植第1号、Phase 3c 着手と同期)
-- [ ] **次回本命候補(3)**: watcher daemon 実装(event 種・inbox-process / board resume の入口、完成したら SKILL に Mode 4 追記)
-- [ ] **次回本命候補(4)**: gaku-co5.0「LINE 返信 → board MD 書き戻し」連携(チーム channel 開放準備)
-- [ ] **次回本命候補(5)**: A-1 後追い(on_failure.retry の自動化・fallback LINE 通知発火)
-- [ ] **次回本命候補(6)**: バッドチャンク掃除(`h:` で `+` がない orphan chunks の削除スクリプト)
+- [ ] **次回本命候補(1)**: **菌糸 Stage 1 実装**(Mode 3 = soil/ 配下 watcher + index.md 自動追従。staff 29 名分の最新化 = shift_manager 着手の前提)
+- [ ] **次回本命候補(2)**: **永続記憶 Stage A 実装**(gaku-co5.0 app/memory/ を `garden/services/garden-gaku-co/memory/` に移植 + `garden/memory/master/raw/` で対話 RAW logging 開始)
+- [ ] **次回本命候補(3)**: SKILL+CHARTER 二段ロード初稼働(S20 夜〜S21 朝)の挙動観察 → トーン(ですます調)・Output Style が乗っているか確認、違和感あれば CHARTER / SKILL を磨く
+- [ ] **次回本命候補(4)**: 次の区画 = `garden/plots/shift_manager/SKILL.md`(HMC 移植第1号、菌糸 Stage 1 完了が前提、Phase 3c 着手と同期)
+- [ ] **次回本命候補(5)**: bot.py に plot ディスパッチャ実装(案 D の picker = 起動時に各 plot SKILL frontmatter `topics:` 集約 → 発話で plot 判定 → 当該 SKILL on-demand load)。shift_manager 起草と同セッションで実装
+- [ ] **次回本命候補(6)**: watcher daemon 実装(event 種・inbox-process / board resume の入口、完成したら SKILL に Mode 4 追記)
+- [ ] **次回本命候補(7)**: gaku-co5.0「LINE 返信 → board MD 書き戻し」連携(チーム channel 開放準備)
+- [ ] **次回本命候補(8)**: A-1 後追い(on_failure.retry の自動化・fallback LINE 通知発火)
+- [ ] **次回本命候補(9)**: バッドチャンク掃除(`h:` で `+` がない orphan chunks の削除スクリプト)
 - [ ] **workflow 書き直し残り(A 案テンプレ適用)**:
   - [ ] `garden/soil/workflows/annual-quarterly-planning.md`
   - [ ] `garden/soil/workflows/program-execution.md`
@@ -306,9 +317,21 @@ HMC SKILL を順次 HMG に移植・自律化。
 | daily-pilot 区画 SKILL 新設 = plots 第1号(Phase 4 前倒し)+ HMC hmc_pilot を起源継承 + Triage 3軸(過ごし方提案 / AI 支援提案 / 判断ほしい)再設計 | 2026-05-30 (S19) | [plots/daily-pilot/SKILL.md](plots/daily-pilot/SKILL.md) |
 | 5 経路(種2本 + bot + morning_greet + night_cheer)を SKILL 参照型に振り替え + active→backlog 反映ロジックを Mode 3 に明示 | 2026-05-30 (S19) | [sessions/2026-05-30-session19.md](../docs/sessions/2026-05-30-session19.md) |
 | reschedule 経路(Discord 対話 → backlog/active 同期反映)のライブ検証成功 | 2026-05-30 (S19) | 同上 |
+| **Garden CHARTER 新設** = 全 plot SKILL 共通の業務観モジュール(loader 機構なし・各 consumer が物理ロード) | 2026-05-30 (S20) | [decisions/2026-05-30-garden-charter.md](../docs/decisions/2026-05-30-garden-charter.md) |
+| **ガクコ位置づけ再定義** = 「補佐」ではなく「Garden の中の存在 / 草木 / 木の精 / 庭師との橋渡し役」。役割名は固定しない | 2026-05-30 (S20) | 同上 |
+| **トーン統一** = ですます調基本、過剰敬語 / Vice Pilot 表現は撤廃(HMC 由来語彙)、揺らぎ許容 | 2026-05-30 (S20) | 同上 |
+| **plot 間越境ルール = 案 D**(独自 picker+loader、各 plot SKILL の frontmatter `topics:` を bot 起動時集約、越境発話は確認を挟む) | 2026-05-30 (S20) | [CHARTER.md](CHARTER.md) + memory `vendor-neutrality-skills` |
+| **Claude Code 標準 Skills 機構は不採用**(ベンダー中立方針) | 2026-05-30 (S20) | memory `vendor-neutrality-skills` |
+| **菌糸(Mycelium)を Garden 語彙に追加**(土壌維持エージェント、番人と兄弟ではない独立カテゴリ) | 2026-05-30 (S20) | [decisions/2026-05-30-mycelium-and-soil-reference.md](../docs/decisions/2026-05-30-mycelium-and-soil-reference.md) + [garden-vocabulary.md](../docs/garden-vocabulary.md) |
+| **soil 参照規約** = 各 plot SKILL frontmatter で `requires_soil_index:` declare + index.md on-demand Read + soil 全体は同梱しない | 2026-05-30 (S20) | [CHARTER.md](CHARTER.md) |
+| **既存 soil/index.md を菌糸の維持対象として位置づけ**(新 INDEX を作らず統合) | 2026-05-30 (S20) | [decisions/2026-05-30-mycelium-and-soil-reference.md](../docs/decisions/2026-05-30-mycelium-and-soil-reference.md) |
+| **創発(SKILL 外の動き)の扱い** = 一過性で許容、庭師評価で SKILL 書き戻し、繰り返しは菌糸 Lint が拾う | 2026-05-30 (S20) | [CHARTER.md](CHARTER.md) |
+| **永続記憶 = gaku-co5.0 memory システム移植**(LLM Wiki 方式・スコープ分離・RAW→WIKI 2 段・夜間バッチ・SQLite 不要) | 2026-05-30 (S20) | [sessions/2026-05-30-session20.md](../docs/sessions/2026-05-30-session20.md) |
+| **マスター透視権** = bot.py(マスター)が下位スコープ index を読める、下位はマスターを読めない。Stage D で実装(チーム開放と同期) | 2026-05-30 (S20) | 同上 |
 
 ## 直近のセッション
 
+- [2026-05-30 セッション20](../docs/sessions/2026-05-30-session20.md) — **CHARTER 化 + 菌糸新設 + 創発取扱い + 永続記憶設計**:S19 で daily-pilot SKILL を立てた直後、shift_manager 着手前の周辺設計 5 論点(SKILL 共通パーツ / plot 間越境 / soil 参照規約 / 創発取扱い / 永続記憶)を一気に整理。CHARTER 新設(全 plot 継承)+ ガクコ位置づけ再定義(橋渡し役・木の精)+ トーン統一(ですます調)+ 案 D(独自 picker+loader、Claude Code 標準 Skills 不採用=ベンダー中立)+ **菌糸(Mycelium)を Garden 語彙に追加**(土壌維持エージェント、Stage 1 から段階着手)+ 創発の評価駆動書き戻し + **永続記憶 = gaku-co5.0 移植**(LLM Wiki 方式・スコープ分離・SQLite 不要、マスター透視権は Stage D で追加)。実装は次回以降に段階着手
 - [2026-05-30 セッション19](../docs/sessions/2026-05-30-session19.md) — **朝の体感改善 + SKILLベース化(plots 第1号) + reschedule ライブ検証成功**:朝チェーン初フル稼働の体感4課題(振り返り漏れ / 表示 / Triage 構成 / 締めの一言)を、(1)短期対応3つ +(2)**SKILL ベース化**(daily-pilot SKILL.md 355行新設 + 5経路を SKILL 参照型に振り替え)+(3)古い triage board 退避 +(4)ADR 化(種 = 発火ディスパッチャ / SKILL = 業務観モジュール)で根本治療。当日中に **reschedule ライブ検証成功**(S17/S18 持ち越し3セッション消化)
 - [2026-05-29 セッション18](../docs/sessions/2026-05-29-session18.md) — **COUCHDB_PASS rotation + 旧 n8n 撤去 + 明朝チェーン事前点検**:3セッション持ち越しの最優先セキュリティ債を返済(`_config` API・5消費者全反映・host local.ini 永続・旧失効)。派生で旧 n8n を完全撤去(~320M shred 後削除 + 履歴 scrub、残=NPM proxy host 削除)。明朝5/30 初ライブに向け朝チェーンを点検し改善2点を発見(bot の古 Triage 誤認 / morning_greet ヘッダ厳格)→ 実装は明朝観察後に繰り越し
 - [2026-05-29 セッション17](../docs/sessions/2026-05-29-session17.md) — **朝の対話を立ち上げ**:「朝のガクコ連絡が届かない」=未実装の発見 → 朝は対話型に決定。カレンダー認証を HMC から移植(MCP 不要化)、triage を active 最下段にミラー(#1)、朝の口火 morning_greet.py 06:40(#2)、bot の会話書き戻し=read-only 解除(#3/#4・sandbox 検証→本番)。開発フロー UX 先行を memory 記録

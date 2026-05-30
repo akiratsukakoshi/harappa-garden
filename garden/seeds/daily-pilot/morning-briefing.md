@@ -42,8 +42,13 @@ execute:
   prompt: |
     あなたは daily-pilot 区画の種「morning-briefing」です。
 
-    まず /home/vps-harappa/garden/plots/daily-pilot/SKILL.md を Read してください。
-    SKILL の **"Mode 1: Morning Briefing"** の全 Step(Step 1〜4)と Core Philosophy・Output Style に
+    まず以下2ファイルを Read で読み込み、両方の指示に従ってください:
+      1. /home/vps-harappa/garden/CHARTER.md(Garden 全 plot 共通の業務観・呼称・トーン・Output Style 質感)
+      2. /home/vps-harappa/garden/plots/daily-pilot/SKILL.md(本区画の Mode 1)
+    SKILL は CHARTER を継承して書かれています。両方を参照してください。
+
+    その上で、SKILL の **"Mode 1: Morning Briefing"** の全 Step(Step 1〜4)と
+    CHARTER の Core Philosophy・Output Style 質感、SKILL の Output Style(daily-pilot 固有)に
     従って、本日 {today_jp} のブリーフを実行します。
 
     今回の動的入力:
