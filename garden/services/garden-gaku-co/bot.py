@@ -18,8 +18,11 @@ import collections
 import datetime
 import os
 import subprocess
+import traceback
 
 import discord
+
+import memory_logger
 
 JST = datetime.timezone(datetime.timedelta(hours=9))
 WEEKDAY_JA = "月火水木金土日"
@@ -154,6 +157,14 @@ async def on_message(message: discord.Message):
         reply = await asyncio.to_thread(ask_claude, message.channel.id, text)
     history[message.channel.id].append(f"ガクチョ: {text}")
     history[message.channel.id].append(f"ガクコ: {reply}")
+    # S22 Stage A: master scope の RAW logging(対話を捨てない)
+    # ADR: docs/decisions/2026-05-31-memory-three-layer-and-soil-routing.md
+    try:
+        memory_logger.append_turn("master", user_text=text, bot_reply=reply)
+    except Exception:
+        # RAW logging 失敗が対話を止めないように
+        print("[bot] memory_logger.append_turn failed:", flush=True)
+        traceback.print_exc()
     for i in range(0, len(reply), 1900):
         await message.channel.send(reply[i : i + 1900])
 

@@ -3,20 +3,26 @@
 
 cron `* * * * *` で 1 分毎起動(セッション21、(4) C 案)。
 
-仕様(セッション21 拡張版):
+仕様(セッション21 拡張版 + S22 dummy 化):
   1. garden/board/pending/*.md を scan
   2. frontmatter `status` を検出:
      - `status: test` → ディスパッチ先を personal に強制 → 配信後 `status: pending` に戻す + テスト送信履歴を board 末尾に追記
      - `status: approved` → 通常ディスパッチ。ただし frontmatter `scheduled_send: YYYY-MM-DDTHH:MM+09:00` が未来なら skip(時刻到達まで待機)
-  3. frontmatter `from_seed` に応じてディスパッチ:
-     - shift_manager/monthly-shift-survey         → /api/send + /api/approve(staff LINE)
-     - shift_manager/monthly-working-hours-confirmation → /api/send + /api/approve(staff LINE)
+  3. ディスパッチモード判定(S22):
+     - 優先順位: board frontmatter `dispatch_mode` > env `SEND_PENDING_DEFAULT_MODE` > "production"
+     - `dummy` モード(from_seed ∈ DISPATCH_LINE_SEND の場合のみ適用):
+       LINE 配信を行わず、Discord master に本文プレビューを流す(ガクチョが手動で LINE staff グループへコピー)
+     - test mode(personal LINE)と shell 種は dummy の影響を受けない
+  4. frontmatter `from_seed` に応じてディスパッチ:
+     - shift_manager/monthly-shift-survey         → /api/send + /api/approve(staff LINE) / dummy 時は Discord master 流し
+     - shift_manager/monthly-working-hours-confirmation → 同上
      - shift_manager/month-end-working-hours-prep → shell 実行(frontmatter.execute_command)
-  4. 成功 → board を processed/ へ移動(test の場合は残置) + Discord master 通知
-  5. 失敗 → pending 残置 + Discord master 通知
+  5. 成功 → board を processed/ へ移動(test の場合は残置) + Discord master 通知
+  6. 失敗 → pending 残置 + Discord master 通知
 
 依存:
-  - garden-gaku-co/.env(DISCORD_BOT_TOKEN, DISCORD_MASTER_CHANNEL_ID, GAKU_CO_API_URL)
+  - garden-gaku-co/.env(DISCORD_BOT_TOKEN, DISCORD_MASTER_CHANNEL_ID, GAKU_CO_API_URL,
+                       SEND_PENDING_DEFAULT_MODE=dummy|production)
   - garden-gaku-co/venv
 
 実行:
@@ -51,6 +57,9 @@ DISPATCH_LINE_SEND = {
 DISPATCH_SHELL = {
     "shift_manager/month-end-working-hours-prep",
 }
+
+# S22: dummy 化(garden-gaku-co 統合完了までの暫定運用)
+DEFAULT_DISPATCH_MODE = os.environ.get("SEND_PENDING_DEFAULT_MODE", "production").strip().lower()
 
 
 def log(msg: str) -> None:
@@ -195,6 +204,43 @@ def dispatch_line_send(fm: dict, body: str, board_path: Path, group: str = "staf
     return True
 
 
+def dispatch_dummy(fm: dict, body: str, board_path: Path) -> bool:
+    """dummy ディスパッチ: LINE 配信せず、Discord master に本文プレビューを流す(S22)
+
+    ガクチョが Discord で本文を受け取り、自分の手で LINE staff グループにコピーする運用。
+    garden-gaku-co 統合完了までの暫定。
+    """
+    message = extract_send_body(body)
+    if not message:
+        log(f"[{board_path.name}] FAIL(dummy): 配信本文セクションのコードブロックが見つかりません")
+        notify_master(f"❌ dummy 失敗: {board_path.name}\n→ ## 配信本文 内のコードブロックがありません")
+        return False
+
+    seed = fm.get("from_seed", "?")
+    sched = fm.get("scheduled_send", "?")
+    header = (
+        f"📨 **dummy: 本配信用本文(手動コピーしてください)**\n"
+        f"→ board: `{board_path.name}`\n"
+        f"→ from_seed: `{seed}`\n"
+        f"→ scheduled_send: `{sched}`\n"
+        f"→ 宛先: LINE staff グループ\n"
+        f"────────\n"
+    )
+    full = header + message
+    # Discord メッセージは 2000 文字制限、notify_master は 1900 で truncate するため分割送信
+    chunk_size = 1800
+    if len(full) <= chunk_size:
+        notify_master(full)
+    else:
+        notify_master(header + "(本文長いため分割送信)")
+        # message を chunk 分割
+        for i in range(0, len(message), chunk_size):
+            notify_master(f"```\n{message[i:i+chunk_size]}\n```")
+
+    log(f"[{board_path.name}] DUMMY dispatched to Discord master (seed={seed})")
+    return True
+
+
 def dispatch_shell(fm: dict, body: str, board_path: Path) -> bool:
     """shell 実行ディスパッチ: frontmatter.execute_command を実行"""
     cmd = fm.get("execute_command")
@@ -288,9 +334,17 @@ def process_one(board_path: Path) -> None:
 
     is_test = (status == "test")
 
+    # ディスパッチモード判定(board frontmatter > env > "production")
+    effective_mode = fm.get("dispatch_mode", "").strip().lower() or DEFAULT_DISPATCH_MODE
+
     if from_seed in DISPATCH_LINE_SEND:
-        group = "personal" if is_test else "staff"
-        ok = dispatch_line_send(fm, body, board_path, group=group)
+        # status: test(personal LINE)は dummy の影響を受けない(自分宛なので漏洩リスクなし)
+        if not is_test and effective_mode == "dummy":
+            log(f"[{board_path.name}] dispatch_mode=dummy → Discord master へ流す")
+            ok = dispatch_dummy(fm, body, board_path)
+        else:
+            group = "personal" if is_test else "staff"
+            ok = dispatch_line_send(fm, body, board_path, group=group)
     elif from_seed in DISPATCH_SHELL:
         if is_test:
             # shell 実行(集計など) は test 対応しない

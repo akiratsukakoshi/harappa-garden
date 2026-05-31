@@ -36,3 +36,8 @@ vps/proxy-manager/data/
 vps/proxy-manager/letsencrypt/
 vps/ig_scheduler/.env
 vps/**/*.db
+
+# Memory RAW(対話の生ログ、機密扱い。S22 Stage A 以降)
+# ADR: docs/decisions/2026-05-31-memory-three-layer-and-soil-routing.md
+garden/memory/**/raw/*.md
+!garden/memory/**/raw/.gitkeep
