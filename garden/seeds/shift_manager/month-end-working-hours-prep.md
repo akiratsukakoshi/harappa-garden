@@ -78,9 +78,9 @@ execute:
           - 突き合わせ先: Notion フィールドレポート + 運営LINE
         - [ ] [[kodomon]] 勤怠 CSV エクスポート + 配置 (garden-mirror/garden/inbox/kodomon/{当月}.csv に置く)
               → 集計実行時に自動取り込み(放サボセルに業務時間が入る)
-        - [ ] **翌々月({N+2 月} = 明日 monthly-shift-survey が見にいくタブ)の Q列(アンケート)チェック確認**
+        - [ ] **翌日 monthly-shift-survey の対象月タブ(月末から +2 ヶ月先 = Mode 2 から見て翌月)の Q列(アンケート)チェック確認**
               → TRUE が立っている募集対象プログラムが正しいか確認(空のままだと翌朝の shift-survey が「No events selected」で空振り)
-              → 動的に翌々月を計算: target_month の年月から +2 ヶ月(例: 当月=2026-05 なら翌々月=2026-07)
+              → 動的に計算: target_month の年月から +2 ヶ月(例: 当月=2026-05 なら 2026-07 タブ)
         - [ ] 集計実行(承認)← この行を `[x]` にすると send_pending.py が generate_working_hours.py を発火
 
       - frontmatter に必ず含める:
@@ -220,8 +220,8 @@ execute_command: "/home/vps-harappa/garden/services/shift-manager/.venv/bin/pyth
   - エンコーディング: Shift-JIS(コドモン書き出し既定)
   - 集計実行時に **自動取り込み** されます(放サボ列のオレンジセルに業務時間が入る)
   - CSV が無い場合は警告のみで続行(放サボ列は手入力のまま)
-- [ ] **翌々月タブの Q列(アンケート)チェック確認** ← 明日 8:00 の monthly-shift-survey が見にいくタブ
-  - 例: 当月 2026-05 → 翌々月 2026-07 タブの Q列に募集対象プログラムが TRUE になっているか
+- [ ] **翌日 monthly-shift-survey の対象月タブ(月末から +2 ヶ月先 = Mode 2 から見て翌月)の Q列(アンケート)チェック確認** ← 明日 8:00 の monthly-shift-survey が見にいくタブ
+  - 例: 当月 2026-05 → 2026-07 タブの Q列に募集対象プログラムが TRUE になっているか
   - 空のままだと翌朝の monthly-shift-survey が「No events selected」で空振り(エラーにはならず、フォームが更新されない)
 - [ ] **集計実行(承認)** ← この行を `[x]` にして status を approved に変更 → 保存
 

@@ -2,7 +2,7 @@
 type: seed
 name: monthly-shift-survey
 plot: shift_manager
-description: 月初1日に翌々月のシフト募集フォームを Garden 内で生成 → board に剪定依頼 → 庭師承認後に staff LINE 配信する種
+description: 月初1日に翌月のシフト募集フォームを Garden 内で生成 → board に剪定依頼 → 庭師承認後に staff LINE 配信する種
 status: draft                     # 6/1 cron 仕込み + post_approval 経路 + credentials VPS 配置で active へ
 phase: 3a                         # Garden 完結化(セッション21 で HMC 依存を撤廃)
 execution_host: vps
@@ -12,7 +12,7 @@ created: 2026-05-25
 created_by: claude (with ガクチョ, セッション7)
 last_updated: 2026-05-30
 linked_workflows:
-  - "[[monthly-cycle]]"           # ステップ 2(a) 翌々月シフトアンケート送信
+  - "[[monthly-cycle]]"           # ステップ 2(a) 翌月シフトアンケート送信
 linked_skills:
   - "garden/plots/shift_manager/SKILL.md"
 linked_services:
@@ -30,9 +30,9 @@ engine: claude-code
 execute:
   working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
-    target_month: "$(date -d '+2 months' +%Y-%m)"
-    target_month_jp: "$(date -d '+2 months' +%-m)月"
-    target_year: "$(date -d '+2 months' +%Y)"
+    target_month: "$(date -d '+1 months' +%Y-%m)"
+    target_month_jp: "$(date -d '+1 months' +%-m)月"
+    target_year: "$(date -d '+1 months' +%Y)"
     today: "$(date +%Y-%m-%d)"
   prompt: |
     あなたは shift_manager 区画の種「monthly-shift-survey」です。
@@ -48,7 +48,7 @@ execute:
 
     今回の動的入力:
       - today: {today}
-      - target_month: {target_month}(翌々月、generate_shift_form.py に渡す)
+      - target_month: {target_month}(翌月、generate_shift_form.py に渡す)
       - target_month_jp: {target_month_jp}
 
     操作対象ファイル / コマンド:
@@ -170,11 +170,11 @@ audit:
   next_fire_estimate: 2026-06-01T08:00:00+09:00
 ---
 
-# monthly-shift-survey — 翌々月シフトアンケート(Garden 完結 v2)
+# monthly-shift-survey — 翌月シフトアンケート(Garden 完結 v2)
 
 ## 目的(不変)
 
-毎月1日朝、**翌々月の staff LINE グループにシフト募集フォームが届く** 状態を作る。庭師の手作業介入は **配信文の剪定承認の1ステップだけ** に絞る。
+毎月1日朝、**翌月の staff LINE グループにシフト募集フォームが届く** 状態を作る。庭師の手作業介入は **配信文の剪定承認の1ステップだけ** に絞る。
 
 ## 現状の方法
 
@@ -182,7 +182,7 @@ frontmatter の `execute` / `pruning` / `post_approval` を参照。要約:
 
 1. cron 月初1日 08:00 発火
 2. Garden CHARTER + shift_manager SKILL を読み込んだ Claude Code が、Mode 2 の手順に従って:
-   a. `garden/services/shift-manager/generate_shift_form.py --month {翌々月}` を実行
+   a. `garden/services/shift-manager/generate_shift_form.py --month {翌月}` を実行
    b. 生成された Google フォーム URL を取得
    c. `garden/board/pending/{today}-monthly-shift-survey.md` に剪定依頼を起草
 3. 庭師がガクコ(Discord master)で通知を受け、board を確認・編集 → status: approved に変更

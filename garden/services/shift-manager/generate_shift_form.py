@@ -1,4 +1,4 @@
-"""generate_shift_form.py - 翌々月シフト募集フォームを生成する
+"""generate_shift_form.py - 翌月シフト募集フォームを生成する
 
 HMC apps/shift_manager/logic/generate_shift_form.py から Garden 化。
 変更点:

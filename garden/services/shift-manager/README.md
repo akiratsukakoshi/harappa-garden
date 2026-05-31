@@ -43,7 +43,7 @@ chmod 600 secrets/* .env
 
 ## 実行(月次)
 
-### シフト募集フォーム生成(翌々月)
+### シフト募集フォーム生成(翌月)
 ```bash
 .venv/bin/python generate_shift_form.py --month 2026-07
 ```
@@ -55,7 +55,7 @@ chmod 600 secrets/* .env
 
 ## 起動経路
 
-- 月初1日 08:00 cron → `garden/seeds/shift_manager/monthly-shift-survey.md` → `generate_shift_form.py --month {翌々月}`
+- 月初1日 08:00 cron → `garden/seeds/shift_manager/monthly-shift-survey.md` → `generate_shift_form.py --month {翌月}`
 - 月末最終日 22:00 cron → `garden/seeds/shift_manager/month-end-working-hours-prep.md` → 庭師承認後に `generate_working_hours.py --month {当月}`
 
 ## HMC との関係

@@ -151,9 +151,22 @@
 - summary: 月末稼働表作成フローに登場する外部システム。学童・保育園向け ICT。放サボの参加者管理とスタッフ勤怠に使用。API/MCP 提供有無は未調査(改善余地 ❓ で記録)。CSV エクスポート → 稼働表に手入力が現状。CSV パーサ実装(💡着手可能)を改善候補として明記。
 - source: 塚越さん 2026-05-24 セッション5
 
+## [2026-05-31] index-bootstrap | Stage 1 初回 full scan で index.md を意味的に最新化
+- by: claude (with ガクチョ, セッション23 / 菌糸 Stage 1 初回)
+- type: index-bootstrap
+- pages: index.md
+- summary: staff 4名のみ反映の初期化状態から、staff 29名 (contract×role×area の3軸集計) + business 18 (toC harappa-university 学部別 / toC ai / toB 5 / communication 1) + workflows 4本 + concepts 1 + 空カテゴリの位置づけ整理 を反映。Karpathy LLM Wiki 哲学に従い全件列挙はせず「カテゴリ・件数・主要リンク」に絞った。これ以降は菌糸 Mode 3(seeds/mycelium/index-refresh.md、type=index)が日次差分更新を担う。
+
 ## [2026-05-25] ingest | workflows/daily-cycle.md を A 案テンプレで新規起草
 - by: claude
 - type: ingest
 - pages: [[daily-cycle]], workflows/README.md (関連メモのみ)
 - summary: セッション6 で「HMC のコア機能(朝ブリーフィング → タスク化 → 夜の振り返り)が workflows/ に未登録」が発覚。HMC `hmc_pilot` SKILL の Mode 1/2/3 を Garden 化方針(種起点)で書き直し、5 ステップ構成(recurring-spawn / morning-briefing / 日中編集 / night-review / inbox-process)で起草。各ステップに目的・現状の方法・改善余地表を A 案テンプレで配置。データモデル(backlog=マスタ、active=派生ビュー)も明記。
 - source: 塚越さん 2026-05-25 セッション6、docs/decisions/2026-05-25-daily-workflow-and-task-master-architecture.md, HMC hmc_pilot SKILL
+
+## [2026-05-31] index-refresh | 検知 62 件(mirror sync)
+- by: mycelium (Stage 1)
+- type: index
+- pages: index.md(変更なし)
+- summary: 全 62 ファイルが同日 20:38 mirror sync による一括タイムスタンプ更新。同日の index-bootstrap (セッション23) が全件カバー済みのため index.md 変更不要と判断。
+- detected: staff 33, business 21, workflows 5, concepts 1, その他 2(全て 2026-05-31 mtime)
