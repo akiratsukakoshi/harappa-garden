@@ -29,6 +29,7 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime
+from typing import Optional
 
 import gspread
 from google.oauth2 import service_account
@@ -227,18 +228,62 @@ def import_to_sheet(month_str: str, kodomon_data: dict, db_sh_id: str = None) ->
     return len(cells_to_update)
 
 
+def resolve_csv_path(month: str, explicit_csv: Optional[str] = None) -> Optional[str]:
+    """CSV パス解決(S24 柔軟化):
+
+    優先順位:
+      1. --csv で明示指定された path(存在チェック)
+      2. inbox/kodomon/ 内で month に該当するファイル名パターン(複数許容):
+         - `{YYYY-MM}.csv`           例: 2026-05.csv
+         - `{YYYYMM}.csv`            例: 202605.csv
+         - `*{YYYY-MM}*.csv`         例: kodomon-2026-05-export.csv
+         - `*{YYYYMM}*.csv`          例: 202605_職員入退室.csv
+      3. inbox/kodomon/ 内に CSV が 1 件だけなら、それを採用(運用簡略化)
+    """
+    import glob
+    inbox = "/home/vps-harappa/garden-mirror/garden/inbox/kodomon"
+
+    if explicit_csv:
+        return explicit_csv if os.path.exists(explicit_csv) else None
+
+    ym_hyphen = month             # 2026-05
+    ym_compact = month.replace("-", "")  # 202605
+
+    patterns = [
+        f"{inbox}/{ym_hyphen}.csv",
+        f"{inbox}/{ym_compact}.csv",
+        f"{inbox}/*{ym_hyphen}*.csv",
+        f"{inbox}/*{ym_compact}*.csv",
+    ]
+    for pat in patterns:
+        matches = glob.glob(pat)
+        if matches:
+            return sorted(matches)[-1]  # 同パターン複数ヒット時は名前順最後(=最新想定)
+
+    # 最後の砦: inbox/kodomon/ 内に CSV が 1 件だけならそれ
+    all_csvs = glob.glob(f"{inbox}/*.csv")
+    if len(all_csvs) == 1:
+        logger.warning(f"month 一致なし、フォルダ唯一の CSV を採用: {all_csvs[0]}")
+        return all_csvs[0]
+
+    return None
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="コドモン勤怠 CSV を稼働シートの放サボ列に反映")
     parser.add_argument("--month", required=True, help="対象月 YYYY-MM")
-    parser.add_argument("--csv", required=True, help="コドモン CSV ファイルパス")
+    parser.add_argument("--csv", required=False, help="コドモン CSV ファイルパス(省略時は inbox/kodomon/ から自動解決)")
     args = parser.parse_args()
 
-    if not os.path.exists(args.csv):
-        logger.error(f"CSV ファイル未存在: {args.csv}")
+    csv_path = resolve_csv_path(args.month, args.csv)
+    if not csv_path:
+        logger.error(f"CSV ファイルが見つかりません: month={args.month} / explicit_csv={args.csv}")
+        logger.error(f"探索パス: /home/vps-harappa/garden-mirror/garden/inbox/kodomon/{{{args.month}.csv, {args.month.replace('-','')}.csv, *{args.month}*.csv, *{args.month.replace('-','')}*.csv}}")
         sys.exit(1)
+    logger.info(f"CSV 採用: {csv_path}")
 
-    kodomon_data = read_kodomon_csv(args.csv)
+    kodomon_data = read_kodomon_csv(csv_path)
     n = import_to_sheet(args.month, kodomon_data)
     if n < 0:
         sys.exit(2)
-    print(f"✓ コドモン CSV 取り込み完了: {n} セル反映 (月={args.month})")
+    print(f"✓ コドモン CSV 取り込み完了: {n} セル反映 (月={args.month}, csv={os.path.basename(csv_path)})")

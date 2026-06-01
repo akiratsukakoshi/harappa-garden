@@ -39,6 +39,9 @@ execute:
     # カレンダーは launcher が事前取得して注入(claude には credential/MCP を渡さない)。
     # 失敗時も calendar_cli が `- ⚠️ カレンダー取得失敗（…）` を1行返す(常に exit 0)。
     calendar_block: "$(/home/vps-harappa/garden/services/garden-gaku-co/venv/bin/python3 /home/vps-harappa/garden/services/calendar/calendar_cli.py briefing 2>/dev/null)"
+    # 承認待ち board の一覧(S24 追加): pending/ 直下の board を frontmatter 抜粋で列挙
+    # blocked: true は「保留中」として末尾に分けて出す。0 件なら空文字。
+    board_pending_block: "$(for f in /home/vps-harappa/garden-mirror/garden/board/pending/*.md; do [ -e \"$f\" ] || continue; name=$(basename \"$f\"); [ \"$name\" = \"placeholder.md\" ] && continue; seed=$(grep '^from_seed:' \"$f\" | head -1 | sed 's/from_seed: *//'); status=$(grep '^status:' \"$f\" | head -1 | sed 's/status: *//'); blocked=$(grep '^blocked:' \"$f\" | head -1 | sed 's/blocked: *//'); sched=$(grep '^scheduled_send:' \"$f\" | head -1 | sed 's/scheduled_send: *//'); created=$(grep '^created:' \"$f\" | head -1 | sed 's/created: *//'); echo \"- [$name] seed=$seed | status=$status | blocked=${blocked:-false} | scheduled=${sched:-none} | created=$created\"; done)"
   prompt: |
     あなたは daily-pilot 区画の種「morning-briefing」です。
 
@@ -60,11 +63,22 @@ execute:
         ----
         {calendar_block}
         ----
+      - 承認待ち board 一覧(launcher が `garden/board/pending/` を事前列挙):
+        ----
+        {board_pending_block}
+        ----
+        (空 = 承認待ちなし。`blocked=true` は前段未完了のため庭師判断不能)
 
     操作対象ファイル(SKILL の「ファイルと役割」表を参照):
       - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(読み取り。マスタ。本種では更新しない)
       - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md(本種が再構築)
       - /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md(Triage 生成先)
+
+    承認待ち board の取り扱い(SKILL Mode 1 Step 1.5 参照):
+      - `board_pending_block` が空でなければ、Triage(triage 系 board)末尾に
+        「## 📋 承認待ち board(剪定依頼)」セクションを必ず追加する
+      - 各 board に対し: 種名 / status / scheduled_send / 一行サマリ / Obsidian で開く動線を明示
+      - `blocked: true` の board は「⏳ 前段待ち」として分け、本日対応不要であることをガクチョに伝える
 
     モード判定:
       - {today}-morning-briefing.md が存在し status: awaiting_triage または回答反映済

@@ -57,6 +57,28 @@ CHARTER の SSOT 原則を本 plot に適用:
 - 前夜の active(クリア済みの新テンプレ)
 - 本日のカレンダー(launcher が事前注入。MCP は使いません)
 - backlog の Level 2 カテゴリ(`## 運営・企画` 等)を尊重
+- **承認待ち board(`garden/board/pending/`)の一覧**(launcher が事前注入。Step 1.5 で扱う)
+
+### Step 1.5: 承認待ち board のリマインド(S24 追加)
+
+`board_pending_block` が空でなければ、Triage board の末尾に必ず以下のセクションを追加します。これは「承認依頼が届いた瞬間の Discord 通知を見落としていた / まだ判断できていない board」を朝に再提示するためのものです。
+
+```markdown
+## 📋 承認待ち board(剪定依頼)
+
+- 🌱 `{seed-name}`: {一行サマリ} → `garden/board/pending/{filename}` (scheduled_send: {time} / 配信先: staff グループ)
+- 🌱 `{seed-name}`: {一行サマリ} → `garden/board/pending/{filename}` (...)
+
+⏳ 前段待ち(本日対応不要):
+- 🌱 `{seed-name}`: {一行サマリ} → blocked={reason}
+```
+
+ルール:
+- `blocked=true` は **「⏳ 前段待ち」セクションに分けて出す**。庭師が今判断できないものは混ぜない
+- `blocked=false`(or 未設定)は **配信予定時刻つきで列挙**。当日配信なら強調
+- 0 件なら本セクション自体を省く(空のヘッダだけ残さない)
+
+口火(Step 4 で `morning_greet.py` が active_tasks を読んで Discord 投稿)では、Triage 末尾のこのセクションを **「📋 board 承認待ち N 件あります」** と短く触れて、詳細は Obsidian で見てもらう動線にします。
 
 ### Step 2: Triage(The Interrogation)— 横串で見て質問を組み立てる
 

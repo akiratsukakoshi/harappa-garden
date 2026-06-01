@@ -87,7 +87,13 @@ execute:
         scheduled_send: {today}T19:00:00+09:00   # send_pending.py が この時刻まで待機して staff 配信
         ---
 
-      - 配信本文(編集可)をコードブロックで囲む。テンプレ:
+      - **配信本文セクション**(`## 配信本文`)を **必ず生成**(blocked 状態でも常に存在させる)。
+        コードブロックで本文を囲む。テンプレ:
+        ```markdown
+        ## 配信本文
+
+        (↓ ここをスタッフへの LINE 本文として配信します。編集可。コードブロック内の全文を配信します。)
+
         ```
         📊 {target_month_jp}の稼働時間表ができました
 
@@ -99,6 +105,28 @@ execute:
         - 業務委託 → 請求書を harappa まで(メール)
         - 給与 → freee で経費精算
         - 外部スタッフ → 交通費は LINE コメントで
+        ```
+        ```
+      - blocked 時の警告(前段未完了)は **別セクション** `## ⚠️ 配信保留中(前段未完了)` で並置。`## 配信本文` の前に置く
+
+      - **庭師アクション セクションを board 末尾に必ず追加(S24 統一テンプレ)**:
+        ```markdown
+        ---
+
+        ## 🌱 庭師アクション(承認 = 配信の発火)
+
+        配信本文を確認・編集後、 **frontmatter の `status:` フィールドを書き換えて保存** してください:
+
+        - `status: pending` → `status: test` に変更 → 保存
+          → 約1分以内に **ガクチョ個人 LINE にテスト配信**(本配信前の確認用、何度でも可)
+          → status は自動で pending に戻る
+
+        - `status: pending` → `status: approved` に変更 → 保存
+          → `scheduled_send` の時刻に **staff グループに本配信**(dummy モード時は Discord master へ流れます)
+
+        - `status: rejected` に変更 → 保存 → 配信せず却下
+
+        ⚠️ 発火条件は frontmatter の `status:` のみ。 `blocked: true` の間は status を変えても発火しません(前段の稼働表生成が完了すると自動で blocked が外れます)。
         ```
 
       - 庭師通知は当面モック化: log の末尾に `==NOTIFY==` ブロックで append

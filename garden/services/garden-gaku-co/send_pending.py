@@ -3,9 +3,12 @@
 
 cron `* * * * *` で 1 分毎起動(セッション21、(4) C 案)。
 
-仕様(セッション21 拡張版 + S22 dummy 化):
+仕様(S21 + S22 dummy 化 + S24 承認依頼通知 + 連鎖解除):
   1. garden/board/pending/*.md を scan
   2. frontmatter `status` を検出:
+     - `status: pending` (S24)
+         - `blocked: true` なら通知しない(まだ判断不能なため)
+         - `notified_at` 未設定なら Discord master に承認依頼通知 → frontmatter に notified_at 追記で冪等化
      - `status: test` → ディスパッチ先を personal に強制 → 配信後 `status: pending` に戻す + テスト送信履歴を board 末尾に追記
      - `status: approved` → 通常ディスパッチ。ただし frontmatter `scheduled_send: YYYY-MM-DDTHH:MM+09:00` が未来なら skip(時刻到達まで待機)
   3. ディスパッチモード判定(S22):
@@ -19,6 +22,8 @@ cron `* * * * *` で 1 分毎起動(セッション21、(4) C 案)。
      - shift_manager/month-end-working-hours-prep → shell 実行(frontmatter.execute_command)
   5. 成功 → board を processed/ へ移動(test の場合は残置) + Discord master 通知
   6. 失敗 → pending 残置 + Discord master 通知
+  7. (S24)shell 種 month-end-working-hours-prep 成功時、同 target_month の monthly-working-hours-confirmation の
+     blocked を外し、scheduled_send を当日 19:00 に設定(過去なら 2 分後)→ 次の cron で pending 通知が走り承認依頼が届く
 
 依存:
   - garden-gaku-co/.env(DISCORD_BOT_TOKEN, DISCORD_MASTER_CHANNEL_ID, GAKU_CO_API_URL,
@@ -96,9 +101,12 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
 
 
 def extract_send_body(body: str) -> Optional[str]:
-    """## 配信本文 セクション内の最初のコードブロックを抽出"""
-    # セクションヘッダ位置
-    sec_match = re.search(r"^##\s*配信本文\s*$", body, re.MULTILINE)
+    """## 配信本文 セクション内の最初のコードブロックを抽出
+
+    見出しは「配信本文」を含む `## ...` 行に部分一致(S24: 装飾絵文字/補足カッコ許容)。
+    例: `## 配信本文` / `## 📋 配信本文(編集可)` / `## 📨 配信本文`
+    """
+    sec_match = re.search(r"^##\s.*配信本文.*$", body, re.MULTILINE)
     if not sec_match:
         return None
     after_sec = body[sec_match.end():]
@@ -307,6 +315,100 @@ def reset_test_status(board_path: Path) -> None:
         log(f"[{board_path.name}] WARN: reset_test_status error: {e}")
 
 
+def notify_pending(board_path: Path, fm: dict) -> None:
+    """status: pending 初回検知時に Discord master へ承認依頼通知 + frontmatter に notified_at 追記(S24)
+
+    冪等: notified_at が既にあれば呼ばれない前提(process_one 側で gating)
+    """
+    seed = fm.get("from_seed", "?")
+    scheduled = fm.get("scheduled_send", "").strip()
+
+    if seed in DISPATCH_LINE_SEND:
+        kind = "📨 配信(承認後 staff グループへ・dummy モードでは Discord master へ)"
+    elif seed in DISPATCH_SHELL:
+        kind = "⚙️ 集計実行(承認で発火)"
+    else:
+        kind = "❓ unknown"
+
+    lines = [
+        "📋 **承認依頼が届いています**",
+        f"🌱 種: `{seed}`",
+        f"📄 board: `garden/board/pending/{board_path.name}`",
+        f"📋 種別: {kind}",
+    ]
+    if scheduled:
+        lines.append(f"⏰ 配信予定: `{scheduled}`")
+    lines.append("")
+    lines.append("Obsidian で開いて中身を確認 → `status: test` でテスト配信 / `status: approved` で本配信")
+
+    notify_master("\n".join(lines))
+
+    # frontmatter に notified_at を追記(冪等化)
+    try:
+        text = board_path.read_text(encoding="utf-8")
+        timestamp = datetime.now(JST).isoformat()
+        new_text = text.replace("\n---\n", f"\nnotified_at: {timestamp}\n---\n", 1)
+        board_path.write_text(new_text, encoding="utf-8")
+        log(f"[{board_path.name}] notified pending → notified_at: {timestamp}")
+    except Exception as e:
+        log(f"[{board_path.name}] WARN: notified_at write error: {e}")
+
+
+def unblock_confirmation(target_month: str) -> None:
+    """month-end-working-hours-prep 成功後、同 target_month の confirmation board の blocked を外す(S24)
+
+    - blocked: true → blocked: false
+    - scheduled_send を当日 19:00 に設定(過去なら 2 分後)
+    - notified_at をリセット(削除)して、次の cron で承認依頼通知が走るようにする
+    - 既に blocked: false なら何もしない(冪等)
+    """
+    if not target_month:
+        log("[unblock] target_month empty → skip")
+        return
+    for path in BOARD_PENDING.glob("*-monthly-working-hours-confirmation.md"):
+        try:
+            text = path.read_text(encoding="utf-8")
+            fm, _ = parse_frontmatter(text)
+        except Exception as e:
+            log(f"[unblock] read error {path.name}: {e}")
+            continue
+        if fm.get("target_month", "").strip() != target_month:
+            continue
+        if fm.get("blocked", "").strip().lower() != "true":
+            log(f"[unblock] {path.name} already unblocked → skip")
+            return
+
+        # scheduled_send 計算
+        now = datetime.now(JST)
+        target = now.replace(hour=19, minute=0, second=0, microsecond=0)
+        if target < now:
+            target = now + timedelta(minutes=2)
+        sched_str = target.strftime("%Y-%m-%dT%H:%M:%S+09:00")
+
+        new_text = text
+        new_text = re.sub(r"^blocked:\s*true\s*$", "blocked: false", new_text, count=1, flags=re.MULTILINE)
+        new_text = re.sub(r"^blocked_reason:.*\n", "", new_text, count=1, flags=re.MULTILINE)
+        new_text = re.sub(r"^notified_at:.*\n", "", new_text, count=1, flags=re.MULTILINE)
+        if re.search(r"^scheduled_send:", new_text, flags=re.MULTILINE):
+            new_text = re.sub(r"^scheduled_send:.*$", f"scheduled_send: {sched_str}", new_text, count=1, flags=re.MULTILINE)
+        else:
+            new_text = new_text.replace("\n---\n", f"\nscheduled_send: {sched_str}\n---\n", 1)
+
+        try:
+            path.write_text(new_text, encoding="utf-8")
+            log(f"[unblock] {path.name}: blocked=false, scheduled_send={sched_str}")
+            notify_master(
+                f"🔓 **稼働確認票の配信ロック解除**\n"
+                f"📄 board: `garden/board/pending/{path.name}`\n"
+                f"⏰ scheduled_send: `{sched_str}`\n"
+                f"\n次の 1 分以内に承認依頼通知が改めて届きます。"
+            )
+        except Exception as e:
+            log(f"[unblock] write error {path.name}: {e}")
+        return
+    log(f"[unblock] no matching confirmation board for target_month={target_month}")
+
+
 def process_one(board_path: Path) -> None:
     try:
         text = board_path.read_text(encoding="utf-8")
@@ -316,6 +418,16 @@ def process_one(board_path: Path) -> None:
 
     fm, body = parse_frontmatter(text)
     status = fm.get("status", "").strip()
+
+    # S24: status: pending の初回検知通知(冪等)
+    if status == "pending":
+        if fm.get("blocked", "").strip().lower() == "true":
+            return  # 判断不能のため通知しない
+        if fm.get("notified_at", "").strip():
+            return  # 通知済み
+        notify_pending(board_path, fm)
+        return
+
     if status not in ("approved", "test"):
         return  # 静かにスキップ
 
@@ -352,6 +464,9 @@ def process_one(board_path: Path) -> None:
             notify_master(f"⚠️ shell 種は status: test 非対応: {board_path.name}\n→ 集計などは approved で実行されます")
             return
         ok = dispatch_shell(fm, body, board_path)
+        # S24: 月末稼働表生成成功時、対応する confirmation の blocked を外す
+        if ok and from_seed == "shift_manager/month-end-working-hours-prep":
+            unblock_confirmation(fm.get("target_month", "").strip())
     else:
         log(f"[{board_path.name}] FAIL: unknown from_seed: {from_seed}")
         notify_master(f"❌ 未知の from_seed: {board_path.name}\n→ {from_seed}")

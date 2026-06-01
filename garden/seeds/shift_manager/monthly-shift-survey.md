@@ -80,11 +80,26 @@ execute:
         created: {today}T08:00:00+09:00
         scheduled_send: {today}T19:00:00+09:00   # send_pending.py が この時刻まで待機して staff 配信
         ---
-      - 配信本文(編集可)をコードブロックで囲む(SKILL Mode 2 Step 3 のテンプレ参照)
-      - board の「庭師アクション」セクションには以下の選択肢を含める:
-        - status: test に変更 → 保存 → 約1分以内に **ガクチョ個人 LINE にテスト配信** + status は自動で pending に戻る(何度でも繰り返し可)
-        - status: approved に変更 → 保存 → scheduled_send の時刻に **staff グループに本配信**
-        - status: rejected に変更 → 保存 → 配信せずに却下
+      - 配信本文(編集可)を `## 配信本文` セクション内のコードブロックで囲む(SKILL Mode 2 Step 3 のテンプレ参照)
+      - **庭師アクション セクションを board 末尾に必ず追加(S24 統一テンプレ)**:
+        ```markdown
+        ---
+
+        ## 🌱 庭師アクション(承認 = 配信の発火)
+
+        配信本文を確認・編集後、 **frontmatter の `status:` フィールドを書き換えて保存** してください:
+
+        - `status: pending` → `status: test` に変更 → 保存
+          → 約1分以内に **ガクチョ個人 LINE にテスト配信**(本配信前の確認用、何度でも可)
+          → status は自動で pending に戻る
+
+        - `status: pending` → `status: approved` に変更 → 保存
+          → `scheduled_send` の時刻に **staff グループに本配信**(dummy モード時は Discord master へ流れます)
+
+        - `status: rejected` に変更 → 保存 → 配信せず却下
+
+        ⚠️ 事前確認チェックボックスは備忘録です。 **発火条件は frontmatter の `status:` のみ**。
+        ```
       - 庭師通知は当面モック化: log の末尾に `==NOTIFY==` ブロックで append
         「📋 {target_month_jp}シフトアンケートの下書きあります → board/pending/{today}-monthly-shift-survey.md」
 

@@ -81,7 +81,7 @@ execute:
         - [ ] **翌日 monthly-shift-survey の対象月タブ(月末から +2 ヶ月先 = Mode 2 から見て翌月)の Q列(アンケート)チェック確認**
               → TRUE が立っている募集対象プログラムが正しいか確認(空のままだと翌朝の shift-survey が「No events selected」で空振り)
               → 動的に計算: target_month の年月から +2 ヶ月(例: 当月=2026-05 なら 2026-07 タブ)
-        - [ ] 集計実行(承認)← この行を `[x]` にすると send_pending.py が generate_working_hours.py を発火
+        - [ ] すべての項目確認完了(備忘録 = 自分の確認記録用)
 
       - frontmatter に必ず含める:
         ---
@@ -92,6 +92,23 @@ execute:
         created: {today}T22:00:00+09:00
         execute_command: "/home/vps-harappa/garden/services/shift-manager/run_month_end_collect.sh {target_month}"
         ---
+
+      - **庭師アクション セクションを board 末尾に必ず追加(S24 統一テンプレ)**:
+        ```markdown
+        ---
+
+        ## 🌱 庭師アクション(承認 = 集計実行の発火)
+
+        チェックリストの確認完了後、 **frontmatter の `status:` フィールドを書き換えて保存** してください:
+
+        - `status: pending` → `status: approved` に変更 → 保存
+          → 約1分以内に send_pending.py が `generate_working_hours.py --month {target_month}` を発火
+          → 成功時、自動で `monthly-working-hours-confirmation` board の blocked が外れて配信予約に進む
+
+        - `status: rejected` に変更 → 保存 → 集計実行せず却下
+
+        ⚠️ チェックボックス `[ ]` → `[x]` は備忘録(自分の確認記録)です。 **発火条件は frontmatter の `status:` のみ**。
+        ```
 
       - 庭師通知は当面モック化: log の末尾に `==NOTIFY==` ブロックで append
         「📊 {target_month_jp}稼働表のチェックお願いします → board/pending/{today}-working-hours-prep.md」

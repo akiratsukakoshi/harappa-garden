@@ -286,19 +286,23 @@ class WorkingHoursGenerator:
             date_label = row[0].strip()
             category = row[4].strip()
             time_str = row[6].strip()
+            is_saboru = category == SABORU_CATEGORY
 
             if not category and not time_str:
                 continue
 
-            hours_result = parse_hours(time_str)
-            if hours_result is None:
-                continue
-
-            is_saboru = category == SABORU_CATEGORY
-            if is_saboru or hours_result == "開催":
+            # 放サボイベントは時間空でも events に入れる(import_kodomon.py が CSV から書き込む前提、S24)
+            if is_saboru:
+                hours_result = None
                 auto_hours = None
             else:
-                auto_hours = hours_result / 24
+                hours_result = parse_hours(time_str)
+                if hours_result is None:
+                    continue
+                if hours_result == "開催":
+                    auto_hours = None
+                else:
+                    auto_hours = hours_result / 24
 
             hour_staff = set()
             for role, idx in HOUR_ROLES.items():
