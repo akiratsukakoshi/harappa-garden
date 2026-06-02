@@ -30,7 +30,7 @@ const __dirname = path.dirname(__filename);
 
 // ---- 設定 ----
 const SEEDS_ROOT = process.env.GARDEN_SEEDS_ROOT || path.resolve(__dirname, '../../seeds');
-const LOG_ROOT = process.env.GARDEN_LOG_ROOT || '/home/vps-harappa/garden-mirror/garden/log';
+const LOG_ROOT = process.env.GARDEN_LOG_ROOT || '/home/vps-harappa/garden/log';
 const STATE_FILE = process.env.GARDEN_STATE_FILE || path.resolve(__dirname, 'state.json');
 const LOCK_DIR = process.env.GARDEN_LOCK_DIR || '/tmp';
 const CLAUDE_BIN = process.env.CLAUDE_BIN || `${process.env.HOME}/.npm-global/bin/claude`;

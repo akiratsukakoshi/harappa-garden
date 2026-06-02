@@ -41,7 +41,7 @@ execute:
     calendar_block: "$(/home/vps-harappa/garden/services/garden-gaku-co/venv/bin/python3 /home/vps-harappa/garden/services/calendar/calendar_cli.py briefing 2>/dev/null)"
     # 承認待ち board の一覧(S24 追加): pending/ 直下の board を frontmatter 抜粋で列挙
     # blocked: true は「保留中」として末尾に分けて出す。0 件なら空文字。
-    board_pending_block: "$(for f in /home/vps-harappa/garden-mirror/garden/board/pending/*.md; do [ -e \"$f\" ] || continue; name=$(basename \"$f\"); [ \"$name\" = \"placeholder.md\" ] && continue; seed=$(grep '^from_seed:' \"$f\" | head -1 | sed 's/from_seed: *//'); status=$(grep '^status:' \"$f\" | head -1 | sed 's/status: *//'); blocked=$(grep '^blocked:' \"$f\" | head -1 | sed 's/blocked: *//'); sched=$(grep '^scheduled_send:' \"$f\" | head -1 | sed 's/scheduled_send: *//'); created=$(grep '^created:' \"$f\" | head -1 | sed 's/created: *//'); echo \"- [$name] seed=$seed | status=$status | blocked=${blocked:-false} | scheduled=${sched:-none} | created=$created\"; done)"
+    board_pending_block: "$(for f in /home/vps-harappa/garden/board/pending/*.md; do [ -e \"$f\" ] || continue; name=$(basename \"$f\"); [ \"$name\" = \"placeholder.md\" ] && continue; seed=$(grep '^from_seed:' \"$f\" | head -1 | sed 's/from_seed: *//'); status=$(grep '^status:' \"$f\" | head -1 | sed 's/status: *//'); blocked=$(grep '^blocked:' \"$f\" | head -1 | sed 's/blocked: *//'); sched=$(grep '^scheduled_send:' \"$f\" | head -1 | sed 's/scheduled_send: *//'); created=$(grep '^created:' \"$f\" | head -1 | sed 's/created: *//'); echo \"- [$name] seed=$seed | status=$status | blocked=${blocked:-false} | scheduled=${sched:-none} | created=$created\"; done)"
   prompt: |
     あなたは daily-pilot 区画の種「morning-briefing」です。
 
@@ -72,7 +72,7 @@ execute:
     操作対象ファイル(SKILL の「ファイルと役割」表を参照):
       - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(読み取り。マスタ。本種では更新しない)
       - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md(本種が再構築)
-      - /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md(Triage 生成先)
+      - /home/vps-harappa/garden/board/triage/{today}-morning-briefing.md(Triage 生成先)
 
     🔴 重要: active_tasks に書くタスクは「deadline ≦ today」のみ(SKILL Mode 1 Step 1 + Step 3)
       - 期限超過(今日より前) + 今日締切 のタスクだけを active に転記する
@@ -94,7 +94,7 @@ execute:
     曜日表記: {today} から判定して (月)(火)(水)(木)(金)(土)(日)。
 
     完了報告(LINE 通知はモック化中、ガクコ /send は呼ばない):
-      `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` の末尾に
+      `/home/vps-harappa/garden/log/{today}-morning-briefing.log` の末尾に
       **`==NOTIFY==` ブロックで append**:
       - Triage 0件 → 「✅ {today_jp} ブリーフ。アクション X件 / 予定 Y件」
       - Triage 1件以上 → 「📋 {today_jp} ブリーフ + Triage X件。board 確認 → 返信か編集で」
@@ -109,9 +109,9 @@ outputs:
   - kind: active_tasks
     path: /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md
   - kind: board_draft
-    path: /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md
+    path: /home/vps-harappa/garden/board/triage/{today}-morning-briefing.md
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log
+    path: /home/vps-harappa/garden/log/{today}-morning-briefing.log
 
 # === ④ 誰に剪定依頼するか ===
 # 注: Phase 3a 検証中はガクコ /send 呼び出しを行わず、prompt 内で log 末尾に
@@ -131,7 +131,7 @@ pruning:
     template_with_triage: |
       📋 {today_jp} ブリーフ + Triage {triage_count}件
       → 返信(短文)or board 編集で回答
-      → /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md
+      → /home/vps-harappa/garden/board/triage/{today}-morning-briefing.md
 
 # === ⑤ 承認後の振る舞い ===
 # Triage は「approve」ではなく「回答を受けて active を更新」する方式のため post_approval は使わない。
@@ -207,7 +207,7 @@ frontmatter の `execute` / `outputs` / `pruning` を参照。要約:
 
 ## board ファイルのテンプレ(後述)
 
-`/home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md` ([garden-board-structure ADR](../../../docs/decisions/2026-05-27-garden-board-structure.md) で triage/ 配置確定):
+`/home/vps-harappa/garden/board/triage/{today}-morning-briefing.md` ([garden-board-structure ADR](../../../docs/decisions/2026-05-27-garden-board-structure.md) で triage/ 配置確定):
 
 ```markdown
 ---
@@ -295,7 +295,7 @@ triage_count: 3
 
 1. 種ランチャー(VPS cron → `claude -p` 起動 + ログ + on_failure)
 2. **平文 MD ミラー daemon**(CouchDB `_changes` → `/home/vps-harappa/garden-mirror/hmc_tasks/*.md` 同期)
-3. **watcher daemon**(`/home/vps-harappa/garden-mirror/garden/board/triage/*.md` 変更検知 → 該当種 resume 起動)
+3. **watcher daemon**(`/home/vps-harappa/garden/board/triage/*.md` 変更検知 → 該当種 resume 起動)
 4. Google Calendar MCP の VPS Claude Code への結合
 5. ガクコ `/send`(personal)経由 LINE 通知の最小ループ
 6. gaku-co5.0 側 「LINE 返信 → board MD 書き戻し」 処理の実装

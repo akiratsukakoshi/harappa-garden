@@ -66,8 +66,8 @@ execute:
           (#gid= 部分は board 起草時にはまだ不明 = 省略可。スタッフはタブを自分で選ぶ)
 
     操作対象:
-      - board 起草先: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-working-hours-confirmation.md
-      - log: /home/vps-harappa/garden-mirror/garden/log/{today}-monthly-working-hours-confirmation.log
+      - board 起草先: /home/vps-harappa/garden/board/pending/{today}-monthly-working-hours-confirmation.md
+      - log: /home/vps-harappa/garden/log/{today}-monthly-working-hours-confirmation.log
 
     べき等性:
       - 同月の board(pending/processed)が既存なら新規発火しない
@@ -138,9 +138,9 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: board_draft
-    path: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-working-hours-confirmation.md
+    path: /home/vps-harappa/garden/board/pending/{today}-monthly-working-hours-confirmation.md
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-monthly-working-hours-confirmation.log
+    path: /home/vps-harappa/garden/log/{today}-monthly-working-hours-confirmation.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:

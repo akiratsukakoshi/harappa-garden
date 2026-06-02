@@ -38,7 +38,7 @@ node launcher.mjs --seed daily-pilot/morning-briefing
 | 変数 | 既定値 | 用途 |
 |---|---|---|
 | `GARDEN_SEEDS_ROOT` | `../../seeds`(launcher.mjs から相対) | 種ファイル群のルート |
-| `GARDEN_LOG_ROOT` | `/home/vps-harappa/garden-mirror/garden/log` | ログ出力先 |
+| `GARDEN_LOG_ROOT` | `/home/vps-harappa/garden/log` | ログ出力先 |
 | `GARDEN_STATE_FILE` | `<launcher dir>/state.json` | 状態永続化先 |
 | `GARDEN_LOCK_DIR` | `/tmp` | lockfile 配置先 |
 | `CLAUDE_BIN` | `~/.npm-global/bin/claude` | Claude Code バイナリ |
@@ -119,7 +119,7 @@ node launcher.mjs --seed daily-pilot/morning-briefing --dry-run
     "daily-pilot/morning-briefing": {
       "last_fired": "2026-06-01T06:30:01+09:00",
       "last_outcome": "success",
-      "last_log": "/home/vps-harappa/garden-mirror/garden/log/2026-06-01-morning-briefing.log"
+      "last_log": "/home/vps-harappa/garden/log/2026-06-01-morning-briefing.log"
     }
   }
 }

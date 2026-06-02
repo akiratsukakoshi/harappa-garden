@@ -48,7 +48,7 @@ execute:
       - 検知対象: /home/vps-harappa/garden-mirror/garden/soil/ 配下の *.md(過去 24h で mtime 変化したもの)
       - 更新対象: /home/vps-harappa/garden-mirror/garden/soil/index.md
       - 追記対象: /home/vps-harappa/garden-mirror/garden/soil/log.md
-      - log 出力: /home/vps-harappa/garden-mirror/garden/log/{today}-index-refresh.log
+      - log 出力: /home/vps-harappa/garden/log/{today}-index-refresh.log
 
     手順(SKILL Mode 3 Step 1〜5):
 
@@ -104,7 +104,7 @@ outputs:
   - kind: log_append
     path: /home/vps-harappa/garden-mirror/garden/soil/log.md
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-index-refresh.log
+    path: /home/vps-harappa/garden/log/{today}-index-refresh.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:

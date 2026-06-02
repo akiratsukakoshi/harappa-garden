@@ -4,7 +4,7 @@
 #
 # crontab 例(VPS, JST。night-review 22:30 の後に回す):
 #   40 22 * * *  /home/vps-harappa/garden/services/garden-gaku-co/run-night-cheer.sh \
-#       >> /home/vps-harappa/garden-mirror/garden/log/night-cheer.log 2>&1
+#       >> /home/vps-harappa/garden/log/night-cheer.log 2>&1
 set -euo pipefail
 cd "$(dirname "$0")"
 

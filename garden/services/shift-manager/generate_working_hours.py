@@ -270,8 +270,54 @@ class WorkingHoursGenerator:
         print(f"✓ 新規スプレッドシート作成: https://docs.google.com/spreadsheets/d/{sh.id}/edit")
         return sh
 
-    def generate(self, target_ym: str, output_id: str = ""):
+    def _has_saboru_data(self, raw: list) -> bool:
+        """既存タブの「放サボ列の日付セル」に人手入力 or import 済みデータがあるか判定。
+
+        S27 既存タブガード用。「放サボ計」「放サボ額」のような集計列(数式入り)は対象外で、
+        header_row が "M/D" 形式の日付ラベルになっている列だけを人手データ列とみなす。
+        import_kodomon.py の saboru_cols 抽出ロジックと同じ前提。
+        """
+        if len(raw) < 4:
+            return False
+        header_row = raw[1]
+        cat_row = raw[2]
+        saboru_cols = [i for i, lbl in enumerate(cat_row) if lbl.strip() == SABORU_CATEGORY]
+        if not saboru_cols:
+            return False
+        date_cols = []
+        for c in saboru_cols:
+            if c < len(header_row) and re.match(r"^\d{1,2}/\d{1,2}$", header_row[c].strip()):
+                date_cols.append(c)
+        if not date_cols:
+            return False
+        for row in raw[3:]:
+            for c in date_cols:
+                if c < len(row) and row[c].strip():
+                    return True
+        return False
+
+    def generate(self, target_ym: str, output_id: str = "", force_regenerate: bool = False):
         year, month = map(int, target_ym.split("-"))
+
+        # S27 既存タブガード: 上書きで放サボ列が消える事故([S27 inspection](../../../docs/sessions/2026-06-02-session27.md))
+        # を構造的に防ぐ。force_regenerate なしで既存タブに放サボ日付セルのデータがあれば中断。
+        if not force_regenerate:
+            sheet_title_check = f"{target_ym}_稼働時間"
+            try:
+                tentative_sh = self._get_or_create_output_sh(output_id)
+                existing_ws = tentative_sh.worksheet(sheet_title_check)
+                existing_data = existing_ws.get_all_values()
+                if self._has_saboru_data(existing_data):
+                    logger.error(
+                        f"既存タブ {sheet_title_check} に放サボ列のデータあり → 上書き防止のため中断。"
+                        f"再生成するなら --force-regenerate を付けて実行してください。"
+                    )
+                    return None
+                logger.warning(f"既存タブ {sheet_title_check} 検出(放サボ列は空)→ 再生成続行")
+            except gspread.exceptions.WorksheetNotFound:
+                pass  # 未生成、通常通り進む
+            except Exception as e:
+                logger.warning(f"既存タブガードチェック失敗(続行): {e}")
 
         ws_src = self.monthly_sh.worksheet(target_ym)
         raw = ws_src.get_all_values()
@@ -642,9 +688,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="スタッフ別月次稼働時間集計シートを生成する")
     parser.add_argument("--month", required=True, help="対象月 YYYY-MM")
     parser.add_argument("--output-id", default="", help="出力先スプレッドシートのID (省略時は自動作成または設定済みIDを使用)")
+    parser.add_argument("--force-regenerate", action="store_true",
+                        help="既存タブに放サボ列データがあっても強制再生成(default: ガード ON)")
     args = parser.parse_args()
 
     gen = WorkingHoursGenerator()
-    url = gen.generate(args.month, output_id=args.output_id)
+    url = gen.generate(args.month, output_id=args.output_id, force_regenerate=args.force_regenerate)
     if url:
         print(f"✓ 完了: {url}")
+    else:
+        # S27 既存タブガードで中断、または別エラー
+        sys.exit(1)

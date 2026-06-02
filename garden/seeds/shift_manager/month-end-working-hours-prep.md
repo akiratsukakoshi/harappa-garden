@@ -60,7 +60,7 @@ execute:
 
     操作対象:
       - 月次シート: Monthly UI Sheet({target_month} タブ)
-      - board 起草先: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-working-hours-prep.md
+      - board 起草先: /home/vps-harappa/garden/board/pending/{today}-working-hours-prep.md
       - 集計コマンド(庭師承認後に発火、本種では実行しない):
           .venv/bin/python /home/vps-harappa/garden/services/shift-manager/generate_working_hours.py --month {target_month}
 
@@ -119,9 +119,9 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: board_draft
-    path: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-working-hours-prep.md
+    path: /home/vps-harappa/garden/board/pending/{today}-working-hours-prep.md
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-working-hours-prep.log
+    path: /home/vps-harappa/garden/log/{today}-working-hours-prep.log
   # 集計結果(Working Hours Sheet)は送信後の post_approval 発火で更新
 
 # === ④ 誰に剪定依頼するか ===

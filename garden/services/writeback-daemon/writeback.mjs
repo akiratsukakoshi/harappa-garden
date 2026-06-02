@@ -39,6 +39,10 @@ const cfg = {
   // notes that are never edited VPS-side. Scoping avoids touching them entirely.
   scopePrefixes: (process.env.WRITEBACK_SCOPE || "hmc_tasks/,garden/")
     .split(",").map((s) => s.trim()).filter(Boolean),
+  // S27: vault 外管理パスは fs → CouchDB に push しない(scope に含まれるパスのうち、
+  // この除外プレフィックスにマッチするものは無視)。ADR docs/decisions/2026-06-02-board-and-log-out-of-vault.md
+  excludePrefixes: (process.env.EXCLUDE_PREFIXES || "")
+    .split(",").map((s) => s.trim()).filter(Boolean),
 };
 
 // LiveSync "Case-Sensitive = OFF" stores the canonical doc _id as the LOWERCASED
@@ -46,7 +50,9 @@ const cfg = {
 // We must mirror this: _id = lowercase(path), path = original. Using the original-case
 // path as _id creates duplicate docs (observed S15).
 const toDocId = (docPath) => docPath.toLowerCase();
-const inScope = (docPath) => cfg.scopePrefixes.some((p) => docPath.startsWith(p));
+const inScope = (docPath) =>
+  cfg.scopePrefixes.some((p) => docPath.startsWith(p)) &&
+  !cfg.excludePrefixes.some((p) => docPath.startsWith(p));
 
 for (const k of ["url", "user", "pass", "passphrase"]) {
   if (!cfg[k]) {

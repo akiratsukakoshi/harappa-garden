@@ -88,7 +88,7 @@ outputs:
   - kind: archive                    # 処理済み inbox 自体は archive 扱い
     path: /home/vps-harappa/garden-mirror/garden/inbox/processed/{today}/{元ファイル名}
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-inbox-process.log
+    path: /home/vps-harappa/garden/log/{today}-inbox-process.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:

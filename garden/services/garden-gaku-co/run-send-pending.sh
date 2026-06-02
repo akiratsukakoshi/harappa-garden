@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-LOG=/home/vps-harappa/garden-mirror/garden/log/send-pending.log
+LOG=/home/vps-harappa/garden/log/send-pending.log
 mkdir -p "$(dirname "$LOG")"
 
 # .env を読み込む(send_pending.py 側でも load_env() するが、明示しておく)

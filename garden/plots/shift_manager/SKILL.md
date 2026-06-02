@@ -200,6 +200,61 @@ cd /home/vps-harappa/garden/services/shift-manager
 
 ---
 
+## Mode 5: Discord Approval Response(承認応答)
+
+**起動**: ガクコ(`garden-gaku-co/bot.py`)が Discord master channel で shift_manager 系の board に関する承認/テスト/却下/編集/閲覧の指示を受けた時。
+
+### 目的
+ガクチョの自然言語指示を受けて board ファイル(`garden/board/pending/*-{shift_manager-seed}.md`)を VPS 上で直接編集する。Obsidian で手書き編集する代わりに、**VPS が唯一の書き手**になることで Obsidian LiveSync 経由の巻き戻し事故([S26-27 で発覚した放サボ上書き](../../../docs/sessions/2026-06-02-session27.md) の構造的原因)を防ぐ。
+
+### 前提
+- `send_pending.py:notify_pending` が承認依頼通知に必要情報(配信本文プレビュー / 関連URL / 客観事実)を Discord に貼っている。ガクチョは Discord だけで判断可能。
+- `garden/board/**` は **Obsidian LiveSync の ignore 対象**。Obsidian で board を見ても編集はしない/できない。承認操作は Discord で完結する。
+
+### 指示の分類と動作
+
+| ガクチョの自然言語 | 動作 | 編集内容 |
+|---|---|---|
+| 「承認」「OK」「集計まわして」「いって」 | board frontmatter の `status: pending` を `approved` に書き換え | status のみ |
+| 「テスト送って」「テスト配信」「俺に送って」「個人 LINE で確認」 | `status: pending` → `test`(send_pending が personal LINE に送り、自動で pending に戻る) | status のみ |
+| 「キャンセル」「却下」「待って」「やめて」「NG」 | `status: pending` → `cancelled`(send_pending が再発火しなくなる。board は pending に残るがガクチョが手動で processed/ や failed/ に移動 or 放置) | status のみ |
+| 「本文の XX を YY に変えて承認」「文言を XX にして OK」 | `## 配信本文`(または `## 📋 配信本文(編集可)` 等の見出しを含む節)内のコードブロック該当箇所を Edit してから `approved` に | 本文 + status |
+| 「配信時刻を 9:00 にして承認」「明日 8 時にして OK」 | frontmatter の `scheduled_send` を `YYYY-MM-DDTHH:MM:SS+09:00` 形式に upsert、その後 `approved` に | scheduled_send + status |
+| 「board 見せて」「中身全部出して」「全文ちょうだい」 | board ファイル全文を Read してそのまま Discord に貼る(2000 字超なら分割) | Read のみ |
+
+### 該当 board の特定ロジック
+
+1. **直前の Discord 通知から推定**: `notify_master` 経由で直近に送られた承認依頼通知 board が 1 件しか無ければ、それを対象に確定。
+2. **キーワードで推定**: ガクチョの指示に「シフト募集」「アンケート」(=monthly-shift-survey)、「稼働確認」「稼働表配信」(=monthly-working-hours-confirmation)、「集計」「prep」「稼働まわして」(=month-end-working-hours-prep)等のキーワードが含まれていれば、from_seed で絞り込み。
+3. **対象月を併記**: 「5月稼働」「2026-05」「7月シフト」等で `target_month` を絞り込み。
+4. **複数候補が残った場合**: **必ず聞き返す**。「以下の 2 件のどちらですか?」とリストアップ。勝手に決めない。
+5. **0 件**: 「該当する pending board が無いみたいです。`board/pending/` をリストしますか?」と返す。
+
+### 編集の安全規範
+
+- **frontmatter の他フィールドは触らない**(target_month / from_seed / created / working_hours_url 等)
+- 本文編集時は **配信本文セクション内のコードブロックのみ**触る(他の解説文や `## 状況` 等は変えない)
+- 編集後は **必ず一行報告**:「反映した: `2026-06-01-monthly-shift-survey.md` の本文を編集 + status を approved に」
+- 編集の reasoning が曖昧なら(該当箇所が複数等)、編集前に「ここを変えればいいですか?」と該当箇所を引用して確認
+
+### LiveSync 隔離後の board 観察
+
+- ガクチョが「先月の processed リストアップして」と聞いてきたら、`garden/board/processed/` を VPS 上で ls して返す(Obsidian では見えなくなっているので Discord 経由が観察手段)
+- 「あの board の中身もう一回見せて」も同様に Read して貼る
+
+### 失敗時の挙動
+
+- board ファイルが書き換え後にすぐ消えた(同名で別 board が pending に湧いた等)→ LiveSync 整合性異常の可能性。ガクチョに「LiveSync で board が同期されているかも、ignore 設定確認お願いします」と知らせる
+- send_pending の発火が確認できない(承認したのに次の cron tick で processed/ に移動しない)→ `garden/log/send-pending.log` の直近行を読んで原因を返す
+
+### Output Style(本 Mode 固有)
+
+- ガクチョが「承認」と短く言ってきたら、こちらも短く返す。「反映した: `{board名}` を approved に。次の 1 分以内に配信走ります」
+- 編集を伴う場合は「反映前」を必ず確認: 「本文の『6月10日まで』を『6月15日まで』に変えて、status を approved にします。これで OK ですか?」(編集してから approved にする 2 ステップで、最初の編集前に確認する)
+- 「テスト送って」は確認なしで即実行(個人 LINE 宛なので安全)
+
+---
+
 ## Output Style(shift_manager 固有部分)
 
 CHARTER の Output Style 質感に従いつつ、shift_manager 固有のセクション順:

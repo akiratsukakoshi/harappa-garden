@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 PIDFILE=.bot.pid
-LOG=/home/vps-harappa/garden-mirror/garden/log/bot.log
+LOG=/home/vps-harappa/garden/log/bot.log
 
 # 既に動いていれば何もしない
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then

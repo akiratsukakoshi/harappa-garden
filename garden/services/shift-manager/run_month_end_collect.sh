@@ -29,17 +29,20 @@ fi
 
 echo "==== run_month_end_collect.sh start: month=$MONTH $(date -Is) ===="
 
-# 1. 集計実行
+# 1. 集計実行(既存タブガード付き — generate_working_hours.py が --force-regenerate 無しで
+#    既存タブ + 放サボ列にデータあり を検出したら exit 1。本スクリプトもそこで止める)
 echo "[1/2] generate_working_hours.py --month $MONTH"
 .venv/bin/python generate_working_hours.py --month "$MONTH"
 
-# 2. コドモン CSV あれば取り込み
-CSV="/home/vps-harappa/garden-mirror/garden/inbox/kodomon/${MONTH}.csv"
-if [ -f "$CSV" ]; then
-  echo "[2/2] コドモン CSV 検出 → import_kodomon.py 実行"
-  .venv/bin/python import_kodomon.py --month "$MONTH" --csv "$CSV"
+# 2. コドモン CSV 取り込み(パス解決は import_kodomon.py:resolve_csv_path に一任。
+#    YYYY-MM.csv / YYYYMM.csv / *YYYY-MM*.csv / *YYYYMM*.csv / 単一CSV の順で自動検出)
+echo "[2/2] import_kodomon.py --month $MONTH(CSV パスは自動解決)"
+if .venv/bin/python import_kodomon.py --month "$MONTH"; then
+  echo "  → import_kodomon.py 完了"
 else
-  echo "[2/2] コドモン CSV なし($CSV) → 放サボ列は手入力のままです"
+  rc=$?
+  # exit 1 = CSV 未配置 / exit 2 = タブ未生成。どちらも警告で続行(集計タブ自体は出来てる)
+  echo "  ⚠️ import_kodomon.py 失敗 (rc=$rc) → 放サボ列は手入力のままです"
 fi
 
 echo "==== run_month_end_collect.sh done $(date -Is) ===="

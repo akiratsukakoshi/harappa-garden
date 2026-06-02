@@ -59,8 +59,8 @@ execute:
           .venv/bin/python /home/vps-harappa/garden/services/shift-manager/generate_shift_form.py --month {target_month}
         ※ コマンドが成功すれば最終行に `Shift Form URL: https://...` が出力される
         ※ 失敗時は on_failure に従う
-      - board 起草先: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md
-      - log: /home/vps-harappa/garden-mirror/garden/log/{today}-monthly-shift-survey.log
+      - board 起草先: /home/vps-harappa/garden/board/pending/{today}-monthly-shift-survey.md
+      - log: /home/vps-harappa/garden/log/{today}-monthly-shift-survey.log
 
     べき等性:
       - 同月の board(pending or processed)が既存なら **新規発火しない**
@@ -110,9 +110,9 @@ execute:
 # === ③ 結果をどこに置くか ===
 outputs:
   - kind: board_draft
-    path: /home/vps-harappa/garden-mirror/garden/board/pending/{today}-monthly-shift-survey.md
+    path: /home/vps-harappa/garden/board/pending/{today}-monthly-shift-survey.md
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-monthly-shift-survey.log
+    path: /home/vps-harappa/garden/log/{today}-monthly-shift-survey.log
   # フォーム生成の副作用は Google Forms / Sheets に直接(generate_shift_form.py の責務)
 
 # === ④ 誰に剪定依頼するか ===

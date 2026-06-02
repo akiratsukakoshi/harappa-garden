@@ -58,7 +58,7 @@ execute:
         - /home/vps-harappa/garden-mirror/garden/soil/people/staff/{slug}.md の ## メモ セクション(短文事実)
         - /home/vps-harappa/garden-mirror/garden/soil/log.md(長文・経緯型)
         - /home/vps-harappa/garden-mirror/garden/memory/master/raw/{YYYY-MM-DD}.md の frontmatter `last_ingested_at`
-      - log 出力: /home/vps-harappa/garden-mirror/garden/log/{today}-ingest-raw.log
+      - log 出力: /home/vps-harappa/garden/log/{today}-ingest-raw.log
 
     手順(SKILL Mode 1 処理ステップ 1〜7):
 
@@ -130,7 +130,7 @@ outputs:
   - kind: file_update
     path: /home/vps-harappa/garden-mirror/garden/memory/master/raw/*.md
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-ingest-raw.log
+    path: /home/vps-harappa/garden/log/{today}-ingest-raw.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:

@@ -61,7 +61,7 @@ execute:
     曜日表記: today/tomorrow から判定して (月)(火)(水)(木)(金)(土)(日)。
 
     完了報告(LINE 通知はモック化中、ガクコ /send は呼ばない):
-      `/home/vps-harappa/garden-mirror/garden/log/{today}-night-review.log` の末尾に
+      `/home/vps-harappa/garden/log/{today}-night-review.log` の末尾に
       **`==NOTIFY==` ブロックで append**:
       ```
       ==NOTIFY==
@@ -87,7 +87,7 @@ outputs:
   - kind: active_tasks
     path: /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md   # クリア後の状態を書き戻す
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-night-review.log
+    path: /home/vps-harappa/garden/log/{today}-night-review.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:

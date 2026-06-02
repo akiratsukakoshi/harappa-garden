@@ -32,12 +32,14 @@
 
 | 場所 | 何が来る | 頻度 | ガクチョのアクション |
 |---|---|---|---|
-| **Discord master ch** | 承認依頼 / 配信完了 / 失敗通知 / 朝の口火 / 夜のレポート | 随時 + 06:40 / 22:40 | 短文返信、または Obsidian で開く |
+| **Discord master ch** | 承認依頼(強化版) / 配信完了 / 失敗通知 / 朝の口火 / 夜のレポート | 随時 + 06:40 / 22:40 | ガクコに自然言語で返信(承認/テスト/却下/編集/`board 見せて`) |
 | **朝の口火(06:40 Discord)** | 当日 `active_tasks` のサマリ + Triage 数 + board 承認待ち件数 | 1 日 1 回 | 一日の見通しを得る・対話開始 |
 | **夜のレポート(22:40 Discord)** | 完了 / 持ち越し / 翌日サマリ | 1 日 1 回 | 終わりの確認 |
 | **Obsidian: `hmc_tasks/active_tasks.md`** | 今日のタスク一覧(`deadline ≦ today` のみ) | 随時 | チェック / 締切編集 / `## 追加` でタスク投入 |
-| **Obsidian: `garden/board/pending/*.md`** | 承認待ちの剪定依頼(shift_manager / daily-pilot 等) | 随時 | 中身を読んで `status: approved` / `status: test` / 修正 |
-| **Obsidian: `garden/board/triage/{today}-*.md`** | 朝の Triage(対話用) | 1 日 1 回 | 軸 A/B/C に返答(LINE 短文 or 直接編集) |
+| **Discord 経由 board 承認応答** | 承認依頼の中身(配信本文プレビュー + 関連リンク + 客観事実)が Discord に届く | 随時 | ガクコに「承認」「テスト送って」「却下」「本文を XX に変えて承認」「board 見せて」と自然言語で伝える([shift_manager Mode 5](plots/shift_manager/SKILL.md#mode-5-discord-approval-response承認応答)) |
+| **Discord(朝の Triage 返信)** | 朝の Triage(軸 A/B/C への質問) | 1 日 1 回 | Discord 短文で「A は a、B は b で」 |
+
+> **2026-06-02(S27)以降**: `garden/board/` と `garden/log/` は **Obsidian vault の外**(`/home/vps-harappa/garden/{board,log}/`)に配置。LiveSync 起因の巻き戻し事故([ADR 2026-06-02 board-and-log-out-of-vault](../docs/decisions/2026-06-02-board-and-log-out-of-vault.md))を構造的に封じ込めるため、board と log は **VPS が唯一の書き手 / 読み手**。承認操作は Discord でガクコに伝える運用に移行。
 
 ### 役割の分離原則(2026-06-02 測量士提案 4 採用)
 
@@ -68,19 +70,19 @@
 
 **月次フロー**:
 
-1. **月末 22:00**: `month-end-working-hours-prep` 種発火 → `garden/board/pending/{date}-working-hours-prep.md` 起草 → Discord master 通知
-2. **ガクチョ**: Obsidian で開き → 当月稼働シートの状態を確認(Mode 1 のチェックリスト) → `[x] 集計実行` チェック後 `status: approved`
-3. **send_pending.py** が `generate_working_hours.py` 実行 → 稼働表タブ生成 → 完了通知
-4. **ガクチョ**: 放サボ列を手入力 or コドモン CSV を `garden/inbox/kodomon/` に置く(→ Card 3 へ)
-5. **月初 1 日 08:00**: `monthly-shift-survey` 種発火 → 翌月アンケート board 起草 → Discord master 通知
-6. **ガクチョ**: 文面確認 → `status: approved`(dummy モードでは Discord master プレビューが届くので staff LINE に手動コピー)
+1. **月末 22:00**: `month-end-working-hours-prep` 種発火 → `/home/vps-harappa/garden/board/pending/{date}-working-hours-prep.md` 起草 → Discord master に強化版承認依頼通知(関連リンク + 客観事実 + チェックリスト)
+2. **ガクチョ**: Discord 通知の中身を確認(コドモン CSV 配置済 / シート URL 等が事実として並ぶ)→ ガクコに「5月稼働 集計実行」「承認」等で承認 → ガクコが board の status を approved に書き換え
+3. **send_pending.py** が `generate_working_hours.py` 実行 → 稼働表タブ生成(既存タブガード付き、S27 で導入)→ コドモン CSV を自動検出して `import_kodomon.py` で放サボ列に反映 → 完了通知
+4. **ガクチョ**: 月内に `garden/inbox/kodomon/{YYYY-MM,YYYYMM}*.csv` を Obsidian で配置済なら 3 で自動取込済。未配置で集計完了したら、後追いで CSV 配置 + ガクコに「コドモン取込みやって」と伝える
+5. **月初 1 日 08:00**: `monthly-shift-survey` 種発火 → 翌月アンケート board 起草 → Discord master に強化版承認依頼通知(配信本文プレビュー付き)
+6. **ガクチョ**: Discord 通知で本文プレビュー確認 → ガクコに「シフト募集 承認」 → ガクコが status を approved に(dummy モードでは配信時刻に Discord master へプレビュー配信)
 7. **月初 1 日 09:00**: `monthly-working-hours-confirmation` 種発火(現状 dummy モード、staff 見せ方未確定で blocked: true)
 8. **月初 10 日 08:00**: `monthly-shift-finalize` 種(構想)
 
 **失敗時に見るところ**:
 
-- VPS: `/home/vps-harappa/garden-mirror/garden/log/{today}-{seed}.log`
-- VPS: `/home/vps-harappa/garden-mirror/garden/log/send-pending.log`
+- VPS: `/home/vps-harappa/garden/log/{today}-{seed}.log`
+- VPS: `/home/vps-harappa/garden/log/send-pending.log`
 - `garden/board/failed/*.FAILED.md`(連続失敗で auto-quarantine された board、S25 で導入)
 - board frontmatter の `fail_count` / `last_fail_reason`(S25 で導入)
 
@@ -114,8 +116,8 @@
 
 **失敗時に見るところ**:
 
-- VPS: `/home/vps-harappa/garden-mirror/garden/log/{today}-morning-briefing.log` 等
-- VPS: `/home/vps-harappa/garden-mirror/garden/log/launcher.log`
+- VPS: `/home/vps-harappa/garden/log/{today}-morning-briefing.log` 等
+- VPS: `/home/vps-harappa/garden/log/launcher.log`
 - VPS: `docker logs garden-mirror-daemon` / `docker logs garden-writeback-daemon`
 - Obsidian LiveSync の同期状態(端末側で確認)
 
@@ -166,7 +168,7 @@
 **失敗時に見るところ**:
 
 - WSL: `/tmp/kodomon-sync.log`(rsync ログ)
-- VPS: `/home/vps-harappa/garden-mirror/garden/log/run_month_end_collect.log`
+- VPS: `/home/vps-harappa/garden/log/run_month_end_collect.log`
 - VPS inbox: `ssh harappa "ls /home/vps-harappa/garden-mirror/garden/inbox/kodomon/"` で CSV 到着確認
 
 **関連ファイル**:
@@ -197,7 +199,7 @@
 
 **失敗時に見るところ**:
 
-- VPS: `/home/vps-harappa/garden-mirror/garden/log/index-refresh.log`
+- VPS: `/home/vps-harappa/garden/log/index-refresh.log`
 - VPS: `garden/soil/log.md` の末尾(動作の有無を確認)
 
 **関連ファイル**:
@@ -247,15 +249,15 @@
 
 | 何 | パス |
 |---|---|
-| 種の実行ログ | VPS `/home/vps-harappa/garden-mirror/garden/log/{today}-{seed}.log` |
-| send_pending(配信ディスパッチャ) | VPS `/home/vps-harappa/garden-mirror/garden/log/send-pending.log` |
-| ランチャー | VPS `/home/vps-harappa/garden-mirror/garden/log/launcher.log` |
+| 種の実行ログ | VPS `/home/vps-harappa/garden/log/{today}-{seed}.log` |
+| send_pending(配信ディスパッチャ) | VPS `/home/vps-harappa/garden/log/send-pending.log` |
+| ランチャー | VPS `/home/vps-harappa/garden/log/launcher.log` |
 | mirror daemon | `ssh harappa "docker logs garden-mirror-daemon"` |
 | writeback daemon | `ssh harappa "docker logs garden-writeback-daemon"` |
-| garden-gaku-co bot | VPS `/home/vps-harappa/garden-mirror/garden/log/bot.log` |
+| garden-gaku-co bot | VPS `/home/vps-harappa/garden/log/bot.log` |
 | kodomon-sync(WSL 側) | `/tmp/kodomon-sync.log` |
-| 朝の口火 / 夜の cheer | VPS `/home/vps-harappa/garden-mirror/garden/log/morning-greet.log` / `night-cheer.log` |
-| send_pending cron | VPS `/home/vps-harappa/garden-mirror/garden/log/send-pending-cron.log` |
+| 朝の口火 / 夜の cheer | VPS `/home/vps-harappa/garden/log/morning-greet.log` / `night-cheer.log` |
+| send_pending cron | VPS `/home/vps-harappa/garden/log/send-pending-cron.log` |
 
 ### board の状態
 
@@ -279,8 +281,8 @@
 ```bash
 ssh harappa                                # SSH 接続
 ssh harappa "crontab -l"                   # cron 一覧
-ssh harappa "ls /home/vps-harappa/garden-mirror/garden/board/pending/"   # 承認待ち board
-ssh harappa "tail -50 /home/vps-harappa/garden-mirror/garden/log/send-pending.log"
+ssh harappa "ls /home/vps-harappa/garden/board/pending/"   # 承認待ち board
+ssh harappa "tail -50 /home/vps-harappa/garden/log/send-pending.log"
 ```
 
 ---

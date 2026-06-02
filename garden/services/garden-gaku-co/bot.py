@@ -53,10 +53,12 @@ history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS
 
 ACTIVE_PATH = os.path.join(MIRROR_DIR, "hmc_tasks", "active_tasks.md")
 BACKLOG_PATH = os.path.join(MIRROR_DIR, "hmc_tasks", "backlog.md")
+# S27: board は vault 外(garden-mirror の外 = /home/vps-harappa/garden/board/)
+BOARD_DIR = os.environ.get("BOARD_DIR", "/home/vps-harappa/garden/board")
 
 
 def triage_board_path(d: datetime.date) -> str:
-    return os.path.join(MIRROR_DIR, "garden", "board", "triage",
+    return os.path.join(BOARD_DIR, "triage",
                         f"{d.isoformat()}-morning-briefing.md")
 
 
@@ -79,9 +81,36 @@ def read_garden_context(today: datetime.date) -> str:
     return "\n\n".join(parts)[:6000]  # 長すぎる場合は安全に切る
 
 
+def list_pending_boards() -> list[str]:
+    """S27: VPS の `garden/board/pending/` のファイル一覧を返す。
+
+    ガクコは Bash/Glob を持たないので、shift_manager 系の承認指示
+    (「ダミーテスト承認」「シフト募集 OK」等)が来たとき
+    どの board を編集すべきかを特定できるよう、prompt に事前注入する。
+    """
+    pending_dir = os.path.join(BOARD_DIR, "pending")
+    try:
+        return sorted([
+            f for f in os.listdir(pending_dir)
+            if f.endswith(".md") and not f.startswith(".")
+        ])
+    except Exception:
+        return []
+
+
 def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) -> str:
     ctx = read_garden_context(now.date())
     weekday = WEEKDAY_JA[now.weekday()]
+    pending_boards = list_pending_boards()
+    pending_block = ""
+    if pending_boards:
+        pending_block = (
+            "[現在 pending 中の board(ガクチョが Discord で「承認」「テスト送って」等と"
+            "言うときの候補ファイル群。フルパス: " + os.path.join(BOARD_DIR, "pending") + "/)]\n"
+            + "\n".join(f"- {b}" for b in pending_boards)
+            + "\n承認応答ルールの詳細は "
+            + "/home/vps-harappa/garden/plots/shift_manager/SKILL.md の Mode 5 を Read。\n\n"
+        )
     return (
         "あなたは Discord master channel で庭師ガクチョと会話しています。\n"
         "判断知識は CHARTER(Garden 全 plot 共通の業務観・呼称・トーン・Output Style 質感)と "
@@ -99,7 +128,9 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + f"[操作対象ファイル(SKILL の編集権限表に従って使う)]\n"
         + f"- active_tasks: {ACTIVE_PATH}\n"
         + f"- backlog(締切の正本): {BACKLOG_PATH}\n"
-        + f"- 今日の Triage board: {triage_board_path(now.date())}\n\n"
+        + f"- 今日の Triage board: {triage_board_path(now.date())}\n"
+        + f"- board pending ディレクトリ: {os.path.join(BOARD_DIR, 'pending')}/\n\n"
+        + pending_block
         + (f"[Garden の状況(現時点)]\n{ctx}\n\n" if ctx else "")
         + (f"[これまでの会話]\n{convo}\n\n" if convo else "")
         + f"[ガクチョの新しい発言]\n{user_text}\n\n"

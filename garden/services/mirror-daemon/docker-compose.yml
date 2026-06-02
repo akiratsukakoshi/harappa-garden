@@ -14,6 +14,8 @@ services:
       E2EE_PASSPHRASE: ${E2EE_PASSPHRASE}
       MIRROR_DIR: /mirror
       STATE_FILE: /data/state.json
+      # S27: vault 外管理パスは CouchDB → fs に展開しない
+      EXCLUDE_PREFIXES: ${EXCLUDE_PREFIXES:-garden/board/,garden/log/}
     volumes:
       - ${MIRROR_HOST_PATH}:/mirror
       - ./data:/data

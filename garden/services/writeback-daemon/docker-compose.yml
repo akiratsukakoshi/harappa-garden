@@ -14,6 +14,8 @@ services:
       E2EE_PASSPHRASE: ${E2EE_PASSPHRASE}
       MIRROR_DIR: /mirror
       DEBOUNCE_MS: ${DEBOUNCE_MS:-1500}
+      # S27: vault 外管理パスは fs → CouchDB に push しない
+      EXCLUDE_PREFIXES: ${EXCLUDE_PREFIXES:-garden/board/,garden/log/}
     volumes:
       - ${MIRROR_HOST_PATH}:/mirror:ro    # 読み専用マウント(書き戻しは CouchDB 経由なので mirror への書き込み不要)
     networks:

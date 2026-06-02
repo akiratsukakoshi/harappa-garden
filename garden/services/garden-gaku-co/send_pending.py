@@ -53,14 +53,18 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
+# S27: 承認判断の客観事実(コドモン CSV 存在チェック等)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import board_facts
+
 JST = timezone(timedelta(hours=9))
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 GAKU_CO_API_URL = os.environ.get("GAKU_CO_API_URL", "https://bot.harappa.monster/api")
-BOARD_PENDING = Path(os.environ.get("BOARD_PENDING", "/home/vps-harappa/garden-mirror/garden/board/pending"))
-BOARD_PROCESSED = Path(os.environ.get("BOARD_PROCESSED", "/home/vps-harappa/garden-mirror/garden/board/processed"))
-BOARD_FAILED = Path(os.environ.get("BOARD_FAILED", "/home/vps-harappa/garden-mirror/garden/board/failed"))
-LOG_PATH = Path(os.environ.get("SEND_PENDING_LOG", "/home/vps-harappa/garden-mirror/garden/log/send-pending.log"))
+BOARD_PENDING = Path(os.environ.get("BOARD_PENDING", "/home/vps-harappa/garden/board/pending"))
+BOARD_PROCESSED = Path(os.environ.get("BOARD_PROCESSED", "/home/vps-harappa/garden/board/processed"))
+BOARD_FAILED = Path(os.environ.get("BOARD_FAILED", "/home/vps-harappa/garden/board/failed"))
+LOG_PATH = Path(os.environ.get("SEND_PENDING_LOG", "/home/vps-harappa/garden/log/send-pending.log"))
 LOCK_FILE = Path("/tmp/send-pending.lock")
 
 # 連続失敗ガード(S25): status: approved の board がディスパッチ失敗を N 回繰り返したら
@@ -346,33 +350,152 @@ def reset_test_status(board_path: Path) -> None:
         log(f"[{board_path.name}] WARN: reset_test_status error: {e}")
 
 
-def notify_pending(board_path: Path, fm: dict) -> None:
-    """status: pending 初回検知時に Discord master へ承認依頼通知 + frontmatter に notified_at 追記(S24)
+# S27: frontmatter に書かれる「既知の URL」フィールド。承認判断のため Discord に貼る。
+KNOWN_URL_FIELDS: list[tuple[str, str]] = [
+    ("working_hours_url", "📊 稼働シート"),
+    ("form_url", "📝 フォーム"),
+]
 
-    冪等: notified_at が既にあれば呼ばれない前提(process_one 側で gating)
+# 配信本文プレビューの最大文字数(Discord 2000 字制限内に収めるため余裕を持たせる)
+DISCORD_BODY_PREVIEW_LIMIT = 900
+
+
+def extract_known_urls(fm: dict) -> list[tuple[str, str]]:
+    """frontmatter から既知の URL フィールドを拾う(label, url)。"""
+    result: list[tuple[str, str]] = []
+    for key, label in KNOWN_URL_FIELDS:
+        v = (fm.get(key) or "").strip()
+        if v:
+            result.append((label, v))
+    return result
+
+
+def extract_checklist(body: str) -> list[str]:
+    """本文から markdown チェックリスト行を抽出。`- [ ]` / `- [x]` 両方拾う。"""
+    items: list[str] = []
+    for line in body.split("\n"):
+        if re.match(r"^\s*-\s+\[[ xX]\]\s+", line):
+            items.append(line.strip())
+    return items
+
+
+def truncate_for_discord(text: str, limit: int = DISCORD_BODY_PREVIEW_LIMIT) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n…(以降 {len(text) - limit} 文字省略。全文は「board 見せて」)"
+
+
+def build_pending_notice(board_path: Path, fm: dict, body: str) -> str:
+    """承認依頼の Discord 通知メッセージを組み立て(S27)。
+
+    モック合意(セッション27): 種別ヘッダ + 関連URL + 客観事実 + 本文プレビュー or
+    チェックリスト + ガクコへの伝え方ガイドの順。Obsidian 前提の文言は除く。
     """
-    seed = fm.get("from_seed", "?")
-    scheduled = fm.get("scheduled_send", "").strip()
+    seed = (fm.get("from_seed") or "?").strip()
+    target_month = (fm.get("target_month") or "").strip()
+    scheduled = (fm.get("scheduled_send") or "").strip()
+    is_shell = seed in DISPATCH_SHELL
+    is_line_send = seed in DISPATCH_LINE_SEND
 
-    if seed in DISPATCH_LINE_SEND:
+    if is_line_send:
         kind = "📨 配信(承認後 staff グループへ・dummy モードでは Discord master へ)"
-    elif seed in DISPATCH_SHELL:
+    elif is_shell:
         kind = "⚙️ 集計実行(承認で発火)"
     else:
         kind = "❓ unknown"
 
-    lines = [
+    lines: list[str] = [
         "📋 **承認依頼が届いています**",
         f"🌱 種: `{seed}`",
-        f"📄 board: `garden/board/pending/{board_path.name}`",
+        f"📄 board: `{board_path.name}`",
         f"📋 種別: {kind}",
     ]
+    if target_month:
+        lines.append(f"📅 対象月: `{target_month}`")
     if scheduled:
         lines.append(f"⏰ 配信予定: `{scheduled}`")
-    lines.append("")
-    lines.append("Obsidian で開いて中身を確認 → `status: test` でテスト配信 / `status: approved` で本配信")
+    if is_shell:
+        cmd = (fm.get("execute_command") or "").strip()
+        if cmd:
+            lines.append(f"⚙️ 発火: `{cmd}`")
 
-    notify_master("\n".join(lines))
+    # 既知の URL フィールド(label に絵文字含むので prefix は付けない)
+    known_urls = extract_known_urls(fm)
+    if known_urls:
+        lines.append("")
+        for label, url in known_urls:
+            lines.append(f"{label}: {url}")
+
+    # 客観事実(コドモン CSV 存在チェック等)
+    try:
+        facts = board_facts.collect_facts(seed, fm)
+    except Exception as e:
+        facts = [("(facts エラー)", str(e)[:200])]
+    if facts:
+        lines.append("")
+        for label, value in facts:
+            lines.append(f"{label}: {value}")
+
+    # 配信本文プレビュー(LINE 配信種のみ。900 字 truncate)
+    if is_line_send:
+        preview = extract_send_body(body)
+        if preview:
+            lines.append("")
+            lines.append("📝 **配信本文プレビュー**:")
+            lines.append("```")
+            lines.append(truncate_for_discord(preview))
+            lines.append("```")
+        else:
+            lines.append("")
+            lines.append("⚠️ 配信本文セクション(`## 配信本文` 内のコードブロック)が未検出。"
+                         "承認しても dummy 失敗になります。「board 見せて」で確認してください。")
+
+    # チェックリスト(shell 種など)
+    if is_shell:
+        checklist = extract_checklist(body)
+        if checklist:
+            lines.append("")
+            lines.append("✅ **チェックリスト**(目視確認用 — 自動判定はしません):")
+            for item in checklist[:10]:
+                lines.append(item)
+            if len(checklist) > 10:
+                lines.append(f"  …他 {len(checklist) - 10} 件(全文は「board 見せて」)")
+
+    # ガクコへの伝え方ガイド
+    lines.append("")
+    lines.append("──────")
+    lines.append("**ガクコに自然言語で伝えてください**:")
+    if is_shell:
+        lines.append("✅ 承認 → 「承認」「集計まわして」「OK」")
+        lines.append("❌ 却下 → 「キャンセル」「却下」「待って」")
+        lines.append("👀 全文 → 「board 見せて」")
+    else:
+        lines.append("✅ 承認 → 「承認」「OK」(配信予定時刻に staff へ)")
+        lines.append("🧪 テスト送信 → 「テスト送って」(ガクチョ個人 LINE)")
+        lines.append("❌ 却下 → 「キャンセル」「却下」")
+        lines.append("✏️ 編集 → 「本文の XX を YY に変えて承認」")
+        lines.append("👀 全文 → 「board 見せて」")
+    lines.append("(曖昧ならガクコが聞き返します)")
+
+    return "\n".join(lines)
+
+
+def notify_pending(board_path: Path, fm: dict) -> None:
+    """status: pending 初回検知時に Discord master へ承認依頼通知 + frontmatter に notified_at 追記(S24/S27)
+
+    冪等: notified_at が既にあれば呼ばれない前提(process_one 側で gating)。
+    S27: 本文プレビュー + 客観事実 + ガクコへの伝え方ガイドを含む強化版。
+    """
+    # 本文を読む(プレビュー用)
+    body = ""
+    try:
+        text = board_path.read_text(encoding="utf-8")
+        _, body = parse_frontmatter(text)
+    except Exception as e:
+        log(f"[{board_path.name}] WARN: body read error: {e}")
+
+    notice = build_pending_notice(board_path, fm, body)
+    notify_master(notice)
 
     # frontmatter に notified_at を追記(冪等化)
     try:

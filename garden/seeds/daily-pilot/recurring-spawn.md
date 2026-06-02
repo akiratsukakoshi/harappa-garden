@@ -94,7 +94,7 @@ outputs:
   - kind: backlog
     path: /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md
   - kind: log
-    path: /home/vps-harappa/garden-mirror/garden/log/{today}-recurring-spawn.log
+    path: /home/vps-harappa/garden/log/{today}-recurring-spawn.log
 
 # === ④ 誰に剪定依頼するか ===
 pruning:

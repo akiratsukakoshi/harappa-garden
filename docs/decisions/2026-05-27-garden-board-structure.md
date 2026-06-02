@@ -3,7 +3,7 @@
 - **日付**: 2026-05-27
 - **記録**: セッション13
 - **決定者**: 塚越さん(庭師) / Claude
-- **ステータス**: 合意・実装は Phase 3a A-1 と並走 / 既存 draft への反映は本 ADR 後に実施
+- **ステータス**: 内部構造(pending / processed / failed / triage / quarantine の 5 系統)は **維持**。**物理配置のみ supersede**:vault 内 → vault 外(`/home/vps-harappa/garden/board/`)に 2026-06-02 移行。詳細: [ADR 2026-06-02 board-and-log-out-of-vault](2026-06-02-board-and-log-out-of-vault.md)
 
 ## 背景
 

@@ -3,7 +3,7 @@
 - **日付**: 2026-05-27
 - **記録**: セッション13
 - **決定者**: 塚越さん(庭師) / Claude
-- **ステータス**: 合意・vault 側の作成は次セッション以降(まず HMG repo 側で `garden/board/` 設計を完了 → vault に反映)
+- **ステータス**: ⚠️ **部分的に supersede**(2026-06-02 セッション27 で `garden/board/` と `garden/log/` を vault 外へ移動。`soil/` `inbox/` 等の他配置は維持。詳細: [ADR 2026-06-02 board-and-log-out-of-vault](2026-06-02-board-and-log-out-of-vault.md))
 
 ## 背景
 

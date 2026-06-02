@@ -147,6 +147,8 @@ CHARTER の Output Style と本 SKILL の Output Style(下記)に従い、**1タ
 | 「〇〇追加して」 | active | `## 追加` に `- [ ] 〇〇` を足す |
 | Triage への回答 | board | 該当 Q の選択肢にチェック。新タスクが生まれるなら active `## 追加` にも |
 | 「今日はやらない」 | (触らない) | `- [ ]` のまま。夜に自動で持ち越されます |
+| shift_manager 系の board 承認/テスト/却下/編集(「承認」「テスト送って」「キャンセル」「本文を XX に変えて承認」) | `garden/board/pending/*-{shift_manager seed}.md` | **詳細は [shift_manager/SKILL.md の Mode 5](../shift_manager/SKILL.md#mode-5-discord-approval-response承認応答) を Read して従う**(直前の Discord 通知から対象 board を特定 → status / 本文を Edit)|
+| 任意の board の「board 見せて」「中身ちょうだい」 | (Read のみ) | 該当ファイル全文を Discord に貼る。2000 字超なら分割 |
 
 `## スケジュール`(カレンダー)は編集しません。解釈に迷う指示は書く前に一言確認します。
 

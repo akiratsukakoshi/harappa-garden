@@ -24,6 +24,10 @@ const cfg = {
   passphrase: process.env.E2EE_PASSPHRASE,
   mirrorDir: process.env.MIRROR_DIR || "/mirror",
   stateFile: process.env.STATE_FILE || "/data/state.json",
+  // S27: vault 外管理パスは CouchDB → fs に展開しない(LiveSync 起因の巻き戻し事故対策)。
+  // ADR docs/decisions/2026-06-02-board-and-log-out-of-vault.md
+  excludePrefixes: (process.env.EXCLUDE_PREFIXES || "")
+    .split(",").map((s) => s.trim()).filter(Boolean),
 };
 
 for (const k of ["url", "user", "pass", "passphrase"]) {
@@ -150,6 +154,11 @@ function isMdPath(p) {
 
 async function syncDoc(doc) {
   if (!doc) return;
+  // S27 vault 外移行: 除外プレフィックスはどんな状態でも fs に反映しない(削除も put も skip)
+  const checkPath = doc.path || state.path_by_id[doc._id];
+  if (checkPath && cfg.excludePrefixes.some((p) => checkPath.startsWith(p))) {
+    return;
+  }
   if (doc._deleted) {
     const knownPath = state.path_by_id[doc._id];
     if (knownPath) {
