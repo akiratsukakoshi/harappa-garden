@@ -170,3 +170,10 @@
 - pages: index.md(変更なし)
 - summary: 全 62 ファイルが同日 20:38 mirror sync による一括タイムスタンプ更新。同日の index-bootstrap (セッション23) が全件カバー済みのため index.md 変更不要と判断。
 - detected: staff 33, business 21, workflows 5, concepts 1, その他 2(全て 2026-05-31 mtime)
+
+## [2026-06-02] ingest-raw | RAW ingest 2026-05-31〜2026-06-01
+- by: mycelium (Mode 1 ingest-raw)
+- type: ingest
+- pages: [[daily_operation]], [[tech_infra]]
+- summary: 2026-05-31 夜に確認した翌 6/1 期限の持ち越しタスク 5 件の状況記録。月末連絡(前島・永木・りた・晶子、5/30 から繰り返し)・パナソニックホームズ企画書(6/1 締切)・ミポオンライン(持ち越し)・戦略会議日程(持ち越し)・とうぶんかいサイト修正(5/27 から 5 日超過)。ガクチョは翌日持ち越し判断。2026-06-01 夜にシフトアンケートシェアを 6/2 タスクに追加決定。
+- source: master/raw/2026-05-31.md, master/raw/2026-06-01.md

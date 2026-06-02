@@ -3,7 +3,7 @@ type: seed
 name: ingest-raw
 plot: mycelium
 description: master scope の対話 RAW を読み、三層分離 ADR §2 規約に従って soil / memory wiki / 廃棄 に振り分ける種(菌糸 Mode 1 / Stage A.5)
-status: draft                     # 次セッション実装 + dry-run 検証で active へ
+status: active                    # S26 dry-run 4 回完走 + 冪等性確認で active 化(2026-06-02)
 phase: 4                          # Phase 4 = 区画の Garden 化(菌糸基盤)
 execution_host: vps
 hmc_dependency: none
@@ -35,7 +35,7 @@ execute:
   prompt: |
     あなたは菌糸(Mycelium)Mode 1 = Ingest の種「ingest-raw」です。
 
-    まず以下2ファイルを Read で読み込み、両方の指示に従ってください:
+    まず以下 3 ファイルを Read で読み込み、指示に従ってください:
       1. /home/vps-harappa/garden/CHARTER.md(Garden 全 plot 共通の業務観・呼称・トーン・Output Style 質感)
       2. /home/vps-harappa/garden/mycelium/SKILL.md(菌糸 SKILL、Mode 1 を中心に)
       3. /home/vps-harappa/garden-mirror/garden/memory/README.md(三層分離の概要)
@@ -49,7 +49,9 @@ execute:
       - fourteen_days_ago: {fourteen_days_ago}
 
     操作対象:
-      - 読み取り対象: /home/vps-harappa/garden-mirror/garden/memory/master/raw/*.md (frontmatter `last_ingested_at` が未設定 or turn 最新より古いもの)
+      - 読み取り対象: /home/vps-harappa/garden-mirror/garden/memory/master/raw/{YYYY-MM-DD}.md で **以下を全て満たすもののみ**:
+        - ファイル日付が yesterday 〜 fourteen_days_ago の範囲内(**today は対象外** — 当日 RAW は翌日 03:30 実行で処理する)
+        - frontmatter `last_ingested_at` が **未設定**(設定済み = 処理完了とみなし、turn 単位の差分処理は行わない = RAW 単位の冪等保証)
       - 書き込み対象:
         - /home/vps-harappa/garden-mirror/garden/memory/master/wiki/{topic}.md(主題別)
         - /home/vps-harappa/garden-mirror/garden/memory/master/wiki/index.md(主題一覧)
@@ -61,11 +63,12 @@ execute:
     手順(SKILL Mode 1 処理ステップ 1〜7):
 
     1. **対象 RAW を列挙**: 前日 + 直近 14 日(yesterday → fourteen_days_ago)の RAW ファイル一覧を取得
+       - **today(当日)の RAW は対象外**(翌日 03:30 実行で処理する)
        - 各ファイル frontmatter の `last_ingested_at` を確認
-       - 未設定 or turn の最終時刻より古いものを「未処理あり」とマーク
+       - **未設定** のもののみ「未処理」とマーク(設定済みは全部 skip = RAW 単位の冪等保証)
 
-    2. **未処理 turn 抽出**: マークされた RAW から `last_ingested_at` 以降の turn を Read
-       - turn 0 件 → skip(log に「no new turns」)
+    2. **未処理 RAW の全 turn 抽出**: マークされた RAW の全 turn を Read
+       - 該当 RAW 0 件 → skip(log に「no unprocessed raw」)
 
     3. **LLM 振り分け**: 各 turn を SKILL Mode 1 振り分け規約に従って分類
        - 検証可能な短文事実 → soil/people/staff/{slug}.md の ## メモ(短文)
@@ -86,8 +89,9 @@ execute:
        - 新規主題なら memory/master/wiki/index.md 更新
 
     6. **冪等保証**:
-       - 処理した各 RAW ファイルの frontmatter `last_ingested_at` を {today}T03:30:00+09:00 に更新
-       - frontmatter に項目なければ追加
+       - 処理した各 RAW ファイルの frontmatter に `last_ingested_at: {today}T03:30:00+09:00` を追加
+       - 翌日以降の実行時、この RAW は全部 skip される(turn 単位の差分処理は行わない)
+       - 当日 RAW で 03:30 以降に新しい turn が追加された場合は、翌日 03:30 実行で処理される(2 日待ち最大、リアルタイム反映より冪等性を優先)
 
     7. **log 記録**: 処理サマリを log に出力
        ```
@@ -101,8 +105,9 @@ execute:
        ```
 
     べき等性:
-      - 同日 2 回走らせても各 RAW の `last_ingested_at` で 2 回目処理は skip される(turn 0 件)
-      - soil/log.md の冒頭 30 行に `[{today}] ingest-raw` エントリがあれば exit 0(guard)
+      - **RAW 単位の処理完了マーカー** で冪等保証(`last_ingested_at` の有無のみで判定、turn 時刻比較はしない)
+      - 同日 2 回走らせても処理済み RAW は全部 skip される
+      - soil/log.md の冒頭 30 行に `[{today}] ingest-raw` エントリがあれば exit 0(guard、補助)
 
     失敗時:
       - 個別 turn の振り分け失敗 → その turn は skip(log 記録)、他は処理続行
