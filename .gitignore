@@ -4,6 +4,12 @@
 # Claude Code local settings (個人的な許可リスト等、git に上げない)
 .claude/
 
+# Codex local settings (同上)
+.codex/
+
+# WSL / Windows download metadata
+*:Zone.Identifier
+
 # Python
 venv/
 .venv/
