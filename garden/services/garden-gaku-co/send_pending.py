@@ -3,7 +3,7 @@
 
 cron `* * * * *` で 1 分毎起動(セッション21、(4) C 案)。
 
-仕様(S21 + S22 dummy 化 + S24 承認依頼通知 + 連鎖解除):
+仕様(S21 + S22 dummy 化 + S24 承認依頼通知 + 連鎖解除 + S25 連続失敗ガード):
   1. garden/board/pending/*.md を scan
   2. frontmatter `status` を検出:
      - `status: pending` (S24)
@@ -11,6 +11,13 @@ cron `* * * * *` で 1 分毎起動(セッション21、(4) C 案)。
          - `notified_at` 未設定なら Discord master に承認依頼通知 → frontmatter に notified_at 追記で冪等化
      - `status: test` → ディスパッチ先を personal に強制 → 配信後 `status: pending` に戻す + テスト送信履歴を board 末尾に追記
      - `status: approved` → 通常ディスパッチ。ただし frontmatter `scheduled_send: YYYY-MM-DDTHH:MM+09:00` が未来なら skip(時刻到達まで待機)
+  2.5. 連続失敗ガード(S25): ディスパッチ失敗時は board frontmatter に
+       `fail_count` / `last_fail_at` / `last_fail_reason` を記録。
+       2 回目以降は ❌ 通知を抑制(spam を止める)。
+       SEND_PENDING_FAIL_THRESHOLD(default 3)回失敗した `status: approved` board は
+       board/failed/{name}.FAILED.md に自動隔離し、⚠️ 通知を 1 回だけ出す。
+       `status: test` は庭師の試行錯誤フェーズなので隔離せず通知だけ抑制。
+       成功時は fail 系 frontmatter を掃除して clean に。
   3. ディスパッチモード判定(S22):
      - 優先順位: board frontmatter `dispatch_mode` > env `SEND_PENDING_DEFAULT_MODE` > "production"
      - `dummy` モード(from_seed ∈ DISPATCH_LINE_SEND の場合のみ適用):
@@ -52,8 +59,22 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 GAKU_CO_API_URL = os.environ.get("GAKU_CO_API_URL", "https://bot.harappa.monster/api")
 BOARD_PENDING = Path(os.environ.get("BOARD_PENDING", "/home/vps-harappa/garden-mirror/garden/board/pending"))
 BOARD_PROCESSED = Path(os.environ.get("BOARD_PROCESSED", "/home/vps-harappa/garden-mirror/garden/board/processed"))
+BOARD_FAILED = Path(os.environ.get("BOARD_FAILED", "/home/vps-harappa/garden-mirror/garden/board/failed"))
 LOG_PATH = Path(os.environ.get("SEND_PENDING_LOG", "/home/vps-harappa/garden-mirror/garden/log/send-pending.log"))
 LOCK_FILE = Path("/tmp/send-pending.lock")
+
+# 連続失敗ガード(S25): status: approved の board がディスパッチ失敗を N 回繰り返したら
+# board/failed/ に自動退避し、毎分の ❌ 通知ループを止める。閾値は env で上書き可。
+try:
+    FAIL_THRESHOLD = max(1, int(os.environ.get("SEND_PENDING_FAIL_THRESHOLD", "3")))
+except ValueError:
+    FAIL_THRESHOLD = 3
+
+# 連続失敗時に ❌ 通知を抑制するためのモジュールフラグ + 直近失敗理由バッファ。
+# notify_master は本フラグを見て ❌ 通知をスキップし、process_one が write_fail_state /
+# quarantine_to_failed で reason を再利用する。
+_SUPPRESS_FAIL_NOTIFY: bool = False
+_LAST_FAIL_REASON: Optional[str] = None
 
 DISPATCH_LINE_SEND = {
     "shift_manager/monthly-shift-survey",
@@ -136,7 +157,17 @@ def http_post_json(url: str, payload: dict, timeout: int = 30) -> dict:
 
 
 def notify_master(content: str) -> None:
-    """Discord master channel に庭師通知(send.py と同等)"""
+    """Discord master channel に庭師通知(send.py と同等)
+
+    S25: ❌ で始まる失敗通知は、process_one が `_SUPPRESS_FAIL_NOTIFY = True` を
+    立てている間は Discord に投げない(連続失敗ガード)。ただし `_LAST_FAIL_REASON`
+    には常に最新の理由を残すので、自動隔離通知に再利用できる。
+    """
+    global _LAST_FAIL_REASON
+    if content.startswith("❌"):
+        _LAST_FAIL_REASON = content.replace("\n", " / ")[:300]
+        if _SUPPRESS_FAIL_NOTIFY:
+            return
     token = os.environ.get("DISCORD_BOT_TOKEN")
     channel = os.environ.get("DISCORD_MASTER_CHANNEL_ID")
     if not token or not channel:
@@ -409,6 +440,90 @@ def unblock_confirmation(target_month: str) -> None:
     log(f"[unblock] no matching confirmation board for target_month={target_month}")
 
 
+def get_fail_count(fm: dict) -> int:
+    try:
+        return int(fm.get("fail_count", "0"))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _upsert_frontmatter_field(text: str, key: str, value: str) -> str:
+    """frontmatter の top-level スカラーを upsert(あれば書き換え、なければ末尾 --- の直前に追加)"""
+    pattern = rf"^{re.escape(key)}:.*$"
+    if re.search(pattern, text, flags=re.MULTILINE):
+        return re.sub(pattern, f"{key}: {value}", text, count=1, flags=re.MULTILINE)
+    return text.replace("\n---\n", f"\n{key}: {value}\n---\n", 1)
+
+
+def write_fail_state(board_path: Path, count: int, reason: Optional[str]) -> None:
+    """board frontmatter に fail_count / last_fail_at / last_fail_reason を upsert(S25)"""
+    try:
+        text = board_path.read_text(encoding="utf-8")
+    except Exception as e:
+        log(f"[{board_path.name}] WARN: write_fail_state read error: {e}")
+        return
+    ts = datetime.now(JST).isoformat()
+    safe_reason = (reason or "(理由不明)").replace("\n", " / ").replace('"', "'")[:300]
+    text = _upsert_frontmatter_field(text, "fail_count", str(count))
+    text = _upsert_frontmatter_field(text, "last_fail_at", ts)
+    text = _upsert_frontmatter_field(text, "last_fail_reason", f'"{safe_reason}"')
+    try:
+        board_path.write_text(text, encoding="utf-8")
+    except Exception as e:
+        log(f"[{board_path.name}] WARN: write_fail_state write error: {e}")
+
+
+def clear_fail_state(board_path: Path) -> None:
+    """成功時 / 隔離前に fail_count 系 frontmatter を削除(S25)"""
+    try:
+        text = board_path.read_text(encoding="utf-8")
+    except Exception as e:
+        log(f"[{board_path.name}] WARN: clear_fail_state read error: {e}")
+        return
+    changed = False
+    for key in ("fail_count", "last_fail_at", "last_fail_reason"):
+        new_text = re.sub(rf"^{re.escape(key)}:.*\n", "", text, count=1, flags=re.MULTILINE)
+        if new_text != text:
+            changed = True
+            text = new_text
+    if changed:
+        try:
+            board_path.write_text(text, encoding="utf-8")
+        except Exception as e:
+            log(f"[{board_path.name}] WARN: clear_fail_state write error: {e}")
+
+
+def quarantine_to_failed(board_path: Path, count: int, reason: Optional[str]) -> None:
+    """連続失敗 board を board/failed/{name}.FAILED.md に移動 + Discord 通知(S25)
+
+    既に同名がある場合はタイムスタンプを追記して衝突回避。退避通知は ❌ ではなく ⚠️ で
+    プレフィクスを変えるので、`_SUPPRESS_FAIL_NOTIFY` の影響を受けない。
+    """
+    BOARD_FAILED.mkdir(parents=True, exist_ok=True)
+    dest = BOARD_FAILED / f"{board_path.stem}.FAILED.md"
+    if dest.exists():
+        ts = datetime.now(JST).strftime("%Y%m%dT%H%M%S")
+        dest = BOARD_FAILED / f"{board_path.stem}.FAILED.{ts}.md"
+    try:
+        shutil.move(str(board_path), dest)
+    except Exception as e:
+        log(f"[{board_path.name}] WARN: quarantine move error: {e}")
+        return
+    log(f"[{board_path.name}] auto-quarantined → {dest}")
+    notify_master(
+        "⚠️ **board 自動隔離(連続失敗 {count} 回)**\n"
+        "→ 元: `garden/board/pending/{src}`\n"
+        "→ 退避先: `garden/board/failed/{dst}`\n"
+        "→ 直近の理由: {reason}\n"
+        "→ 原因解消後は退避ファイルを修正して pending/ に戻すか、種を再キックして新規 board を起こしてください".format(
+            count=count,
+            src=board_path.name,
+            dst=dest.name,
+            reason=reason or "(不明)",
+        )
+    )
+
+
 def process_one(board_path: Path) -> None:
     try:
         text = board_path.read_text(encoding="utf-8")
@@ -445,34 +560,47 @@ def process_one(board_path: Path) -> None:
     log(f"[{board_path.name}] {status} detected: from_seed={from_seed}")
 
     is_test = (status == "test")
+    fail_count = get_fail_count(fm)
 
-    # ディスパッチモード判定(board frontmatter > env > "production")
-    effective_mode = fm.get("dispatch_mode", "").strip().lower() or DEFAULT_DISPATCH_MODE
+    # S25 連続失敗ガード: 2 回目以降のディスパッチ試行では ❌ 通知を抑制する。
+    # notify_master が prefix を見て自動で sink するので、各 dispatch_* 関数側の改修は不要。
+    global _SUPPRESS_FAIL_NOTIFY, _LAST_FAIL_REASON
+    _SUPPRESS_FAIL_NOTIFY = fail_count > 0
+    _LAST_FAIL_REASON = None
 
-    if from_seed in DISPATCH_LINE_SEND:
-        # status: test(personal LINE)は dummy の影響を受けない(自分宛なので漏洩リスクなし)
-        if not is_test and effective_mode == "dummy":
-            log(f"[{board_path.name}] dispatch_mode=dummy → Discord master へ流す")
-            ok = dispatch_dummy(fm, body, board_path)
+    try:
+        effective_mode = fm.get("dispatch_mode", "").strip().lower() or DEFAULT_DISPATCH_MODE
+
+        if from_seed in DISPATCH_LINE_SEND:
+            # status: test(personal LINE)は dummy の影響を受けない(自分宛なので漏洩リスクなし)
+            if not is_test and effective_mode == "dummy":
+                log(f"[{board_path.name}] dispatch_mode=dummy → Discord master へ流す")
+                ok = dispatch_dummy(fm, body, board_path)
+            else:
+                group = "personal" if is_test else "staff"
+                ok = dispatch_line_send(fm, body, board_path, group=group)
+        elif from_seed in DISPATCH_SHELL:
+            if is_test:
+                # shell 実行(集計など) は test 対応しない
+                log(f"[{board_path.name}] WARN: status: test は shell dispatch では未対応(approved にしてください)")
+                notify_master(f"⚠️ shell 種は status: test 非対応: {board_path.name}\n→ 集計などは approved で実行されます")
+                return
+            ok = dispatch_shell(fm, body, board_path)
+            # S24: 月末稼働表生成成功時、対応する confirmation の blocked を外す
+            if ok and from_seed == "shift_manager/month-end-working-hours-prep":
+                unblock_confirmation(fm.get("target_month", "").strip())
         else:
-            group = "personal" if is_test else "staff"
-            ok = dispatch_line_send(fm, body, board_path, group=group)
-    elif from_seed in DISPATCH_SHELL:
-        if is_test:
-            # shell 実行(集計など) は test 対応しない
-            log(f"[{board_path.name}] WARN: status: test は shell dispatch では未対応(approved にしてください)")
-            notify_master(f"⚠️ shell 種は status: test 非対応: {board_path.name}\n→ 集計などは approved で実行されます")
-            return
-        ok = dispatch_shell(fm, body, board_path)
-        # S24: 月末稼働表生成成功時、対応する confirmation の blocked を外す
-        if ok and from_seed == "shift_manager/month-end-working-hours-prep":
-            unblock_confirmation(fm.get("target_month", "").strip())
-    else:
-        log(f"[{board_path.name}] FAIL: unknown from_seed: {from_seed}")
-        notify_master(f"❌ 未知の from_seed: {board_path.name}\n→ {from_seed}")
-        return
+            log(f"[{board_path.name}] FAIL: unknown from_seed: {from_seed}")
+            # notify_master 内で reason がキャプチャされ、必要に応じて Discord に投げられる
+            notify_master(f"❌ 未知の from_seed: {board_path.name}\n→ {from_seed}")
+            ok = False
+    finally:
+        _SUPPRESS_FAIL_NOTIFY = False
 
     if ok:
+        # 成功時は fail 系 frontmatter を掃除してから移動 / 復帰
+        if fail_count > 0:
+            clear_fail_state(board_path)
         if is_test:
             # テスト送信は pending に戻す(本配信は別途 approved で)
             reset_test_status(board_path)
@@ -483,6 +611,17 @@ def process_one(board_path: Path) -> None:
                 log(f"[{board_path.name}] moved to processed/")
             except Exception as e:
                 log(f"[{board_path.name}] WARN: move error: {e}")
+        return
+
+    # 失敗: fail_count を 1 増やして frontmatter に記録
+    new_count = fail_count + 1
+    write_fail_state(board_path, new_count, _LAST_FAIL_REASON)
+    log(f"[{board_path.name}] fail_count: {fail_count} → {new_count} (threshold={FAIL_THRESHOLD})")
+
+    # status: approved の board のみ閾値到達で auto-quarantine。
+    # status: test は庭師の試行錯誤フェーズなので隔離せず、通知だけ抑制して放置。
+    if not is_test and new_count >= FAIL_THRESHOLD:
+        quarantine_to_failed(board_path, new_count, _LAST_FAIL_REASON)
 
 
 def load_env() -> None:

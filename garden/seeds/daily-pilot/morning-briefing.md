@@ -10,7 +10,7 @@ hmc_dependency: none
 version: 1
 created: 2026-05-25
 created_by: claude (with 塚越さん, セッション8)
-last_updated: 2026-05-28
+last_updated: 2026-06-02
 activated: 2026-05-28   # セッション15: cron 06:30 自動発火 → backlog→active 抽出 + Triage 生成を実証して active 化(calendar MCP 認証は後追い)
 linked_workflows:
   - "[[daily-cycle]]"   # ステップ2
@@ -73,6 +73,12 @@ execute:
       - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(読み取り。マスタ。本種では更新しない)
       - /home/vps-harappa/garden-mirror/hmc_tasks/active_tasks.md(本種が再構築)
       - /home/vps-harappa/garden-mirror/garden/board/triage/{today}-morning-briefing.md(Triage 生成先)
+
+    🔴 重要: active_tasks に書くタスクは「deadline ≦ today」のみ(SKILL Mode 1 Step 1 + Step 3)
+      - 期限超過(今日より前) + 今日締切 のタスクだけを active に転記する
+      - 明日以降の締切(例: 今日が 6/2 なら 6/3・6/4・6/8 など)は **active に載せない**(backlog 側で見渡す)
+      - 定期タスク(`<!-- recur:... -->`)も同じ。今期分の締切が today 以下のもののみ
+      - 「全コピー」「backlog をそのまま転写」はしない。締切日でフィルタすること
 
     承認待ち board の取り扱い(SKILL Mode 1 Step 1.5 参照):
       - `board_pending_block` が空でなければ、Triage(triage 系 board)末尾に

@@ -7,7 +7,7 @@ inherits_from:
   - garden/CHARTER.md   # 全 plot 共通の業務観・呼称・トーン・Output Style 質感
   - hmc_pilot (HMC)     # 起源(参考)
 created: 2026-05-30
-last_updated: 2026-05-30
+last_updated: 2026-06-02
 created_by: claude (with ガクチョ, セッション19-20)
 linked_seeds:
   - daily-pilot/morning-briefing
@@ -108,7 +108,10 @@ CHARTER の SSOT 原則を本 plot に適用:
 
 ### Step 3: ファイル更新と Triage board の生成
 
-- backlog → active コピー(backlog からは **削除しません**)
+- **active に書くのは Step 1 で抽出した「deadline ≦ today」のタスクのみ**(明日以降締切の項目は active に載せない)。backlog からは **削除しません**(正本維持)
+  - 「deadline ≦ today」= 期限超過(今日より前)+ 今日締切。明日以降は対象外
+  - 定期タスク(`<!-- recur:... -->`)も同じ判定。今期分(`@{period_id}`)の締切が today 以下なら載せる、明日以降なら載せない
+  - active は「今日着手するもの」だけ。来週・来月の予定見渡しは backlog 側で行う
 - active テンプレ:
   ```
   # Today's Tasks - {today_slash} (曜日)
