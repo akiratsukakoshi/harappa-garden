@@ -287,7 +287,112 @@ ssh harappa "tail -50 /home/vps-harappa/garden/log/send-pending.log"
 
 ---
 
-## 5. 関連
+## 5. path 大移動チェックリスト(計画時 + 完了検証用)
+
+board / log / soil / memory など **複数レイヤーで参照される path を移動する時に必ず通す確認表**。S27(board/log を vault 外へ)で多数のレイヤーを更新したが、S28 朝に **`night_cheer.py` と `~/.claude/settings.json` の 2 箇所が漏れていた** ことが判明。同じ取りこぼしを構造的に防ぐためのチェックリスト。
+
+> 使い方: path 移動の Pull Request / セッションで、下記の各層を上から順に点検。該当しないレイヤーはチェック不要だが、**「該当しない」と判断したこと自体は記録** する。
+
+### 5.1 コード層(env default + path 解決ロジック)
+
+| 対象 | 確認ポイント | S27 例 |
+|---|---|---|
+| `services/garden-gaku-co/send_pending.py` | `BOARD_DIR` / `LOG_DIR` 等 env default | S27 で更新済 |
+| `services/garden-gaku-co/bot.py` | board / log 参照 | S27 で確認 |
+| `services/garden-gaku-co/morning_greet.py` | log 参照 + 関連ファイル参照 | S27 で更新 |
+| **`services/garden-gaku-co/night_cheer.py`** | **`LOG_DIR` 等 env / log path 計算** | **S28 で漏れ発覚 → 修正** |
+| `services/garden-gaku-co/memory_logger.py` | RAW 出力先 | path 移動時は要確認 |
+| `services/launcher/launcher.mjs` | log 出力先 / board 参照 | S27 で更新済 |
+| 各 seed の `run-*.sh` ラッパー | 環境変数 / 引数の path | S27 で更新済 |
+
+**鉄則**: env default は「**新パスへの切り替え**」ではなく「**env 上書き優先 + default を新パスに**」のパターンに。VPS 側 cron で env 設定を忘れても動く設計に。
+
+### 5.2 設定層(permission + cron)
+
+| 対象 | 確認ポイント | S27 例 |
+|---|---|---|
+| **VPS `~/.claude/settings.json`** | **`permissions.allow` の `Write(...)` / `Edit(...)` / `Read(...)` 行が新パスをカバーするか** | **S28 で漏れ発覚 → 修正** |
+| VPS `crontab -l` | cron entry の log 出力リダイレクト先 | S27 で更新済 |
+| VPS `~/.claude/CLAUDE.md` | path 言及があるか | path 移動時は要確認 |
+
+**罠**: `settings.json` で path-scoped allow が無いと、Claude が「権限お待ちしてます」と止まる(失敗ではなく沈黙)。dry-run の `claude -p ... --model haiku` で実際に Write を試して通るか確認。
+
+### 5.3 種ファイル層(frontmatter + prompt)
+
+| 対象 | 確認ポイント |
+|---|---|
+| `garden/seeds/**/*.md` frontmatter の `board.path` | board 移動の影響範囲 |
+| 種 prompt 内の log パス参照 | `==NOTIFY== ... ==END==` 等の出力指示 |
+| 種 prompt 内のディレクトリ glob | `garden/board/pending/*.md` 等 |
+
+### 5.4 ドキュメント層
+
+| 対象 | 確認ポイント |
+|---|---|
+| `garden/OPERATIONS.md` | path 参照箇所 |
+| `garden/MAP.md` | 区画表 + ロードマップの path 言及 |
+| `garden/CHARTER.md` | 言及があれば |
+| `garden/plots/**/SKILL.md` | board 参照箇所 |
+| ADR を新規起票 | path 移動の経緯と新ルール |
+| `CLAUDE.md`(repo / VPS) | セッションプロトコルの path 言及 |
+
+### 5.5 daemon 層
+
+| 対象 | 確認ポイント | S27 例 |
+|---|---|---|
+| `services/mirror-daemon/` | `EXCLUDE_PREFIXES` / 監視 root | S27 で `EXCLUDE_PREFIXES=garden/board/,garden/log/` 新設 |
+| `services/writeback-daemon/` | `EXCLUDE_PREFIXES` / 監視 root | 同上 |
+| 各種 sync スクリプト | rsync の `--exclude` / source / dest | path 移動範囲に応じて |
+
+### 5.6 完了検証(副作用ゼロのスモークテスト)
+
+path 移動完了時に **必ず通す検証**:
+
+```bash
+# 1. settings.json で path が allow されているか(軽量 write テスト)
+ssh harappa "claude -p 'Use the Write tool to create the file /home/vps-harappa/{NEW_PATH}/_perm-test.log with the single line content: perm-check-ok' --model haiku"
+ssh harappa "ls /home/vps-harappa/{NEW_PATH}/_perm-test.log && rm /home/vps-harappa/{NEW_PATH}/_perm-test.log"
+
+# 2. cron 起動を想定したスクリプトを「副作用ゼロ」で叩く
+#    NG: ./run-night-cheer.sh を朝に実行 → 内部 today_jst() が今日依存で動作変わる + Discord 警告ノイズ
+#    OK: Python 関数を直接呼び、特定日付で path 解決のみ確認
+ssh harappa "cd /home/vps-harappa/garden/services/garden-gaku-co && python3 -c '
+import datetime, night_cheer
+d = datetime.date(2026, 6, 2)
+log_text, path = night_cheer.read_review_log(d)
+print(\"path:\", path, \"size:\", len(log_text) if log_text else 0)
+'"
+```
+
+**罠の言語化**(S28 の学び):
+
+- **cron 想定スクリプトの手動実行は罠**:`today_jst()` のような「今日依存ロジック」は、cron 時刻と手動実行時刻で振る舞いが変わる。手動デバッグの前に内部ロジックを確認、または関数を直接呼ぶ副作用ゼロの検証に切り替える
+- **失敗ではなく "沈黙" が起きる**:permission 不足は exit 0 のままログが残らないだけ = 監視で見つけにくい。完了検証で明示的に Write を試す
+
+### 5.7 path 移動の "5 分後ふりかえり"
+
+PR をマージ / セッションを閉じる前に **チェックリストを上から眺め直す**:
+
+- [ ] コード層: env default 切り替え完了
+- [ ] 設定層: settings.json + cron 完了
+- [ ] 種ファイル層: frontmatter + prompt 完了
+- [ ] ドキュメント層: OPERATIONS / MAP / ADR / CLAUDE 完了
+- [ ] daemon 層: EXCLUDE_PREFIXES + sync スクリプト完了
+- [ ] 完了検証: 軽量 write テスト + 副作用ゼロ関数呼び出し
+- [ ] **24h 後の検証ポイントを宿題化**(夜の cron / 朝の cron / 別 cron 種が初回稼働するタイミングを明記)
+
+最後の 24h 後検証ポイント明記が重要。S27 → S28 の取りこぼし発覚は「夜の Discord 警告通知」がきっかけだったが、これを **事前に「次の cron 種起動時に NOTIFY が log に残るか確認」** と宿題化していれば、警告が来る前に気づけた。
+
+### 5.8 関連
+
+- 起点 ADR: [2026-06-02 board-and-log-out-of-vault](../docs/decisions/2026-06-02-board-and-log-out-of-vault.md)
+- 取りこぼしセッション: [2026-06-02 セッション27](../docs/sessions/2026-06-02-session27.md)
+- 学びセッション: [2026-06-03 セッション28](../docs/sessions/2026-06-03-session28.md)
+- 本章の起点セッション: [2026-06-03 セッション29](../docs/sessions/2026-06-03-session29.md)
+
+---
+
+## 6. 関連
 
 - 戦略地図: [`garden/MAP.md`](MAP.md)
 - 規範: [`garden/CHARTER.md`](CHARTER.md)
@@ -296,3 +401,4 @@ ssh harappa "tail -50 /home/vps-harappa/garden/log/send-pending.log"
 - Garden 語彙: [`docs/garden-vocabulary.md`](../docs/garden-vocabulary.md)
 - 測量士運用: [`docs/surveyor/README.md`](../docs/surveyor/README.md)
 - 初版起点 ADR: 本ファイルは ADR 起票せず、測量士の手紙 [2026-06-02](../docs/surveyor/letters/2026-06-02.md) 提案 1+2+4 への応答として起草
+- §5 path 大移動チェックリスト追記: [2026-06-03 セッション29](../docs/sessions/2026-06-03-session29.md) で追加(S28 学び由来、ADR なし)

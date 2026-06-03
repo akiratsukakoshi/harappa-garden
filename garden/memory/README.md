@@ -47,10 +47,28 @@ garden/memory/
 
 - **Stage A**: [garden/services/garden-gaku-co/memory_logger.py](../services/garden-gaku-co/memory_logger.py)
   - `bot.py` の on_message から `memory_logger.append_turn("master", ...)` で呼ばれる
-- **Stage A.5 以降**: 菌糸が RAW を読み soil / wiki へ振り分ける
+- **Stage A.5 以降**: 菌糸が RAW を読み soil / wiki へ振り分ける(2026-06 から `ingest-raw` 種が VPS で毎晩 03:30 稼働)
+
+## 正本ルールと同期(2026-06-03 ADR)
+
+memory は repo / vault / VPS の 3 箇所に配置される(soil と同形)。正本所在は **ファイル種別ごとに分離**:
+
+| パス | 書き手 | 正本 | git | sync |
+|---|---|---|---|---|
+| `README.md` | 人(Claude) | repo | ✅ | pull/push |
+| `master/raw/.gitkeep` | 人 | repo | ✅ | pull/push |
+| **`master/raw/*.md`** | bot.py / memory_logger.py | **VPS 専属** | ❌(.gitignore) | **除外** |
+| `master/wiki/*.md` | ingest-raw 種(VPS) + 人(repo / vault) | **VPS 主・repo 従** | ✅ | pull/push |
+| `master/wiki/index.md` | 同上 | 同上 | ✅ | pull/push |
+
+**「VPS 主・repo 従」の意味**:ingest-raw が毎晩 03:30 に積み上げる主流は VPS。repo は git 履歴 + Claude の編集経路。**セッション開始時 pull → 編集 → 終了時 push** の規律で競合を回避。
+
+同期スクリプト: [`garden/services/memory-sync/`](../services/memory-sync/)
+ADR: [2026-06-03 memory-source-of-truth](../../docs/decisions/2026-06-03-memory-source-of-truth.md)
 
 ## 注意事項
 
 - `master/raw/` の中身は **機密扱い**(Discord 対話の生ログ = ガクチョの判断ログ含む)
 - git にコミットしない(`.gitignore` で `garden/memory/**/raw/*.md` を除外)
+- sync スクリプトも `--exclude='*/raw/*.md'` を付与し、構造的に repo に流れ込まないようにする
 - 14 日経過は Stage B のバッチで削除する設計だが、Stage A 時点では蓄積し続ける(運用 1 週間程度なら問題なし)
