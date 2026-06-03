@@ -3,8 +3,8 @@ scope: master
 layer: wiki
 type: index
 created: 2026-06-02
-last_updated: 2026-06-02
-last_updated_by: mycelium (Mode 1 ingest-raw, 2026-06-02)
+last_updated: 2026-06-03
+last_updated_by: mycelium (Mode 5 consolidate-wiki, 2026-06-03)
 ---
 
 # master memory wiki — 主題一覧
@@ -20,15 +20,15 @@ ADR: [docs/decisions/2026-05-31-memory-three-layer-and-soil-routing.md](../../..
 
 ### 事前定義 7 主題(セッション23 庭師合意)
 
-| スラグ | 概要 | ページ |
-|---|---|---|
-| `staff_assignment` | スタッフの役割・配置・契約 | (未生成) |
-| `event_planning` | イベント企画・調整 | (未生成) |
-| `business_strategy` | 事業方針・サービス改廃 | (未生成) |
-| `client_relations` | クライアント・パートナー関係 | (未生成) |
-| `tech_infra` | Garden / VPS / インフラ | [tech_infra.md](tech_infra.md) |
-| `personal_reflection` | 庭師個人の振り返り・気持ち | (未生成) |
-| `daily_operation` | 日々の運営調整 | [daily_operation.md](daily_operation.md) |
+| スラグ | 概要 | ページ | 最終更新 | 章数 |
+|---|---|---|---|---|
+| `staff_assignment` | スタッフの役割・配置・契約 | (未生成) | — | — |
+| `event_planning` | イベント企画・調整 | (未生成) | — | — |
+| `business_strategy` | 事業方針・サービス改廃 | (未生成) | — | — |
+| `client_relations` | クライアント・パートナー関係 | (未生成) | — | — |
+| `tech_infra` | Garden / VPS / インフラ | [tech_infra.md](tech_infra.md) | 2026-06-03 | 3 |
+| `personal_reflection` | 庭師個人の振り返り・気持ち | (未生成) | — | — |
+| `daily_operation` | 日々の運営調整 | [daily_operation.md](daily_operation.md) | 2026-06-02 | 3 |
 
 ### 新規追加(LLM 命名、運用で増える)
 

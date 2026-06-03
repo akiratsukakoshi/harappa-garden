@@ -9,8 +9,9 @@ created: 2026-05-31
 last_updated: 2026-05-31
 created_by: claude (with ガクチョ, セッション23)
 linked_seeds:
-  - mycelium/index-refresh        # Stage 1(本セッションで起草)
-  - mycelium/ingest-raw           # Stage A.5(skeleton、次セッション以降)
+  - mycelium/index-refresh        # Stage 1(S23 起草、S23 active)
+  - mycelium/ingest-raw           # Stage A.5(S23 skeleton、S26 active)
+  - mycelium/consolidate-wiki     # Stage B(S30 起草・active)
 linked_services: []
 linked_soil:
   - soil/index.md                 # 維持対象
@@ -218,6 +219,82 @@ log.md の type は **`index-bootstrap`** とする(`index-refresh` と区別。
 
 ---
 
+## Mode 5: Consolidate(Stage B = 本セッション S30 で active)
+
+**起動**: 種 `mycelium/consolidate-wiki`(cron 日次 03:50 想定、ingest-raw の 20 分後)。
+
+### 目的
+
+Mode 1 Ingest は **append-only** で動く(同じ事実の再追記を許容)。その代償として wiki ページが時系列ノートの山になりやすい。Mode 5 は以下 3 つを 1 リクエストでこなす:
+
+1. **index.md の再生成**:wiki ディレクトリ内の `*.md` を走査し、各ページの **最終 last_updated** + **総章数** + **直近1章の一行サマリ** を index 表に反映
+2. **append-only 厳格チェック**:本文の章は **触らない**(履歴保全 = ガクチョの判断ログとして使う)。重複・矛盾は検出だけして log に記録、本文編集はしない
+3. **14 日経過 RAW を archive**:`memory/master/raw/{date}.md` のうち、`date < today - 14日` のものを `memory/master/raw/archive/{YYYY-MM}/{date}.md` に move(純削除しない、復旧経路を残す)
+
+> **Karpathy LLM Wiki との違い**:Karpathy の原案は LLM が本文を直接編集 / 上書きする。Garden の memory wiki は **庭師の判断履歴** なので本文 append-only を厳格化し、整理は index と log だけで行う(2026-06-03 S30 庭師合意)。
+
+### モデルと環境
+
+- LLM: `claude-haiku-4-5`(launcher の `execute.model` で指定)
+- engine: `claude-code`(他の種と同じ、subscription auth 流用)
+- 入力: `memory/master/wiki/*.md`(全主題ページ)+ `memory/master/raw/` のファイル名一覧
+- 出力: `memory/master/wiki/index.md` の再生成 + log 記録 + 14 日経過 RAW の archive
+
+### 処理ステップ
+
+1. **wiki 走査**: `memory/master/wiki/*.md`(index.md と .gitkeep 以外)を全 Read
+2. **index.md 再生成**:
+   - 各ページの frontmatter `last_updated` と `## ###` 章数を集計
+   - 直近章の `### YYYY-MM-DD - {サマリ}` の一行を抜く
+   - 事前定義 7 主題 + 新規主題(運用追加)を表で並べる(該当ページがあれば `[topic.md](topic.md)`、なければ「(未生成)」)
+   - 既存 index.md の構造を保ち、表の本文だけ最新化
+3. **append-only 厳格チェック**(本文編集なし、検出のみ):
+   - 重複(同じ事実が複数章にある)→ log に記録
+   - 矛盾(古い章と新章で事実が衝突)→ log に記録
+   - 本文は **触らない**
+4. **14 日経過 RAW を archive**:
+   - `raw/` 直下の `YYYY-MM-DD.md` を列挙
+   - `date < today - 14日` のものを `raw/archive/{YYYY-MM}/{date}.md` に move(`mkdir -p` で月ディレクトリ作成)
+   - move 後の log 記録(件数のみ)
+5. **log 記録**: `garden/log/{today}-consolidate-wiki.log` に処理サマリ
+   ```
+   summary:
+     wiki_pages: N
+     index_regenerated: true/false
+     duplicates_detected: D
+     contradictions_detected: C
+     raw_archived: K
+     archive_dir: memory/master/raw/archive/{YYYY-MM}/
+   ```
+
+### べき等性
+
+- index.md 再生成は冪等(同じ wiki 内容なら同じ出力)
+- 14 日経過 RAW archive は移動済みファイルが対象外なので自然冪等
+- log 末尾に `[{today}] consolidate-wiki` の guard チェック → 既存なら exit 0
+
+### 失敗時
+
+- index.md 生成失敗 → log 記録、archive は skip(順序保証)
+- archive 移動失敗 → log 記録、次回再試行(冪等)
+
+### 判断ルール
+
+| 状況 | ルール |
+|---|---|
+| wiki ファイル 0 件 | skip(log に「no wiki pages」) |
+| index.md が存在しない | テンプレから新規生成 |
+| 重複検出 0 件・矛盾 0 件 | log に「clean」とだけ記録 |
+| 重複・矛盾が **大量**(> 20 件) | log に列挙 + 「Lint(Mode 2)候補」とマーク(本文整理は Mode 2 Lint で別途) |
+| archive 対象 0 件 | skip(初週・運用初期は正常) |
+
+### Output Style(Mode 5 固有)
+
+- index.md の表は **意味的サマリ**(機械的列挙でなく、主題スラグ・概要・page link・最終更新・章数を意味のある単位で示す)
+- log は簡潔に件数のみ。重複の内容詳細は Mode 2 Lint で扱う
+
+---
+
 ## Mode 2: Lint(Stage 2 = shift_manager 安定後)
 
 **起動**: 種 `mycelium/lint-weekly`(cron 週次、月曜 03:00 想定)。
@@ -274,7 +351,8 @@ mycelium はガクチョと直接対話する SKILL ではない(seed 経由・l
 | 名前 | 役割 | SKILL の参照範囲 |
 |---|---|---|
 | `garden/seeds/mycelium/index-refresh.md` | 日次 03:00 cron(Stage 1) | Mode 3 全体 |
-| `garden/seeds/mycelium/ingest-raw.md` | 日次 03:30 cron(Stage A.5、skeleton) | Mode 1 全体(詳細は設計議論後) |
+| `garden/seeds/mycelium/ingest-raw.md` | 日次 03:30 cron(Stage A.5、S26 active) | Mode 1 全体 |
+| `garden/seeds/mycelium/consolidate-wiki.md` | 日次 03:50 cron(Stage B、S30 active) | Mode 5 全体 |
 | `garden/seeds/mycelium/lint-weekly.md` | 週次 cron(Stage 2、未起草) | Mode 2 全体 |
 | `garden/seeds/mycelium/relations-monthly.md` | 月次 cron(Stage 4、未起草) | Mode 4 全体 |
 

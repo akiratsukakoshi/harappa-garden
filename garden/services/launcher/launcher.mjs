@@ -395,15 +395,18 @@ function main() {
     const logPath = path.join(LOG_ROOT, `${vars.today}-${seed.name}.log`);
     ensureLogDir(logPath);
 
+    const model = seed.execute?.model || null;
+
     const header = [
       '',
       `========================================`,
       `seed: ${seedKey}`,
       `started_at: ${new Date().toISOString()}`,
       `host: ${execSync('hostname', { encoding: 'utf8' }).trim()}`,
-      `launcher_version: 1.0.0 (session13)`,
+      `launcher_version: 1.0.1 (session30)`,
       `working_dir: ${seed.execute?.working_dir || process.cwd()}`,
       `claude_bin: ${CLAUDE_BIN}`,
+      `model: ${model || '(default)'}`,
       `dry_run: ${args.dryRun}`,
       `---- vars ----`,
       JSON.stringify(vars, null, 2),
@@ -429,8 +432,13 @@ function main() {
       process.exit(4);
     }
 
-    // claude -p 起動
-    const ret = spawnSync(CLAUDE_BIN, ['-p', prompt], {
+    // claude -p 起動(model 指定があれば --model で渡す)
+    const cliArgs = ['-p'];
+    if (model) {
+      cliArgs.push('--model', model);
+    }
+    cliArgs.push(prompt);
+    const ret = spawnSync(CLAUDE_BIN, cliArgs, {
       cwd,
       encoding: 'utf8',
       timeout: CLAUDE_TIMEOUT_MS,
