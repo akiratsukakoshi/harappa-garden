@@ -58,7 +58,7 @@ execute:
         - /home/vps-harappa/garden-mirror/garden/soil/people/staff/{slug}.md の ## メモ セクション(短文事実)
         - /home/vps-harappa/garden-mirror/garden/soil/log.md(長文・経緯型)
         - /home/vps-harappa/garden-mirror/garden/memory/master/raw/{YYYY-MM-DD}.md の frontmatter `last_ingested_at`
-      - log 出力: /home/vps-harappa/garden/log/{today}-ingest-raw.log
+      - log 出力: launcher が本種の **stdout** を /home/vps-harappa/garden/log/{today}-ingest-raw.log に capture する(**種は log ファイルを Write ツールで直接書かない** — cwd サンドボックス外なので弾かれる。サマリは stdout に出すだけ)
 
     手順(SKILL Mode 1 処理ステップ 1〜7):
 
@@ -93,7 +93,7 @@ execute:
        - 翌日以降の実行時、この RAW は全部 skip される(turn 単位の差分処理は行わない)
        - 当日 RAW で 03:30 以降に新しい turn が追加された場合は、翌日 03:30 実行で処理される(2 日待ち最大、リアルタイム反映より冪等性を優先)
 
-    7. **log 記録**: 処理サマリを log に出力
+    7. **log 記録**: 処理サマリ + ==NOTIFY== ブロックを **stdout に出力**(launcher が stdout を capture して log に残す。**Write ツールで log ファイルを直接書かない** — cwd サンドボックス外で弾かれる)
        ```
        summary:
          raw_files_processed: N
@@ -102,6 +102,11 @@ execute:
          wiki_entries_added: L
          topics_new: [topic1, topic2]
          turns_discarded_grey: G
+       ==NOTIFY==
+       菌糸 Mode 1 Ingest 完了 ({today}):
+       - RAW 処理: N 件(turn M 件)
+       - soil 事実追記: K 件、wiki 追記: L 件
+       - 新規主題: {topics_new}、グレー廃棄: G turn
        ```
 
     べき等性:

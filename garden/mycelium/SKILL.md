@@ -201,7 +201,7 @@ log.md の type は **`index-bootstrap`** とする(`index-refresh` と区別。
    - soil/log.md に ingest 記録(長文の場合)
    - 新規主題なら `memory/master/wiki/index.md` 更新
 6. **冪等保証**: RAW frontmatter の `last_ingested_at` を処理時刻に更新
-7. **log 記録**: `garden/log/{today}-ingest-raw.log` に処理サマリ
+7. **log 記録**: 処理サマリ + `==NOTIFY==` ブロックを **stdout に出力**(launcher が stdout を `garden/log/{today}-ingest-raw.log` に capture する。**Write ツールで log を直接書かない** — cwd サンドボックス外なので弾かれる)
 
 ### 主題候補(事前定義リスト)
 
