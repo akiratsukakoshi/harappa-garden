@@ -23,6 +23,7 @@ JST = datetime.timezone(datetime.timedelta(hours=9))
 WEEKDAY_JA = "月火水木金土日"
 HERE = os.path.dirname(os.path.abspath(__file__))
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
+LOG_DIR = os.environ.get("GARDEN_LOG_DIR", "/home/vps-harappa/garden/log")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 NO_TOOLS = "Bash Edit Read Write Glob Grep WebFetch WebSearch NotebookEdit TodoWrite Task"
 CHARTER_PATH = os.environ.get(
@@ -48,7 +49,7 @@ def fmt_date(d: datetime.date) -> str:
 
 
 def read_review_log(d: datetime.date):
-    path = os.path.join(MIRROR_DIR, "garden", "log", f"{d.isoformat()}-night-review.log")
+    path = os.path.join(LOG_DIR, f"{d.isoformat()}-night-review.log")
     if not os.path.exists(path):
         return None, path
     return open(path, encoding="utf-8").read(), path
