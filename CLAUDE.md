@@ -35,6 +35,14 @@
 - **HMC SKILL / 他データソースとずれた場合は workflows/ が正**。ずれを発見したら他を直す
 - 詳細: [docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md](docs/decisions/2026-05-24-workflows-as-truth-and-improvement-targets.md)
 
+## 業務を Garden 化するとき(plot_gardener)
+
+新しい業務を HMG に載せる(= 区画化する)ときは、毎回ゼロから設計せず **メタ区画 [`garden/plots/plot_gardener/SKILL.md`](garden/plots/plot_gardener/SKILL.md)** に通す。
+
+- ガクチョの依頼粒度は「`{業務名}` を移植型/新植型で Garden 化して」。**設計するのは 区画・種・通行手形(capability)の 3 つだけ。tool/service は水面下(Garden が選ぶ)**。
+- **HMC に既存実装がある業務(移植型 transplant)は、必ず Legacy Inventory から始める**(HMC レガシーを読む前に新規実装しない)。合言葉「業務知識は継承、起動と承認だけ Garden に変える」。
+- 語彙の正本(設計言語 vs 実装層の 2 register)は [docs/garden-vocabulary.md](docs/garden-vocabulary.md)。
+
 ## Garden語彙(設計言語)
 
 HMG関連の設計議論ではこの語彙を共通言語として使う。詳細表は [docs/garden-vocabulary.md](docs/garden-vocabulary.md)。

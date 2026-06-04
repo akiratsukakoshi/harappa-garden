@@ -210,6 +210,43 @@
 
 ---
 
+### Card 5: plot_gardener(業務を区画化する)
+
+| 項目 | 内容 |
+|---|---|
+| **自動度** | 庭師起点(ガクチョが「この業務を Garden 化して」と依頼 → Claude Code が伴走) |
+| **トリガー** | ガクチョの依頼。粒度は「`{業務名}` を移植型/新植型で Garden 化して」 |
+| **承認境界** | 設計レビューは対話で。成果物(区画)の active 昇格はガクチョ確認 |
+| **通知先** | なし(セッション内対話) |
+
+**これは業務カードではなく「業務カードを増やすためのメタカード」**。新しい業務を HMG に載せたいとき、毎回ゼロから設計せず、この型に通す。
+
+**ガクチョが渡すもの(3 つだけ)**: ① 業務名 ② mode(移植型 transplant / 新植型 seedling / 改植型 hybrid、迷えば Claude が判定) ③ MVP の範囲。tool / service の粒度は渡さない(水面下 = Garden が選ぶ)。
+
+**フロー**(SKILL の Mode 1〜6):
+
+1. **Intake** — 依頼を要約、不足は最大 3 つだけ聞く(HMC レガシー有無 / MVP / scope)
+2. **Legacy Inventory**(移植型のみ) — HMC 側を棚卸し、「そのまま使う/包む/SKILL に吸い上げる/捨てる」に 4 分類。合言葉「業務知識は継承、起動と承認だけ Garden に変える」
+3. **Workflow Spec**(新植型のみ) — 目的と現状の方法を分けて言語化
+4. **Garden Design** — 区画 = SKILL + 種 + 通行手形 + service を最小セットで設計
+5. **Implementation Plan** — Phase 0(読む)〜 Phase 5(検証)に分解
+6. **Review & Promotion** — draft → test → active → mature で昇格
+
+**判断の原則**:
+
+- 設計するのは **区画・種・通行手形** の 3 つ。**tool / service は水面下**(Garden が選ぶ)
+- read / draft 系は core_team の通行手形に出しやすい。**execute 系は原則 board を挟む**
+- 移植型は **レガシーを読む前に実装しない**
+- MAP より先に **この OPERATIONS の運用カード**(=新業務の Card N)を更新する
+
+**関連ファイル**:
+
+- SKILL: [`garden/plots/plot_gardener/SKILL.md`](plots/plot_gardener/SKILL.md)
+- 語彙の正本(設計言語 vs 実装層): [`docs/garden-vocabulary.md`](../docs/garden-vocabulary.md)
+- 起点(測量士サンプル): [`docs/surveyor/letters/2026-06-03-plot-gardener-skill-sample.md`](../docs/surveyor/letters/2026-06-03-plot-gardener-skill-sample.md)
+
+---
+
 ## 3. HMC → HMG 移行マトリクス
 
 業務単位で「HMC ではどう動いていたか / HMG ではどこまで移ったか / ガクチョの作業」を一覧化(2026-06-02 測量士提案 2 採用)。
