@@ -1,0 +1,6 @@
+# 社内 LINE Webhook サーバ(line/app.py)専用の依存。
+# bot.py(Discord master)とは別プロセス/別 venv で動かす想定。
+fastapi>=0.110,<1
+uvicorn[standard]>=0.27,<1
+httpx>=0.27,<1
+anthropic>=0.39,<1
