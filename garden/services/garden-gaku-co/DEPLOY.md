@@ -1,23 +1,31 @@
 # 社内 LINE サーバ(core_team)デプロイ Runbook
 
-> S32(2026-06-04)実装。コードはローカル検証 GREEN。ここから先は VPS + LINE/NPM コンソール操作。
+> S32 実装 → **S34(2026-06-05)で本番 VPS にデプロイ完了 + ガクチョと 1:1 疎通 GREEN**。
+> 本番グループ投入(groupId 確定)だけ残(あえてテスト先行)。
 > **ガクチョの手が要る箇所を ⭐ で明示**。secret は Claude に渡さず、ガクチョが VPS の `.env` に直貼り。
 
-関連: ADR [2026-06-03 vendor-neutral-interaction-layer](../../../docs/decisions/2026-06-03-vendor-neutral-interaction-layer.md) 実装順序「2」/ セッション [2026-06-04-session32](../../../docs/sessions/2026-06-04-session32.md)
+関連: ADR [2026-06-03 vendor-neutral](../../../docs/decisions/2026-06-03-vendor-neutral-interaction-layer.md) 実装順序「2」/ ADR [2026-06-05 コンテナ化](../../../docs/decisions/2026-06-05-line-server-containerization.md) / セッション [2026-06-05-session34](../../../docs/sessions/2026-06-05-session34.md)
 
 ## アーキテクチャ(配線)
 
 ```
-運営スタッフ LINE グループ
+運営スタッフ LINE グループ / (テスト中は)ガクチョ個人 1:1
   ↓ HTTPS
-NPM 社内専用サブドメイン(別 LINE 公式・社外 gaku-co とエアギャップ)
-  ↓ reverse proxy → 127.0.0.1:8011
-uvicorn (line/app.py / FastAPI)
-  署名検証 → core_team group か検査(エアギャップ)
-  → gate(Stage1 Haiku)→ should なら respond(Stage2 + tool-use)
+DNS: core.harappa.monster → 162.43.40.86(Xserver VPS DNS、ns*.xvps.ne.jp)
+  ↓
+NPM(proxy-manager_default 上のコンテナ)Proxy Host + Let's Encrypt SSL
+  ↓ docker ネットワーク内で コンテナ名解決 → garden-gaku-core:8011
+コンテナ garden-gaku-core(uvicorn / line/app.py / FastAPI)
+  署名検証 → source 検査(core_team group か、テスト許可 userId か)= エアギャップ
+  → gate(group のみ。1:1 は素通り)→ respond(+ tool-use)
   → reply → RAW logging(memory_logger, scope=line_core_team)
 頭脳 b = Anthropic SDK(Provider アダプタ経由、import anthropic は provider.py だけ)
 ```
+
+**重要(S34 で判明)**: VPS のファイアウォールが docker ブリッジ → ホスト(gateway 172.20.0.x)の
+INPUT を DROP するため、NPM コンテナからホストプロセスの 8011 には到達できない。
+よって LINE サーバは **`proxy-manager_default` 上のコンテナ**にして、NPM からコンテナ名で叩く
+(couchdb / gaku-co5 と同じ方式)。詳細は [ADR 2026-06-05](../../../docs/decisions/2026-06-05-line-server-containerization.md)。
 
 ## 手順(役割分担)
 
@@ -27,56 +35,75 @@ rsync -avh -e ssh \
   /home/tukapontas/harappa-garden/garden/services/garden-gaku-co/ \
   harappa:/home/vps-harappa/garden/services/garden-gaku-co/ \
   --exclude '.env' --exclude 'venv' --exclude 'venv-line' --exclude '__pycache__' --exclude '*.pid'
-# 別 venv を作って LINE 依存をインストール
-ssh harappa 'cd /home/vps-harappa/garden/services/garden-gaku-co && \
-  python3 -m venv venv-line && \
-  ./venv-line/bin/pip install -r requirements-line.txt'
 ```
 
 ### 2. ⭐ secret を VPS `.env` に記入(ガクチョ)
-VPS の `/home/vps-harappa/garden/services/garden-gaku-co/.env`(chmod 600)に、S31 取得済 + 手配済の値を**直接記入**:
+VPS の `/home/vps-harappa/garden/services/garden-gaku-co/.env`(chmod 600)に直接記入:
 ```
-LINE_CORE_TEAM_CHANNEL_SECRET=<社内チャネルの Channel secret>
-LINE_CORE_TEAM_ACCESS_TOKEN=<社内チャネルの Channel access token>
-ANTHROPIC_API_KEY=<社内専用 API key(社外と別建て)>
-# LINE_CORE_TEAM_GROUP_ID は手順6で確定してから記入(最初は空でよい)
+LINE_CORE_TEAM_CHANNEL_SECRET=<社内チャネルの Channel secret(32 字)>
+LINE_CORE_TEAM_ACCESS_TOKEN=<社内チャネルの Channel access token(long-lived)>
+ANTHROPIC_API_KEY=<社内専用 API key(sk-ant…、社外と別建て)>
+LINE_CORE_TEAM_GROUP_ID=          # 手順6で確定してから記入(最初は空)
+LINE_TEST_USER_IDS=              # テスト中はガクチョ個人 userId。本番投入後は空に戻す
 ```
-※ `.env.example` を雛形に。`echo "$VAR"` 等で値を表示しない(security ルール)。
+※ 値の確認は length / set 判定のみ(`echo "$VAR"` 禁止、security ルール)。
+※ nano 保存時は `..env.swp` が残らない(= 確実に保存された)ことを確認。
 
-### 3. ⭐ NPM 社内専用サブドメイン(ガクチョ + Claude)
-- NPM UI で新規 Proxy Host を作成 → Forward to `127.0.0.1:8011`(または `localhost`)。
-- ドメインは社外 gaku-co とは**別**サブドメイン(例 `gaku-core.duckdns.org` 等、流儀は既存 vps 構成に合わせる)。
-- SSL(Let's Encrypt)を有効化。
-- DNS(duckdns 等)で当該サブドメインを VPS IP に向ける。
-
-### 4. サーバ起動 + キープアライブ(Claude)
+### 3. コンテナ起動(Claude)
 ```bash
-ssh harappa 'cd /home/vps-harappa/garden/services/garden-gaku-co && ./run-line-server.sh'
-ssh harappa 'curl -s http://127.0.0.1:8011/health'   # {"status":"ok",...} を確認
-# crontab に追加:
-#   */2 * * * * /home/vps-harappa/garden/services/garden-gaku-co/run-line-server.sh
-#   @reboot     /home/vps-harappa/garden/services/garden-gaku-co/run-line-server.sh
+ssh harappa 'cd /home/vps-harappa/garden/services/garden-gaku-co && ./run-line-container.sh --build'
+# health(NPM コンテナから):
+ssh harappa 'docker exec proxy-manager_nginx-proxy-manager_1 curl -s http://garden-gaku-core:8011/health'
 ```
+`--restart unless-stopped` でキープアライブ(cron 不要)。`.env` を変えたら **作り直しが必要**
+(env_file はコンテナ作成時しか読まれない)→ `./run-line-container.sh` を再実行。
 
-### 5. ⭐ Webhook URL を LINE に入力 + Verify(ガクチョ)
-- LINE Developers Console(社内チャネル)→ Messaging API → Webhook URL に `https://<社内サブドメイン>/webhook`。
-- Use webhook = ON。
-- **Verify** ボタン → Success を確認(空イベントに署名付きで 200 を返す実装になっている)。
+### 4. ⭐ DNS A レコード(ガクチョ)
+Xserver VPS の DNS パネル → `harappa.monster` に追加:
+| ホスト名 | 種別 | 内容 |
+|---|---|---|
+| `core` | A | `162.43.40.86` |
+反映確認は Claude が `dig` で行う。
 
-### 6. ⭐ bot を運営スタッフグループに追加 → groupId 確定(ガクチョ + Claude)
-- ガクチョが bot を運営スタッフ LINE グループに招待。
-- 誰かがそのグループで 1 発言 → Claude が webhook ログ(`/home/vps-harappa/garden/log/line-server.log`)から `groupId` を確認。
-- ⭐ ガクチョが `.env` の `LINE_CORE_TEAM_GROUP_ID` にその値を記入 → サーバ再起動(pidfile 削除 → run-line-server.sh)。
-- 「ガクコ」と呼びかけて応答が返れば疎通完了。
+### 5. ⭐ NPM Proxy Host + SSL(ガクチョ)
+> NPM 管理画面に入れない時(パケットフィルタ): Claude が SSH トンネルを張る
+> `ssh -fN -L 8181:127.0.0.1:81 harappa` → ブラウザで `http://localhost:8181/`。
+> admin ログイン不能時は bcrypt で安全リセット(ADR 2026-05-25 決定8 / 下記ロールバック欄)。
 
-## 検証ポイント(デプロイ後の初ライブ)
-- [ ] 「ガクコ」宛て発言 → 応答が返る(gate=True 経路)
-- [ ] 他の人宛て・雑談 → 黙る(gate=False、沈黙の規律)
-- [ ] 社外グループ・個人 1:1 では一切応答しない(エアギャップ)
-- [ ] RAW が `garden/memory/line_core_team/raw/{date}.md` に溜まる
-- [ ] 機微(財務/給与)を聞かれても「庭師の領域」と返し、tool を持たない(情報境界)
+- Domain Names: `core.harappa.monster`
+- Scheme: `http` / Forward Hostname: **`garden-gaku-core`**(コンテナ名)/ Forward Port: `8011`
+- Websockets: OFF
+- SSL タブ: Request a new Let's Encrypt Certificate + Force SSL ON(**DNS 反映後**に押す)
 
-## ロールバック
-- サーバ停止: `ssh harappa 'kill $(cat /home/vps-harappa/garden/services/garden-gaku-co/.line-server.pid)'` + cron 行をコメントアウト。
-- LINE 側: Webhook を OFF。
-- 社外 gaku-co5.0 とは完全別プロセス・別 LINE 公式なので、本サーバ停止は社外に影響しない。
+### 6. ⭐ Webhook URL + Verify(ガクチョ)
+- LINE Developers Console(社内チャネル)→ Messaging API → Webhook URL = `https://core.harappa.monster/webhook`、Use webhook ON、**Verify** → Success。
+- **LINE Official Account Manager → 応答設定**: 「チャット」OFF + 「Webhook」ON + 応答メッセージ OFF
+  (ここが「チャット」だと 1:1/group のメッセージが webhook に飛ばない。Verify が通っても実メッセージが来ない時はここ)。
+
+### 7. テスト(1:1・あえて本番グループより先)
+- ⭐ ガクチョが bot を友だち追加 → 1:1 で 1 発言 → Claude がログから `userId` 取得。
+- ⭐ ガクチョ(or Claude)が `.env` の `LINE_TEST_USER_IDS` にその userId → `./run-line-container.sh` で作り直し。
+- 1:1 で会話確認(1:1 は gate 素通り = 全メッセージが bot 宛)。
+
+### 8. ⭐ 本番グループ投入 → groupId 確定(ガクチョ + Claude)— **残**
+- LINE Developers Console で「Allow bot to join group chats」ON。
+- ガクチョが bot を運営スタッフ LINE グループに招待 → グループで 1 発言。
+- Claude が `docker logs garden-gaku-core` から `groupId` を取得。
+- ⭐ `.env` の `LINE_CORE_TEAM_GROUP_ID` に記入 + `LINE_TEST_USER_IDS` を空に → `./run-line-container.sh`。
+- 「ガクコ」と呼びかけて応答が返れば本番疎通完了。
+
+## 検証ポイント
+- [x] HTTPS `/health` 200 / Let's Encrypt 証明書 / `GET /webhook` 405 / `POST /webhook`(署名なし)403
+- [x] 1:1(テスト許可 userId)で gate 素通り → respond → reply 200
+- [x] RAW が `garden/memory/line_core_team/raw/{date}.md` に溜まる
+- [ ] (本番)group で「ガクコ」宛て → 応答 / 他宛て雑談 → 黙る(gate)
+- [ ] 社外グループ・未許可個人 → 一切応答しない(エアギャップ)
+
+## ロールバック / 運用
+- 停止: `ssh harappa 'docker stop garden-gaku-core'`(`--restart` で起き直すので恒久停止は `docker rm -f`)。
+- LINE 側: Webhook を OFF。社外 gaku-co5.0 とは別プロセス・別 LINE 公式なので影響しない。
+- NPM admin パスワードリセット(bcrypt、生成→60字 assertion→DB 反映、要 DB バックアップ): ADR [2026-05-25 決定8](../../../docs/decisions/2026-05-25-couchdb-livesync-implementation.md)。
+
+## 廃止
+- `run-line-server.sh` + `venv-line`(ホストプロセス方式)は S34 のコンテナ化で不要。
+- `docker-compose.line.yml` は compose v1 バグで使えず参考用(起動は `run-line-container.sh`)。

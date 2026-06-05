@@ -1,0 +1,18 @@
+# 社内 LINE Webhook サーバ(line/app.py)用イメージ。
+# コードは実行時に bind-mount(/home/vps-harappa/garden を丸ごと)するので、
+# このイメージは「依存だけ入った素の python」。requirements-line.txt のみ焼き込む。
+#
+# なぜコンテナ化したか(S34):VPS のファイアウォールが docker ブリッジ → ホスト
+# (gateway 172.20.0.1)の INPUT を DROP しており、NPM コンテナからホストプロセスの
+# 8011 に到達できない。他サービス(gaku-co5 / couchdb)と同じく proxy-manager_default
+# 上のコンテナにして、NPM からコンテナ名で叩く方式に統一した。
+FROM python:3.12-slim
+
+WORKDIR /home/vps-harappa/garden/services/garden-gaku-co
+
+COPY requirements-line.txt .
+RUN pip install --no-cache-dir -r requirements-line.txt
+
+# コード本体は docker-compose の volume で同じ絶対パスに bind-mount する。
+EXPOSE 8011
+CMD ["python", "-m", "uvicorn", "line.app:app", "--host", "0.0.0.0", "--port", "8011"]

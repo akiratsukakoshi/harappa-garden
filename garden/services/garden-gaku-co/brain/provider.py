@@ -123,6 +123,21 @@ class AnthropicProvider:
                     "content": m["content"],
                 }],
             }
+        if role == "assistant" and m.get("tool_calls"):
+            # assistant が tool を呼んだターン → text(任意)+ tool_use ブロック列で再構成。
+            # これが無いと、続く tool_result が「対応する tool_use なし」で 400 になる。
+            content: list[dict[str, Any]] = []
+            text = m.get("content")
+            if text:
+                content.append({"type": "text", "text": text})
+            for tc in m["tool_calls"]:
+                content.append({
+                    "type": "tool_use",
+                    "id": tc["id"],
+                    "name": tc["name"],
+                    "input": tc.get("arguments", {}),
+                })
+            return {"role": "assistant", "content": content}
         return {"role": role, "content": m["content"]}
 
 

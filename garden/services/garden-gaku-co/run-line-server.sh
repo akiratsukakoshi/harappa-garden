@@ -7,17 +7,21 @@ set -euo pipefail
 cd "$(dirname "$0")"
 PIDFILE=.line-server.pid
 LOG=/home/vps-harappa/garden/log/line-server.log
-HOST="${LINE_SERVER_HOST:-127.0.0.1}"
-PORT="${LINE_SERVER_PORT:-8011}"
 
 # 既に動いていれば何もしない
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
   exit 0
 fi
 
+# .env を先に読み込んでから HOST/PORT を決める(LINE_SERVER_HOST を効かせるため)。
+# NPM はコンテナ内で動くため bind 先は docker ブリッジの gateway(例 172.20.0.1)。
+# 127.0.0.1 bind だとコンテナから届かない(host-process 特有の罠)。
 set -a
 . ./.env
 set +a
+
+HOST="${LINE_SERVER_HOST:-127.0.0.1}"
+PORT="${LINE_SERVER_PORT:-8011}"
 
 # LINE サーバ用 venv(bot とは分離)。無ければ requirements-line.txt から作る。
 VENV="${LINE_VENV:-venv-line}"

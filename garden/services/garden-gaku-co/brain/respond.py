@@ -82,7 +82,16 @@ def generate_response(
 
         # tool-use: capability で再ガード(構造保証の二重化)してから実行
         allowed = capabilities.tools_for(scope)
-        messages.append({"role": "assistant", "content": resp.text or "[tool_use]"})
+        # assistant の tool_use ターンを「text + tool_calls」構造で積む。
+        # text だけだと続く tool_result に対応する tool_use が無く Anthropic が 400 を返す。
+        messages.append({
+            "role": "assistant",
+            "content": resp.text or "",
+            "tool_calls": [
+                {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                for tc in resp.tool_calls
+            ],
+        })
         for tc in resp.tool_calls:
             if tc.name not in allowed:
                 logger.warning("capability 外の tool 呼び出しを拒否: scope=%s tool=%s", scope, tc.name)

@@ -1,0 +1,37 @@
+# 社内 LINE Webhook サーバ(core_team)のコンテナ定義。
+# NPM(proxy-manager_default 上)からコンテナ名 garden-gaku-core:8011 で到達する。
+# ポートは publish しない(expose のみ)= 公開 IP には一切出ない(エアギャップの一部)。
+#
+# 起動:  docker compose -f docker-compose.line.yml up -d --build
+# 停止:  docker compose -f docker-compose.line.yml down
+# ログ:  docker logs -f garden-gaku-core
+services:
+  gaku-core:
+    build:
+      context: .
+      dockerfile: Dockerfile.line
+    image: garden-gaku-core:latest
+    container_name: garden-gaku-core
+    restart: unless-stopped
+    # vps-harappa(1000:1000)で動かす = mirror/memory への書き込み所有者を host と揃える
+    user: "1000:1000"
+    working_dir: /home/vps-harappa/garden/services/garden-gaku-co
+    env_file:
+      - .env
+    environment:
+      # uvicorn は container 内 0.0.0.0:8011(CMD で固定)。.env の LINE_SERVER_HOST は無視。
+      - HOME=/tmp
+    volumes:
+      # コード本体 + CHARTER + persona + log を同じ絶対パスで
+      - /home/vps-harappa/garden:/home/vps-harappa/garden
+      # RAW 記憶の書き込み先(MIRROR_DIR=/home/vps-harappa/garden-mirror)
+      - /home/vps-harappa/garden-mirror:/home/vps-harappa/garden-mirror
+    expose:
+      - "8011"
+    networks:
+      - proxy_net
+
+networks:
+  proxy_net:
+    external: true
+    name: proxy-manager_default
