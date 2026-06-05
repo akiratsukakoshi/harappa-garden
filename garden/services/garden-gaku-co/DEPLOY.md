@@ -37,6 +37,11 @@ rsync -avh -e ssh \
   --exclude '.env' --exclude 'venv' --exclude 'venv-line' --exclude '__pycache__' --exclude '*.pid'
 ```
 
+> ⚠️ **実行ビットは git で管理する**(`-a` は perms を伝播するため)。`*.sh` が repo で `100644` のまま
+> commit されていると、この rsync が **VPS 側の実行ビットを 644 で上書き** → cron が `Permission denied`
+> で沈黙する。新しい `*.sh` を足したら `git update-index --chmod=+x` で `100755` にしてから push すること。
+> (S35 で run-bot/morning-greet/night-cheer の 3 本がこれで停止した。`git ls-files -s *.sh` で 755 を確認)
+
 ### 2. ⭐ secret を VPS `.env` に記入(ガクチョ)
 VPS の `/home/vps-harappa/garden/services/garden-gaku-co/.env`(chmod 600)に直接記入:
 ```
