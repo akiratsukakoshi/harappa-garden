@@ -50,21 +50,25 @@ execute:
         グロブ: garden/board/{pending,processed}/*-expense-draft.md を grep し
         frontmatter `target_month: {target_month}` を含むファイルがあれば log に「skipped: already exists」と書いて exit 0
 
-    Step 1 抽出:
-      cd /home/vps-harappa/garden/services/expense-processor
-      .venv/bin/python processor.py extract
+    Step 1 抽出(⚠️ 絶対パス + cd なしで実行。Bash 権限は絶対パス形式にのみ scoped allow。
+               cd や相対 .venv/bin/python だと拒否される。processor.py は内部パス絶対で cwd 不問):
+      /home/vps-harappa/garden/services/expense-processor/.venv/bin/python /home/vps-harappa/garden/services/expense-processor/processor.py extract
       → working/expenses_YYYYMMDD_HHMMSS.csv が生成される(最新のものを使う)
 
     Step 2 空判定(★重要):
       - 抽出 0 件(中間 CSV のデータ行が 0、または input が空)→ board を作らず、
         log に `==NOTIFY==` で「🧾 {target_month_jp}の経費、input フォルダが空でした。今月は処理なしでスキップします。
         明細が出たら『経費まわして』と言ってください。」を append して exit 0
-      - 1 件以上 → Step 3 へ
+      - 1 件以上 → Step 2.5 へ
+
+    Step 2.5 レビュー用 Sheets 化(S38 案A。working_csv は Step 1 の出力絶対パス):
+      /home/vps-harappa/garden/services/expense-processor/.venv/bin/python /home/vps-harappa/garden/services/expense-processor/processor.py to-sheet {working_csv}
+      → 標準出力の REVIEW_SHEET_URL / REVIEW_TAB を Step 3/4 で使う(ガクチョが直接編集する面)
 
     Step 3 board 起草: garden/board/pending/{today}-expense-draft.md に SKILL Mode 2 Step 3 のとおり起草:
       - 抽出候補一覧(発生日 / 費目 / 内容 / 金額 / ソース)+ 費目別件数サマリ
       - 要確認フラグ([要確認:日付不明] / 消耗品費フォールバックの疑い)
-      - frontmatter に必ず:
+      - frontmatter に必ず(承認時に from-sheet で読み戻すため):
         ---
         type: pruning_request
         from_seed: expense_processor/monthly-expense-draft
@@ -72,14 +76,15 @@ execute:
         status: pending
         created: {today}T08:00:00+09:00
         working_csv: /home/vps-harappa/garden/services/expense-processor/working/expenses_XXXXXXXX_XXXXXX.csv
-        execute_command: "cd /home/vps-harappa/garden/services/expense-processor && .venv/bin/python processor.py upload {working_csv} --dry-run"
+        review_sheet_url: {REVIEW_SHEET_URL}
+        review_tab: {REVIEW_TAB}
         ---
-      - ⚠️ execute_command は **dry-run**。本登録(--dry-run なし)は Mode 3 でガクチョ確認後に Discord ガクコが叩く。
-        承認 = 配信ではなく Freee 登録なので send_pending には載せない(master/Discord 完結)。
+      - ⚠️ 承認 = Freee 登録は Mode 3 で Discord ガクコ(Claude Code)が from-sheet → dry-run → 本登録。
+        配信ではないので send_pending には載せない(master/Discord 完結)。
 
-    Step 4 庭師通知: log に `==NOTIFY==` で append
-      「🧾 {target_month_jp}の経費候補、{N}件を board に起草 → board/pending/{today}-expense-draft.md
-        費目内訳: …。確認して『承認』で Freee 登録します。」
+    Step 4 庭師通知: log に `==NOTIFY==` で append(Sheet URL を必ず含める)
+      「🧾 {target_month_jp}の経費候補、{N}件を抽出。直接編集できる表 → {REVIEW_SHEET_URL}
+        費目内訳: …。件数が多ければ Sheet で一括編集、少しならチャットでも。編集したら『承認』で Freee 登録します。」
 
     失敗時: extract が落ちたら on_failure に従い log + fallback 通知。
 

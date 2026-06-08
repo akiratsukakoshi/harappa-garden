@@ -23,6 +23,7 @@ import json
 import logging
 import google.generativeai as genai
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 from lib.freee_client import FreeeClient
@@ -47,6 +48,13 @@ DRIVE_FOLDER_ID = os.getenv("EXPENSE_DRIVE_FOLDER_ID")
 # Gemini model — HMC 移植時の 'gemini-2.0-flash' は提供終了(404)だったため現行安定版に更新。
 # 将来また退役しても env で差し替えられるよう定数化(コード変更不要)。
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+# S38 タイムアウト対策(S37 で 77 件[画像16 + CSV61行]が 5 分タイムアウトに当たった):
+# - CSV 明細の費目分類は 1 行 1 Gemini 呼び出しだと行数分の往復になる → 複数行を 1
+#   プロンプトでまとめて分類(バッチ化)。1 リクエストの行数は CLASSIFY_BATCH_SIZE で上限。
+# - レシート画像 OCR は 1 枚 1 リクエスト(画像はバッチ不可)なので、並列度を上げて圧縮する。
+CLASSIFY_BATCH_SIZE = int(os.getenv("EXPENSE_CLASSIFY_BATCH_SIZE", "40"))
+IMAGE_OCR_WORKERS = int(os.getenv("EXPENSE_IMAGE_OCR_WORKERS", "4"))
 
 # ⭐ 経費の消費税区分(課税仕入)。`processor.py taxes` で実コードを確認して .env に設定する。
 # 未設定だと post_deal が HMC 既定の 1(課税売上 10%)に落ちるため、upload 時に明示警告する。
@@ -112,6 +120,85 @@ class ExpenseClassifier:
 
         logger.error("AI Classification failed after retries.")
         return "消耗品費"
+
+    def classify_batch(self, items: list) -> list:
+        """複数行の費目を 1 リクエストでまとめて分類する(S38 バッチ化)。
+
+        items: [{"details": str, "amount": int}, ...]
+        返り値: items と同じ並び・同じ長さの費目名リスト。
+        バッチが失敗(API エラー / 行数不一致 / JSON 不正)したときは、その範囲だけ
+        1 行ずつ classify() にフォールバックする(黙って全部 消耗品費 にしない)。
+        """
+        if not items:
+            return []
+        if not self.model:
+            return ["消耗品費"] * len(items)
+        results: list = []
+        for start in range(0, len(items), CLASSIFY_BATCH_SIZE):
+            results.extend(self._classify_chunk(items[start:start + CLASSIFY_BATCH_SIZE]))
+        return results
+
+    def _classify_chunk(self, chunk: list) -> list:
+        listing = "\n".join(
+            f"{i + 1}. 内容: {it['details']} / 金額: {it['amount']}円"
+            for i, it in enumerate(chunk)
+        )
+        prompt = f"""あなたは会計の専門家です。以下の各支出について、最も適切な勘定科目をリストから1つずつ選んでください。
+
+リスト: {', '.join(CATEGORIES)}
+
+支出一覧:
+{listing}
+
+回答は JSON 配列のみ。各要素は {{"n": 行番号(1始まり), "account_item": 勘定科目名}}。
+リスト外の科目は使わない。全行を漏れなく含める。Markdown コードブロックは不要。
+例: [{{"n": 1, "account_item": "消耗品費"}}, {{"n": 2, "account_item": "旅費交通費"}}]
+"""
+        max_retries = 3
+        base_wait = 2
+
+        def _fallback():
+            logger.warning("Batch classify: 1行ずつにフォールバックします。")
+            return [self.classify(it["details"], it["amount"]) for it in chunk]
+
+        for attempt in range(max_retries):
+            try:
+                response = self.model.generate_content(prompt)
+                text = response.text.strip()
+                if text.startswith("```json"):
+                    text = text[7:]
+                elif text.startswith("```"):
+                    text = text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                data = json.loads(text.strip())
+
+                by_n = {}
+                for entry in data:
+                    n = int(entry["n"])
+                    cat = str(entry.get("account_item", "")).strip()
+                    if cat not in CATEGORIES:
+                        cat = next((c for c in CATEGORIES if c in cat), "消耗品費")
+                    by_n[n] = cat
+
+                # 全行が揃っているか検証。1 つでも欠ければ黙って通さずフォールバック。
+                if all((i + 1) in by_n for i in range(len(chunk))):
+                    return [by_n[i + 1] for i in range(len(chunk))]
+                logger.warning(
+                    f"Batch classify: 行数不一致(期待 {len(chunk)} / 取得 {len(by_n)})。"
+                )
+                return _fallback()
+            except Exception as e:
+                if "429" in str(e):
+                    wait_time = base_wait * (2 ** attempt)
+                    logger.warning(f"AI Rate limit hit (batch). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Batch classify failed: {e}")
+                    return _fallback()
+
+        logger.error("Batch classify failed after retries.")
+        return _fallback()
 
 class CSVParser:
     def __init__(self):
@@ -407,51 +494,64 @@ def process_extract(args):
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     output_csv = os.path.join(WORKING_DIR, f"expenses_{timestamp}.csv")
 
+    csv_files = [f for f in files if f.lower().endswith('.csv')]
+    image_files = [f for f in files if not f.lower().endswith('.csv')]
+
+    # S38: 抽出した明細を 1 本のリストに集約 → 最後に CSV 化。
+    # 大量月でも extract がタイムアウトしないよう、CSV 費目分類はバッチ・画像 OCR は並列。
+    parsed_items = []
+
+    # --- CSV 明細: 全ファイルをパース → 費目をまとめてバッチ分類 ---
+    for filename in csv_files:
+        logger.info(f"Parsing CSV {filename}...")
+        parsed_items.extend(csv_parser.parse(os.path.join(INPUT_DIR, filename)))
+
+    to_classify = [it for it in parsed_items if "account_item" not in it]
+    if to_classify:
+        logger.info(
+            f"Batch-classifying {len(to_classify)} CSV rows "
+            f"(batch size {CLASSIFY_BATCH_SIZE})..."
+        )
+        cats = classifier.classify_batch(to_classify)
+        for it, cat in zip(to_classify, cats):
+            it["account_item"] = cat
+
+    # --- レシート画像: 1 枚 1 リクエスト(バッチ不可)を並列 OCR ---
+    #   image_parser.parse は内部で例外を握って [] を返すので、pool でも安全に回せる。
+    if image_files:
+        logger.info(f"OCR {len(image_files)} images with {IMAGE_OCR_WORKERS} workers...")
+        with ThreadPoolExecutor(max_workers=IMAGE_OCR_WORKERS) as pool:
+            for parsed in pool.map(
+                lambda fn: image_parser.parse(os.path.join(INPUT_DIR, fn)),
+                image_files,
+            ):
+                parsed_items.extend(parsed)
+
+    # --- 抽出結果を最終行に整形 ---
     final_rows = []
+    for item in parsed_items:
+        occ_date = item["occurrence_date"]
+        reg_date_str = ""
+        occ_date_str = ""
 
-    for filename in files:
-        filepath = os.path.join(INPUT_DIR, filename)
-        logger.info(f"Processing {filename}...")
-
-        # Rate limit protection
-        time.sleep(2)
-
-        parsed_data = []
-        if filename.lower().endswith('.csv'):
-            parsed_data = csv_parser.parse(filepath)
-            # CSVParser returns details/amount/date; classify each.
-            for item in parsed_data:
-                 if "account_item" not in item:
-                     item["account_item"] = classifier.classify(item["details"], item["amount"])
-
+        if occ_date:
+            reg_date = get_month_end(occ_date)
+            occ_date_str = occ_date.strftime("%Y-%m-%d")
+            reg_date_str = reg_date.strftime("%Y-%m-%d")
         else:
-            # Image — image parser already returns account_item from AI.
-            parsed_data = image_parser.parse(filepath)
+            # 日付不明(画像抽出失敗等)は要確認フラグを付ける
+            item["details"] = f"[要確認:日付不明] {item['details']}"
 
-        for item in parsed_data:
-            occ_date = item["occurrence_date"]
-            # reg_date logic
-            reg_date_str = ""
-            occ_date_str = ""
-
-            if occ_date:
-                reg_date = get_month_end(occ_date)
-                occ_date_str = occ_date.strftime("%Y-%m-%d")
-                reg_date_str = reg_date.strftime("%Y-%m-%d")
-            else:
-                # Handle missing date (e.g. image parse fail) — mark for review
-                item["details"] = f"[要確認:日付不明] {item['details']}"
-
-            final_rows.append({
-                "occurrence_date": occ_date_str,
-                "registration_date": reg_date_str,
-                "account_item": item.get("account_item", "消耗品費"),
-                "details": item["details"],
-                "amount": item["amount"],
-                "department": None, # User to fill
-                "description": f"[{item['source']}]",
-                "status": "unpaid"
-            })
+        final_rows.append({
+            "occurrence_date": occ_date_str,
+            "registration_date": reg_date_str,
+            "account_item": item.get("account_item", "消耗品費"),
+            "details": item["details"],
+            "amount": item["amount"],
+            "department": None,  # User to fill
+            "description": f"[{item['source']}]",
+            "status": "unpaid"
+        })
 
     # Write to CSV
     headers = ["occurrence_date", "registration_date", "account_item", "details", "amount", "department", "description", "status"]
@@ -684,6 +784,61 @@ def process_upload(args):
 
     return len(failed_rows)
 
+def process_to_sheet(args):
+    """working CSV → レビュー用 Sheets タブ(S38 案A)。ガクチョが直接編集する面。
+
+    件数が多い月に、Discord チャットの往復ではなく Sheets で一括編集できるようにする。
+    タブは `{YYYYMM}`。費目はプルダウン(5分類)、要確認行は黄色。
+    """
+    from lib import sheets_client
+    csv_path = args.file
+    if not os.path.exists(csv_path):
+        logger.error(f"File not found: {csv_path}")
+        return 1
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        logger.info("CSV にデータ行がありません。シートは作りません。")
+        print("EMPTY: no rows")
+        return 0
+    tab = args.tab or datetime.datetime.now().strftime("%Y%m")
+    url, gid = sheets_client.write_tab(rows, tab, CATEGORIES)
+    logger.info(f"Wrote {len(rows)} rows to review tab {tab}: {url}")
+    # 呼び出し側(bot / 種)が拾える機械可読な行
+    print(f"REVIEW_SHEET_URL: {url}")
+    print(f"REVIEW_TAB: {tab}")
+    print(f"REVIEW_ROWS: {len(rows)}")
+    return 0
+
+
+def process_from_sheet(args):
+    """レビュー用 Sheets タブ → working CSV に書き戻す(S38 案A)。upload の入力に使う。
+
+    金額が空/0 の行(= ガクチョが削除した行)はスキップ。元の extract CSV は残し、
+    レビュー後の新 CSV を別名で出す(取り違え防止)。
+    """
+    from lib import sheets_client
+    tab = args.tab
+    rows = sheets_client.read_tab(tab)
+    if not rows:
+        logger.error(f"タブ {tab} に有効な行がありません(全削除 or タブ無し)。")
+        print("EMPTY: no rows after review")
+        return 1
+    ensure_directory(WORKING_DIR)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    out = args.out or os.path.join(WORKING_DIR, f"expenses_{tab}_reviewed_{ts}.csv")
+    headers = sheets_client.CSV_KEYS
+    with open(out, 'w', encoding='utf-8-sig', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=headers)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in headers})
+    logger.info(f"Read {len(rows)} reviewed rows from tab {tab} → {out}")
+    print(f"REVIEWED_CSV: {out}")
+    print(f"REVIEWED_ROWS: {len(rows)}")
+    return 0
+
+
 def process_taxes(args):
     """Freee の tax_code 一覧を表示(EXPENSE_TAX_CODE 確定用)。"""
     freee = FreeeClient()
@@ -710,6 +865,14 @@ def main():
     p_upload.add_argument("file", help="Path to intermediate CSV")
     p_upload.add_argument("--dry-run", action="store_true")
 
+    p_to_sheet = subparsers.add_parser("to-sheet")
+    p_to_sheet.add_argument("file", help="Path to intermediate CSV")
+    p_to_sheet.add_argument("--tab", default=None, help="Tab name (default: YYYYMM now)")
+
+    p_from_sheet = subparsers.add_parser("from-sheet")
+    p_from_sheet.add_argument("tab", help="Tab name (YYYYMM) to read back")
+    p_from_sheet.add_argument("--out", default=None, help="Output CSV path")
+
     p_taxes = subparsers.add_parser("taxes")
 
     args = parser.parse_args()
@@ -721,6 +884,14 @@ def main():
         if n_failed:
             # 失敗ありは exit 1(cron / Discord ガクコ / 呼び出し側 AI が検知できるように)
             sys.exit(1)
+    elif args.command == "to-sheet":
+        rc = process_to_sheet(args)
+        if rc:
+            sys.exit(rc)
+    elif args.command == "from-sheet":
+        rc = process_from_sheet(args)
+        if rc:
+            sys.exit(rc)
     elif args.command == "taxes":
         process_taxes(args)
 

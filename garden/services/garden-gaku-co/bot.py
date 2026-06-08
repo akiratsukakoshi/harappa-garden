@@ -44,6 +44,20 @@ SKILL_PATH = os.environ.get(
     "DAILY_PILOT_SKILL",
     "/home/vps-harappa/garden/plots/daily-pilot/SKILL.md",
 )
+# S38: expense_processor 区画。daily-pilot は常時ロード、expense は話題検知時のみ
+# 追加ロードする(プロンプト肥大化を避けるルーティング)。実処理 = processor.py を
+# Bash で叩く(settings.json で当該 venv の python だけ scoped allow)。
+EXPENSE_SKILL_PATH = os.environ.get(
+    "EXPENSE_PROCESSOR_SKILL",
+    "/home/vps-harappa/garden/plots/expense_processor/SKILL.md",
+)
+EXPENSE_WORKDIR = "/home/vps-harappa/garden/services/expense-processor"
+# expense_processor のトリガー語(ユーザー発言 or 直近会話に含まれたら SKILL を足す)。
+# SKILL frontmatter topics の中から、誤検知しにくい明確な語を選ぶ。
+EXPENSE_TOPICS = (
+    "経費", "レシート", "領収書", "クレカ", "クレジットカード", "明細",
+    "費目", "勘定科目", "freee", "Freee", "PayPay", "イオン", "コスモ",
+)
 
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
@@ -199,6 +213,7 @@ def triage_board_path(d: datetime.date) -> str:
 _persona_cache = _FileCache(PERSONA_PATH)
 _charter_cache = _FileCache(CHARTER_PATH)
 _skill_cache = _FileCache(SKILL_PATH)
+_expense_skill_cache = _FileCache(EXPENSE_SKILL_PATH)
 _memory_wiki_cache = _DirCache(
     MEMORY_WIKI_DIR, label_prefix="wiki/", index_first="index.md"
 )
@@ -221,6 +236,7 @@ try:
     _persona_cache.get()
     _charter_cache.get()
     _skill_cache.get()
+    _expense_skill_cache.get()
     _memory_wiki_cache.get()
     _memory_past_raw_cache.get(datetime.datetime.now(JST).date())
 except Exception:
@@ -277,6 +293,34 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "\n承認応答ルールの詳細は "
             + "/home/vps-harappa/garden/plots/shift_manager/SKILL.md の Mode 5 を Read。\n\n"
         )
+    # S38: expense_processor は話題検知時のみ SKILL + 実行手段を追加ロード
+    expense_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in EXPENSE_TOPICS):
+        _py = f"{EXPENSE_WORKDIR}/.venv/bin/python"
+        _script = f"{EXPENSE_WORKDIR}/processor.py"
+        expense_block = (
+            "──── expense_processor SKILL(経費区画 — 話題検知でロード)────\n"
+            + _expense_skill_cache.get()
+            + "\n──── expense SKILL ここまで ────\n\n"
+            + "[経費の実行手段 — あなたは Bash で以下だけ実行できます(settings.json で許可済・他は不可)]\n"
+            + "⚠️ 必ず **絶対パス + cd なし** で実行(権限はこの絶対パス形式にのみ付与。cd や相対パスだと拒否されます):\n"
+            + f"  {_py} {_script} extract                          # input → working CSV(末尾に絶対パスを出力)\n"
+            + f"  {_py} {_script} to-sheet <working_csv>           # CSV → レビュー用 Sheets タブ。REVIEW_SHEET_URL / REVIEW_TAB を出力\n"
+            + f"  {_py} {_script} from-sheet <REVIEW_TAB>          # 編集済みタブ → 新 working CSV。REVIEWED_CSV を出力\n"
+            + f"  {_py} {_script} upload <csv> --dry-run           # 登録内容を確認(件数・合計・Tax)\n"
+            + f"  {_py} {_script} upload <csv>                     # Freee 本登録 + アーカイブ\n"
+            + "  (processor.py は内部パスが絶対なので cwd 不問。各コマンドの標準出力から次の入力パス/URL を拾う)\n\n"
+            + "・「経費まわして」等(Mode 2)→ extract → **to-sheet** で Sheets 化 → "
+            + "board/pending/{今日}-expense-draft.md に候補一覧 + frontmatter(review_sheet_url / review_tab / working_csv)を起草 → "
+            + "Discord に **Sheet URL つき**で1行通知(「件数が多ければ Sheet で直接編集、少しならチャットでも、編集したら『承認』」)。"
+            + "input 空(抽出0)なら board を作らず「スキップ」通知。\n"
+            + "・承認(Mode 3)→ **from-sheet <review_tab>** で編集後 CSV を取得 → その CSV を **upload --dry-run** で "
+            + "件数・合計額・税区分を1行提示 → ガクチョ OK で本登録(--dry-run なし)→ board を processed/ へ移動。\n"
+            + "・少量をチャットで直す場合は working CSV を Edit(working/ 配下のみ許可)して直接 upload でもよいが、"
+            + "Sheet を出した後は from-sheet を正とする(二重編集を避ける)。\n"
+            + "・本登録は不可逆。dry-run の確認を取らずに upload(--dry-run なし)を実行しないこと。\n\n"
+        )
+
     # S30: 永続記憶 = wiki + 過去 RAW(mtime 動的キャッシュ)+ 当日 RAW(毎 turn 再読み込み)
     memory_wiki = _memory_wiki_cache.get()
     memory_past_raw = _memory_past_raw_cache.get(now.date())
@@ -296,6 +340,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + "──── daily-pilot SKILL ────\n"
         + _skill_cache.get()
         + "\n──── SKILL ここまで ────\n\n"
+        + expense_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"
         + f"[操作対象ファイル(SKILL の編集権限表に従って使う)]\n"
@@ -324,13 +369,16 @@ def run_claude(prompt: str, extra_args=None) -> str:
         CLAUDE_BIN, "-p", prompt,
         "--system-prompt", _persona_cache.get(),
         "--strict-mcp-config",
-        # Read/Edit/Write は settings.json で garden-mirror/{hmc_tasks,garden} に path-scoped allow。
-        # 危険・不要なツールだけ明示的に禁止する。
-        "--disallowedTools", "Bash Glob Grep WebFetch WebSearch NotebookEdit TodoWrite Task",
+        # Read/Edit/Write は settings.json で garden-mirror/{hmc_tasks,garden} + board/log に path-scoped allow。
+        # S38: Bash は settings.json で expense-processor / shift-manager の python entrypoint のみ
+        # scoped allow(他は default-deny)。探索系・外部アクセス系は引き続き明示禁止。
+        "--disallowedTools", "Glob Grep WebFetch WebSearch NotebookEdit TodoWrite Task",
         "--model", "sonnet",
     ] + (extra_args or [])
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=200, cwd=HERE)
+        # S38: 経費の extract(Gemini OCR + 分類)が走ると 1 turn が長くなるため 300s に拡大。
+        # 通常会話はすぐ返るので実害なし。gateway は asyncio.to_thread 経由なので他メッセージは生きる。
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=HERE)
     except subprocess.TimeoutExpired:
         return "(考えるのに時間がかかりすぎました。もう一度送ってください)"
     if proc.returncode != 0:
