@@ -3,7 +3,7 @@ type: seed
 name: monthly-expense-draft
 plot: expense_processor
 description: 毎月2日に input フォルダの明細・レシートを抽出し、Freee 登録候補を board 剪定依頼にする種。空ならスキップ通知。手動「経費まわして」でも同フローが回る。
-status: draft
+status: active
 phase: 3a                         # Garden 完結(抽出 → board。登録は Mode 3 で承認後)
 execution_host: vps
 hmc_dependency: none              # Garden services/expense-processor/ 経由(Phase 2 移植後)
@@ -31,7 +31,7 @@ execute:
   working_dir: /home/vps-harappa/garden/services/expense-processor
   computed_inputs:
     target_month: "$(date +%Y-%m)"          # 当月(= 前月分の明細が出揃うのが2日)
-    target_month_jp: "$(date +%-m)月"
+    target_month_jp: "$(date +%-m | sed 's/$/月/')"   # 月は $() 内で付与(launcher は値全体が $(...) の時のみ展開)
     today: "$(date +%Y-%m-%d)"
   prompt: |
     あなたは expense_processor 区画の種「monthly-expense-draft」です。

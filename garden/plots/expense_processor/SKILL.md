@@ -185,7 +185,7 @@ CHARTER の Output Style 質感に従いつつ、固有のセクション順:
 
 | # | 現状の方法 | 改善余地 | ステータス |
 |---|---|---|---|
-| ❓ | post_deal の tax_code 既定が `1`(課税売上10%) | **経費は本来 課税仕入**。HMC 挙動を踏襲して移植するが、Freee 側で正しく仕入計上されているか Phase 2 で要検証 | **未検証(要確認)** |
+| ✋ | post_deal の tax_code 既定が `1`(課税売上10%) | **経費は本来 課税仕入**。S37 で構造対処済: `processor.py taxes` で実コード確認 → `EXPENSE_TAX_CODE` 明示指定 → post_deal に渡す(既定 1 に依存しない)。**値の確定は secret 配置後の dry-run で**(課対仕入 10% のコードを設定) | **対処済(値は dry-run 待ち)** |
 | 💡 | 費目は固定 5 分類 | ガクチョの実費目分布に合わせて追加/調整(config 化) | 構想中 |
 | ❓ | input は Google Drive 手置き | Discord 添付 → 自動配置経路(kodomon-sync γ 構想と同型) | 構想中 |
 | 💡 | リマインドは月末固定 | 前月の登録漏れ(proceeded に無い月)を検知して催促を強める | 構想中 |
@@ -204,10 +204,11 @@ CHARTER の Output Style 質感に従いつつ、固有のセクション順:
 
 ## このSKILLの昇格状態
 
-- 段階: **draft**(SKILL + 種 2 本の骨格。service 移植 + secret = Phase 2 が未了)
+- 段階: **draft**(コード移植は完了。secret 配置 + dry-run + cron が未了 = ガクチョの console 操作待ち)
 - active 条件:
-  1. [ ] Phase 2: `garden/services/expense-processor/` 移植(processor.py + freee_client フル + drive_client)
-  2. [ ] secret(Freee OAuth / GEMINI_API_KEY / Drive OAuth)VPS 配置 + .env + venv
-  3. [ ] dry-run 検証(extract で中間 CSV → upload --dry-run が通る)
-  4. [ ] 種 2 本の cron 登録(月末リマインド / 毎月2日抽出)
-  5. [ ] 初回実走(1 ヶ月分を board → 承認 → Freee 登録)+ OPERATIONS 運用カード
+  1. [x] Phase 2: `garden/services/expense-processor/` 移植(processor.py + lib/freee_client フル + lib/drive_client + lib/utils + requirements + .env.example + README、S37 完了。構文 + import 配線検証 OK)
+  2. [ ] secret(Freee OAuth / GEMINI_API_KEY / Drive OAuth)VPS 配置 + .env + venv ⭐ガクチョ console
+  3. [ ] ⭐tax_code 確定(`processor.py taxes` → 課対仕入 10% を `EXPENSE_TAX_CODE` に設定)
+  4. [x] dry-run 検証(S37: 合成 PayPay CSV で extract → 分類 → upload --dry-run = Tax 136・全件マッチ・skip 0。**Gemini モデル 404 バグも修正**)
+  5. [x] 種 2 本の cron 登録(S37: month-end-reminder 28-31日19:00 / monthly-expense-draft 2日08:00。両 dry-run で computed_inputs 解決確認。**launcher の `$(...)` 限定展開バグ 2 件も修正**)
+  6. [ ] 初回実走(1 ヶ月分を board → 承認 → Freee 登録)+ OPERATIONS 運用カード ← **残(ガクチョの実明細待ち)**

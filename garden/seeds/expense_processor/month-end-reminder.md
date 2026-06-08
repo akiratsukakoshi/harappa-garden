@@ -3,7 +3,7 @@ type: seed
 name: month-end-reminder
 plot: expense_processor
 description: 毎月最終日に「カード明細・レシートを input フォルダに置いて」とガクチョにリマインドする種(Drive フォルダ URL つき)。通知のみ・実処理なし。
-status: draft
+status: active
 phase: 3a                         # Garden 完結(通知のみ)
 execution_host: vps
 hmc_dependency: none
@@ -27,10 +27,10 @@ engine: claude-code
 execute:
   working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
-    next_month_jp: "$(date -d 'next month' +%-m)月"
+    next_month_jp: "$(date -d 'next month' +%-m | sed 's/$/月/')"   # 月は $() 内で付与(launcher は値全体が $(...) の時のみ展開)
     today: "$(date +%Y-%m-%d)"
     is_last_day: "$(if [ \"$(date -d 'tomorrow' +%d)\" = \"01\" ]; then echo true; else echo false; fi)"
-    drive_folder_id: "${EXPENSE_DRIVE_FOLDER_ID}"   # env から(値は repo に焼かない)
+    drive_folder_id: "$(grep '^EXPENSE_DRIVE_FOLDER_ID=' /home/vps-harappa/garden/services/expense-processor/.env | cut -d= -f2)"   # .env から直引き(launcher は $(...) 形式のみ展開。${VAR} は不可)
   prompt: |
     あなたは expense_processor 区画の種「month-end-reminder」です。
 

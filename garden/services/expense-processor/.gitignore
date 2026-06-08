@@ -1,0 +1,17 @@
+# Secrets (VPS only, 600 perm)
+secrets/
+.env
+
+# Data (input/working/proceeded — 機微な明細・レシートを含む。VPS のみ)
+input/
+working/
+proceeded/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local
+*.log
