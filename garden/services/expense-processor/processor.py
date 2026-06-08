@@ -468,7 +468,7 @@ def process_upload(args):
     csv_path = args.file
     if not os.path.exists(csv_path):
         logger.error(f"File not found: {csv_path}")
-        return
+        return 1
 
     # ⭐ tax_code 警告: 経費は課税仕入。EXPENSE_TAX_CODE 未設定だと HMC 既定の
     # 1(課税売上 10%)で登録され会計上の誤りになるため、本登録前に強く警告する。
@@ -501,55 +501,104 @@ def process_upload(args):
     with open(csv_path, 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         rows = list(reader)
+        fieldnames = reader.fieldnames or [
+            "occurrence_date", "registration_date", "account_item",
+            "details", "amount", "department", "description", "status"
+        ]
 
     logger.info(f"Uploading {len(rows)} deals from {csv_path}...")
 
+    failed_rows = []   # list of (row_dict, reason) — 未登録のまま残す対象
+    registered = 0
+
     for i, row in enumerate(rows):
-        if not row.get("account_item"):
-            logger.warning(f"Row {i+1}: Missing account_item. Skipping.")
-            continue
+        rownum = i + 1
+        # 1 行の異常で全体を止めない(各行を try で包む)
+        try:
+            acct_name = (row.get("account_item") or "").strip()
+            if not acct_name:
+                logger.error(f"Row {rownum}: account_item が空。未登録に退避。")
+                failed_rows.append((row, "account_item が空"))
+                continue
 
-        acct_name = row["account_item"]
-        acct_id = None
-        # Try exact match first
-        if acct_name in account_items_map:
-             acct_id = account_items_map[acct_name]
-        else:
-             # Fallback: log error and skip
-             logger.error(f"Row {i+1}: Account Item '{acct_name}' not found.")
-             continue
-
-        sect_id = None
-        dept_name = row.get("department")
-        if dept_name and dept_name in sections_map:
-            sect_id = sections_map[dept_name]
-
-        desc = f"{row['details']} {row['description']}"
-        amount = int(row["amount"])
-
-        occ_date = normalize_date(row["occurrence_date"])
-        reg_date = normalize_date(row["registration_date"])
-
-        if args.dry_run:
-            logger.info(f"[DRY RUN] Register: Issue={occ_date}, Due={reg_date}, Amt={amount}, Acct={acct_name}, Dept={dept_name}, Tax={EXPENSE_TAX_CODE}, Desc={desc}")
-        else:
-            resp = freee.post_deal(
-                date=occ_date,
-                amount=amount,
-                description=desc,
-                account_item_id=acct_id,
-                section_id=sect_id,
-                tax_code=EXPENSE_TAX_CODE,   # ⭐ 課税仕入(未設定なら post_deal 側で 1 にフォールバック)
-                type="expense",
-                due_date=reg_date,
-                payments=[] # Explicitly empty for Unpaid (status: unpaid)
-            )
-            if resp and "deal" in resp:
-                logger.info(f"Registered: {desc} ({amount}JPY)")
+            if acct_name in account_items_map:
+                acct_id = account_items_map[acct_name]
             else:
-                logger.error(f"Failed to register row {i+1}")
+                logger.error(f"Row {rownum}: 勘定科目 '{acct_name}' が Freee に無い。未登録に退避。")
+                failed_rows.append((row, f"勘定科目 '{acct_name}' が Freee に無い"))
+                continue
 
-    if not args.dry_run:
+            sect_id = None
+            dept_name = row.get("department")
+            if dept_name and dept_name in sections_map:
+                sect_id = sections_map[dept_name]
+
+            desc = f"{row['details']} {row['description']}"
+            amount = int(row["amount"])
+
+            occ_date = normalize_date(row["occurrence_date"])
+            reg_date = normalize_date(row["registration_date"])
+
+            if args.dry_run:
+                logger.info(f"[DRY RUN] Register: Issue={occ_date}, Due={reg_date}, Amt={amount}, Acct={acct_name}, Dept={dept_name}, Tax={EXPENSE_TAX_CODE}, Desc={desc}")
+            else:
+                resp = freee.post_deal(
+                    date=occ_date,
+                    amount=amount,
+                    description=desc,
+                    account_item_id=acct_id,
+                    section_id=sect_id,
+                    tax_code=EXPENSE_TAX_CODE,   # ⭐ 課税仕入(未設定なら post_deal 側で 1 にフォールバック)
+                    type="expense",
+                    due_date=reg_date,
+                    payments=[] # Explicitly empty for Unpaid (status: unpaid)
+                )
+                if resp and "deal" in resp:
+                    registered += 1
+                    logger.info(f"Registered: {desc} ({amount}JPY)")
+                else:
+                    logger.error(f"Failed to register row {rownum}(直前の API エラー参照)")
+                    failed_rows.append((row, "Freee post_deal 失敗(直前の API エラー参照)"))
+        except Exception as e:
+            logger.error(f"Row {rownum}: 処理中に例外 {type(e).__name__}: {e}。未登録に退避。")
+            failed_rows.append((row, f"例外 {type(e).__name__}: {e}"))
+
+    if args.dry_run:
+        return len(failed_rows)
+
+    # --- 失敗行を working に退避 + アラーム(exit 非0 + ==NOTIFY== で AI / cron が認識)---
+    if failed_rows:
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        ensure_directory(WORKING_DIR)
+        failed_csv = os.path.join(WORKING_DIR, f"FAILED_{ts}.csv")
+        with open(failed_csv, 'w', encoding='utf-8-sig', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=fieldnames)
+            w.writeheader()
+            for r, _ in failed_rows:
+                w.writerow(r)
+        detail = "\n".join(
+            f"  - {r.get('occurrence_date','?')} {str(r.get('details',''))[:24]} ¥{r.get('amount','?')} → {reason}"
+            for r, reason in failed_rows
+        )
+        # ==NOTIFY== ブロックは send_pending / morning-briefing / Discord ガクコ が拾える共通アラーム形式
+        print(
+            "\n==NOTIFY==\n"
+            f"❌ 経費 upload: {len(rows)}件中 {len(failed_rows)}件 登録失敗(成功 {registered}件)。\n"
+            f"未登録分を退避しました(再処理用): {failed_csv}\n"
+            f"失敗理由:\n{detail}\n"
+            f"→ 修正して再アップ: processor.py upload {failed_csv}\n"
+            "==END==\n"
+        )
+        logger.error(f"UPLOAD PARTIAL FAILURE: {len(failed_rows)}/{len(rows)} 失敗 → 退避 {failed_csv}")
+
+    # --- アーカイブ: 登録成功が 1 件以上の時だけ ---
+    # (全滅時は input / 処理 CSV をそのまま残し、再試行できるようにする。
+    #  FAILED_*.csv は working/ 直下で、下のアーカイブ対象[input + csv_path]に含まれないため必ず残る)
+    if registered == 0:
+        logger.error("登録成功 0 件。アーカイブをスキップ(input / CSV を残して再試行可能に)。")
+        return len(failed_rows)
+
+    if True:
         # Archive Input Files
         archive_date = datetime.datetime.now().strftime(ARCHIVE_FORMAT)
         archive_path = os.path.join(PROCEEDED_DIR, archive_date)
@@ -628,7 +677,12 @@ def process_upload(args):
                         logger.info(f"Moving Drive file {dif['name']} to processed/{archive_date}...")
                         drive_client.move_file(dif['id'], input_folder_id, date_folder_id)
 
-        logger.info("All operations completed successfully.")
+        if failed_rows:
+            logger.warning(f"Completed with failures: 成功 {registered}件 / 失敗 {len(failed_rows)}件(上の ==NOTIFY== 参照)。")
+        else:
+            logger.info("All operations completed successfully.")
+
+    return len(failed_rows)
 
 def process_taxes(args):
     """Freee の tax_code 一覧を表示(EXPENSE_TAX_CODE 確定用)。"""
@@ -663,7 +717,10 @@ def main():
     if args.command == "extract":
         process_extract(args)
     elif args.command == "upload":
-        process_upload(args)
+        n_failed = process_upload(args)
+        if n_failed:
+            # 失敗ありは exit 1(cron / Discord ガクコ / 呼び出し側 AI が検知できるように)
+            sys.exit(1)
     elif args.command == "taxes":
         process_taxes(args)
 

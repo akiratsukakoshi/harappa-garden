@@ -148,14 +148,17 @@ cd /home/vps-harappa/garden/services/expense-processor
 
 | 状況 | ルール |
 |---|---|
-| 費目が Freee の勘定科目名と不一致 | 登録時スキップされる。dry-run で検出 → 費目名を正す(5 分類は Freee に同名科目がある前提) |
+| 費目が Freee の勘定科目名と不一致 | 登録時スキップ → **未登録分に退避**(`working/FAILED_*.csv`)。dry-run で検出 → 費目名を正す(5 分類は Freee に同名科目がある前提) |
 | 部門(department)が Freee の部門名と不一致 | 部門なしで登録される。必要なら CSV の department 列を正確な部門名に |
 | 画像抽出で日付不明 | `details` に `[要確認:日付不明]` が付く。board でガクチョに発生日を確認してから登録 |
-| Gemini が費目に迷う | `消耗品費` にフォールバック。**必ず人間が確認**(board の要確認フラグ) |
+| **発生日が会計年度の期首日以前**(S37 で実発生) | Freee が 400 で弾く(`期首日以前の取引を登録することができません`)。**画像 OCR の年読み間違いが主因**(他が当年なのに 1 件だけ数年前等)。実日付に直して再登録、or 不要なら除外 |
+| Gemini が費目に迷う | `消耗品費` にフォールバック。**必ず人間が確認** |
 | Gemini 429 レート制限 | service 内で指数バックオフ・リトライ済(3 回) |
 | 同月 board が既存 | 新規発火しない(べき等性) |
 | 登録前 | **必ず dry-run を先に通す** |
-| 二重登録 | upload 成功時に input → proceeded へ移動。アーカイブ済みは再処理しない |
+| 二重登録 | 登録成功が 1 件以上の時のみ input → proceeded へアーカイブ。アーカイブ済みは再処理しない |
+| **partial 失敗(一部だけ登録失敗)** | S37 改善:**失敗行は `working/FAILED_{ts}.csv` に退避**(成功分はアーカイブ=二重登録防止、失敗分は残す)+ **exit code 1** + ログ末尾に `==NOTIFY==` アラーム。修正して `processor.py upload working/FAILED_*.csv` で再登録 |
+| **全件失敗(登録 0 件)** | アーカイブをスキップ(input / CSV を残し再試行可能に) |
 
 ---
 
@@ -185,8 +188,10 @@ CHARTER の Output Style 質感に従いつつ、固有のセクション順:
 
 | # | 現状の方法 | 改善余地 | ステータス |
 |---|---|---|---|
-| ✋ | post_deal の tax_code 既定が `1`(課税売上10%) | **経費は本来 課税仕入**。S37 で構造対処済: `processor.py taxes` で実コード確認 → `EXPENSE_TAX_CODE` 明示指定 → post_deal に渡す(既定 1 に依存しない)。**値の確定は secret 配置後の dry-run で**(課対仕入 10% のコードを設定) | **対処済(値は dry-run 待ち)** |
+| ✋ | post_deal の tax_code 既定が `1`(課税売上10%) | **経費は本来 課税仕入**。S37 で構造対処済 + 値確定:`EXPENSE_TAX_CODE=136`(課対仕入10%)を設定し post_deal に明示指定 | **対処済(136 設定済)** |
+| ❓ | 費目分類が 1 行 1 Gemini 呼び出し | **S37 実運用で 77 件(画像16+CSV61行)が 5 分タイムアウトに当たった**(再実行で解決)。cron 経由(launcher の claude タイムアウト 10 分)でも大量月は際どい。**バッチ分類**(複数行を 1 プロンプトで)or タイムアウト緩和で改善 | **要改善(実害あり)** |
 | 💡 | 費目は固定 5 分類 | ガクチョの実費目分布に合わせて追加/調整(config 化) | 構想中 |
+| 💡 | Discord「経費まわして」→ ガクコが実行 | **未配線**(bot.py の system prompt が daily-pilot に閉じており expense を案内していない)。手動・cron は動くが、Discord ガクコ経由で回すには bot に導線追加が必要 | 構想中 |
 | ❓ | input は Google Drive 手置き | Discord 添付 → 自動配置経路(kodomon-sync γ 構想と同型) | 構想中 |
 | 💡 | リマインドは月末固定 | 前月の登録漏れ(proceeded に無い月)を検知して催促を強める | 構想中 |
 
@@ -204,11 +209,12 @@ CHARTER の Output Style 質感に従いつつ、固有のセクション順:
 
 ## このSKILLの昇格状態
 
-- 段階: **draft**(コード移植は完了。secret 配置 + dry-run + cron が未了 = ガクチョの console 操作待ち)
+- 段階: **active**(S37 で初回リアル実走完了。**cron + 手動[Claude Code 実行]は運用可能**。Discord ガクコ経由の「経費まわして」だけ未配線=改善余地参照)
 - active 条件:
-  1. [x] Phase 2: `garden/services/expense-processor/` 移植(processor.py + lib/freee_client フル + lib/drive_client + lib/utils + requirements + .env.example + README、S37 完了。構文 + import 配線検証 OK)
-  2. [ ] secret(Freee OAuth / GEMINI_API_KEY / Drive OAuth)VPS 配置 + .env + venv ⭐ガクチョ console
-  3. [ ] ⭐tax_code 確定(`processor.py taxes` → 課対仕入 10% を `EXPENSE_TAX_CODE` に設定)
-  4. [x] dry-run 検証(S37: 合成 PayPay CSV で extract → 分類 → upload --dry-run = Tax 136・全件マッチ・skip 0。**Gemini モデル 404 バグも修正**)
-  5. [x] 種 2 本の cron 登録(S37: month-end-reminder 28-31日19:00 / monthly-expense-draft 2日08:00。両 dry-run で computed_inputs 解決確認。**launcher の `$(...)` 限定展開バグ 2 件も修正**)
-  6. [ ] 初回実走(1 ヶ月分を board → 承認 → Freee 登録)+ OPERATIONS 運用カード ← **残(ガクチョの実明細待ち)**
+  1. [x] Phase 2: `garden/services/expense-processor/` 移植(processor.py + lib/freee_client フル + lib/drive_client + lib/utils、S37)
+  2. [x] secret(Freee 共有 token / GEMINI_API_KEY / Drive service account)VPS 配置 + .env + venv(S37)
+  3. [x] tax_code 確定(`EXPENSE_TAX_CODE=136` 課対仕入10%)
+  4. [x] dry-run 検証(S37)
+  5. [x] 種 2 本の cron 登録(S37)
+  6. [x] **初回リアル実走(S37): ガクチョの実明細を extract → 本人が CSV 直接レビュー・除外/部門付与 → Freee 登録 59 件(¥397,373)**。うち 2 件は会計年度期首日以前(OCR 年誤読)で弾かれ → 2026 年に修正して再登録。partial 失敗ハンドリング(FAILED 退避 + exit1 + ==NOTIFY==)も実装
+- 残(active 後の改善): Discord ガクコ経由「経費まわして」の配線 / 費目分類のバッチ化(タイムアウト対策)/ OPERATIONS 運用カード
