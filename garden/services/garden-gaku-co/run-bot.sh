@@ -8,6 +8,10 @@ cd "$(dirname "$0")"
 PIDFILE=.bot.pid
 LOG=/home/vps-harappa/garden/log/bot.log
 
+# 番人(watcher)用ハートビート: cron が生きている証跡(S39)
+mkdir -p "$(dirname "$LOG")"
+touch "$(dirname "$LOG")/.heartbeat-bot-keepalive"
+
 # 既に動いていれば何もしない
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
   exit 0

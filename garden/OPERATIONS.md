@@ -255,12 +255,12 @@
 
 | 業務 | HMC | HMG | 段階 | ガクチョの作業 |
 |---|---|---|---|---|
-| **シフト管理(月次)** | `apps/shift_manager/` 全体 | shift_manager plot + 種 3 本 active + Python scripts 移植済 | ✅ 完了(残: Mode 3 見せ方未確定、Mode 4 構想) | 月末 board 確認 → 集計実行 / 月初 dummy 配信を staff LINE に手動コピー / 6/10 までに精算ルート確認 |
+| **シフト管理(月次)** | `apps/shift_manager/` 全体 | shift_manager plot + 種 3 本 active + Python scripts 移植済 + aggregate_responses 移植(S37) | ✅ 完了(残: Mode 3 見せ方未確定、Mode 4 は集計単体のみ手動利用可) | 月末 board 確認 → 集計実行 / 月初 dummy 配信を staff LINE に手動コピー |
 | **日次タスク管理** | `apps/hmc_pilot` SKILL + active_tasks/backlog 手動運用 | daily-pilot plot + 種 3 本 active + bot 対話 + active/backlog 自動構築 | ✅ 完了 | 朝 Discord で対話 / Obsidian で backlog 編集 / 夜の対話で返答 |
 | **コドモン CSV 取込** | (HMC 期は無し、Garden で新規) | kodomon-sync(α)+ import_kodomon.py | 🆕 ✅ 完了(γ は将来) | 月末までにコドモン Web で CSV エクスポート → `garden/inbox/kodomon/` に置く |
 | **土壌維持(soil index)** | (HMC 期は無し) | mycelium index-refresh active | 🆕 ✅ 完了(Stage 1) | なし(自律) |
-| **永続記憶** | (HMC 期は無し) | RAW logging 稼働(Stage A)、ingest skeleton(Stage A.5 未実装) | 🆕 🚧 実装中 | なし(自律、Stage A.5 完成後に挙動観察) |
-| **経費登録** | `apps/expense_processor` | 未移植 | ⬜ | HMC で従来通り |
+| **永続記憶** | (HMC 期は無し) | Stage A〜C すべて active(S30。RAW logging + ingest-raw + consolidate-wiki + bot 永続記憶ロード) | 🆕 ✅ 完了(Stage D はチーム公開時) | なし(自律) |
+| **経費登録** | `apps/expense_processor` | expense_processor plot + service + 種 2 本 active + cron(S35〜S38) | ✅ 完了(残: 件数多い月の本番 1 周見届け) | 月末に明細・レシートを Drive へ / Discord「経費まわして」or 承認 / Sheets レビュー |
 | **売上記帳(STORES/Square)** | `apps/finance_importer` | 未移植 | ⬜ | HMC で従来通り |
 | **請求書処理** | `apps/invoice_processor` | 未移植 | ⬜ | HMC で従来通り |
 | **メール整理** | `apps/email_organizer` | 未移植 | ⬜ | HMC で従来通り |
@@ -270,11 +270,25 @@
 | **財務分析(PL/CF)** | `apps/finance_analyzer` | 未移植 | ⬜ | HMC で従来通り |
 | **手紙仕分け** | `apps/letter_opener` | 未移植 | ⬜ | HMC で従来通り |
 
-**移行優先度の現在地**(S25 時点):
+**移行優先度の現在地**(S39 時点):
 
-- 次の本命候補: **永続記憶 Stage A.5 実装**(本セッションは見通し整備で消費、S26 以降)
-- 並行候補: **finance 系 / invoice_processor / expense_processor の Garden 化**(Phase 3b の secret 管理整備と同期)
+- 完了: 永続記憶(S30)/ expense_processor(S37-S38)
+- 次の候補: **finance_importer / invoice_processor の Garden 化**(plot_gardener 移植型で。expense の型を流用)
 - 後追い: SNS / 議事録 / メール / 監査 / 分析 / 手紙
+
+### 3.1 SKILL 正本表(どちらを読むべきか)— S39 新設
+
+同名業務の SKILL が `.agent/skills/`(HMC 継承)と `garden/plots/`(Garden 正本)の両方に存在するものがある。
+**Garden 化済みの業務は garden/plots/ が常に正本**。HMC 側は業務知識の参照用として残置(削除しない。合言葉「業務知識は継承、起動と承認だけ Garden に変える」)。
+
+| 業務 | 正本 | HMC 側の扱い |
+|---|---|---|
+| シフト管理 | [garden/plots/shift_manager/SKILL.md](plots/shift_manager/SKILL.md) | `.agent/skills/shift_manager/` = 参照のみ(冒頭バナー有) |
+| 経費登録 | [garden/plots/expense_processor/SKILL.md](plots/expense_processor/SKILL.md) | `.agent/skills/expense_processor/` = 参照のみ(冒頭バナー有) |
+| 日次タスク管理 | [garden/plots/daily-pilot/SKILL.md](plots/daily-pilot/SKILL.md) | `.agent/skills/hmc_pilot/` = 参照のみ(冒頭バナー有) |
+| 上記以外の 8 業務 | `.agent/skills/{name}/SKILL.md`(HMC 運用継続中) | Garden 化時に plot_gardener を通す |
+
+業務手順(workflow)の正本は従来通り [`garden/soil/workflows/`](soil/workflows/)(CLAUDE.md 参照)。本表は SKILL(実行手順書)レイヤーの正本を定める。
 
 ---
 

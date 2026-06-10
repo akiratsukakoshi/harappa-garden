@@ -44,6 +44,7 @@ cron `* * * * *` で 1 分毎起動(セッション21、(4) C 案)。
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -284,17 +285,51 @@ def dispatch_dummy(fm: dict, body: str, board_path: Path) -> bool:
     return True
 
 
+# S39: execute_command の許可リスト(shell injection 対策)
+# - 実行ファイルはこの prefix 配下の絶対パスのみ許可(S38 の「絶対パス規律」と整合)
+# - 引数は安全な文字種のみ(シェルメタ文字を含む board は実行前に拒否)
+# - 実行は shell=False(メタ文字が紛れても解釈されない二重防御)
+EXEC_ALLOWED_PREFIXES = tuple(
+    p for p in os.environ.get(
+        "EXEC_ALLOWED_PREFIXES", "/home/vps-harappa/garden/services/"
+    ).split(":") if p
+)
+SAFE_ARG_RE = re.compile(r"^[A-Za-z0-9._/:=@+,-]+$")
+
+
+def validate_execute_command(cmd: str) -> tuple[Optional[list], str]:
+    """execute_command を検証し (argv, "") か (None, 理由) を返す"""
+    try:
+        argv = shlex.split(cmd)
+    except ValueError as e:
+        return None, f"コマンドのパースに失敗: {e}"
+    if not argv:
+        return None, "コマンドが空"
+    exe = argv[0]
+    if not exe.startswith("/") or not exe.startswith(EXEC_ALLOWED_PREFIXES):
+        return None, f"実行ファイルが許可リスト外: {exe}(許可 prefix: {', '.join(EXEC_ALLOWED_PREFIXES)})"
+    bad = [a for a in argv if not SAFE_ARG_RE.match(a)]
+    if bad:
+        return None, f"引数に許可外の文字: {bad}"
+    return argv, ""
+
+
 def dispatch_shell(fm: dict, body: str, board_path: Path) -> bool:
-    """shell 実行ディスパッチ: frontmatter.execute_command を実行"""
+    """shell 実行ディスパッチ: frontmatter.execute_command を検証して実行(S39 allowlist 化)"""
     cmd = fm.get("execute_command")
     if not cmd:
         log(f"[{board_path.name}] FAIL: frontmatter.execute_command が空")
         notify_master(f"❌ shell 実行失敗: {board_path.name}\n→ execute_command が未設定")
         return False
+    argv, reason = validate_execute_command(cmd)
+    if argv is None:
+        log(f"[{board_path.name}] FAIL: execute_command 検証 NG: {reason}")
+        notify_master(f"❌ shell 実行拒否(allowlist): {board_path.name}\n→ {reason}")
+        return False
     try:
         result = subprocess.run(
-            cmd,
-            shell=True,
+            argv,
+            shell=False,
             capture_output=True,
             text=True,
             timeout=600,  # 10 分

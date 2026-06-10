@@ -2,10 +2,35 @@
 0 19 * * * docker restart gaku-co-oc_openclaw-gateway_1 >> /tmp/openclaw-restart.log 2>&1
 
 # Garden daily-pilot seeds (S14: 2026-05-27 設定)
-25 6 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/recurring-spawn >> /home/vps-harappa/garden-mirror/garden/log/cron-launcher.log 2>&1
-30 6 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/morning-briefing >> /home/vps-harappa/garden-mirror/garden/log/cron-launcher.log 2>&1
-40 6 * * * /home/vps-harappa/garden/services/garden-gaku-co/run-morning-greet.sh >> /home/vps-harappa/garden-mirror/garden/log/morning-greet.log 2>&1
-30 22 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/night-review >> /home/vps-harappa/garden-mirror/garden/log/cron-launcher.log 2>&1
-40 22 * * * /home/vps-harappa/garden/services/garden-gaku-co/run-night-cheer.sh >> /home/vps-harappa/garden-mirror/garden/log/night-cheer.log 2>&1
-*/2 * * * * /home/vps-harappa/garden/services/garden-gaku-co/run-bot.sh >> /home/vps-harappa/garden-mirror/garden/log/bot-keepalive.log 2>&1
-@reboot /home/vps-harappa/garden/services/garden-gaku-co/run-bot.sh >> /home/vps-harappa/garden-mirror/garden/log/bot-keepalive.log 2>&1
+25 6 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/recurring-spawn >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+30 6 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/morning-briefing >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+40 6 * * * /home/vps-harappa/garden/services/garden-gaku-co/run-morning-greet.sh >> /home/vps-harappa/garden/log/morning-greet.log 2>&1
+30 22 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed daily-pilot/night-review >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+40 22 * * * /home/vps-harappa/garden/services/garden-gaku-co/run-night-cheer.sh >> /home/vps-harappa/garden/log/night-cheer.log 2>&1
+*/2 * * * * /home/vps-harappa/garden/services/garden-gaku-co/run-bot.sh >> /home/vps-harappa/garden/log/bot-keepalive.log 2>&1
+@reboot /home/vps-harappa/garden/services/garden-gaku-co/run-bot.sh >> /home/vps-harappa/garden/log/bot-keepalive.log 2>&1
+
+# Garden shift_manager seeds (S21: 2026-05-30 設定)
+# 月末最終日 22:00 — 稼働表チェックリスト board 起草(28-31 + 種内 is_last_day 判定)
+0 22 28-31 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/month-end-working-hours-prep >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+# 月初1日 08:00 — 翌々月シフトアンケート board 起草
+0 8 1 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/monthly-shift-survey >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+# 月初1日 09:00 — 前月稼働確認 board 起草
+0 8 1 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/monthly-working-hours-confirmation >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+
+# Garden post_approval 検知 (S21: 2026-05-30 設定、cron 1分毎、(4) C 案)
+* * * * * /home/vps-harappa/garden/services/garden-gaku-co/run-send-pending.sh >> /home/vps-harappa/garden/log/send-pending-cron.log 2>&1
+
+# mycelium: index refresh (Stage 1) — daily 03:00
+0 3 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed mycelium/index-refresh >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+
+# mycelium: ingest raw (Stage A.5) — daily 03:30 (index-refresh の 30 分後)
+30 3 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed mycelium/ingest-raw >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+
+# mycelium: consolidate wiki (Stage B / S30) — daily 03:50 (ingest-raw の 20 分後)
+50 3 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed mycelium/consolidate-wiki >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+0 19 28-31 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed expense_processor/month-end-reminder >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+0 8 2 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed expense_processor/monthly-expense-draft >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+
+# Garden 番人(watcher): cron ログ監視 + ハートビート (S39: 2026-06-10 設定)
+*/10 * * * * /home/vps-harappa/garden/services/watcher/run-watcher.sh >> /home/vps-harappa/garden/log/watcher.log 2>&1

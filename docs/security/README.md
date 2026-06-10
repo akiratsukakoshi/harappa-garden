@@ -134,8 +134,25 @@ test ${#GOG_KEYRING_PASSWORD} -eq 32 && echo "OK"
 | `~/.config/gogcli/env` | gog cli の keyring パスフレーズ | 600 |
 | `~/.config/gogcli/keyring/` | gog cli の暗号化 refresh token | 700 |
 | `~/harappa-cockpit/.env` | アプリ用 API キー類 | 600（推奨） |
+| `~/harappa-garden/.env` | Freee/Gemini/Meta 等の API キー類 | 600（S39 で適用済） |
+| `~/harappa-garden/credentials.json` | Google service account 秘密鍵 | 600（同上） |
+| `~/harappa-garden/{token,oauth_credentials}.json` | Google OAuth token / client | 600（同上） |
+| `~/harappa-garden/modules/freee_tokens.json` | Freee refresh token | 600（同上） |
+| `~/harappa-garden/modules/freee_hr_client/token.json` | Freee 人事労務 token | 600（同上） |
 
 `~/.bashrc` には source 行のみを書き、secret 本体は環境変数として埋め込まない。
+
+### 5.1 pre-commit フックによる誤コミット防止（S39 新設）
+
+`.gitignore` の編集ミス1回で secret が漏れる状態を防ぐ最後の砦として、
+[`scripts/githooks/pre-commit`](../../scripts/githooks/pre-commit) を導入済み。
+
+- **検査内容**: (1) secret 実体ファイル名（`.env` / `credentials.json` 等）の staged 検出
+  (2) secret らしき文字列パターン（`sk-ant-` / `AIza` / `GOCSPX-` / private key / Discord webhook URL 等）
+  (3) 追跡中 `*.sh` の実行ビット欠落（S36 障害の再発防止）
+- **検出時も値は表示しない**（file:line のみ。§1.4 準拠）
+- **有効化**（clone し直した時は再実行が必要）: `git config core.hooksPath scripts/githooks`
+- **誤検知時のバイパス**: `GIT_ALLOW_SECRETS=1 git commit ...`（本物でないことを確認した上で）
 
 ---
 

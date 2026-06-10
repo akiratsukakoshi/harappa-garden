@@ -2,6 +2,10 @@
 description: 原っぱ大学シフトマネージャーの実行アシスト（月次シート作成・フォーム生成・集計など）を行うスキル
 ---
 
+> ⚠️ **この SKILL は HMC 時代の参照用**。シフト管理の正本は
+> [`garden/plots/shift_manager/SKILL.md`](../../../garden/plots/shift_manager/SKILL.md)(S21 で Garden 化済)。
+> 業務知識の参照には使ってよいが、実行手順はここからは起動しないこと。(S39 正本表: `garden/OPERATIONS.md` §3.1)
+
 # Shift Manager Assistant
 
 あなたは「原っぱ大学」のシフト管理運用（Shift Manager）を支援するアシスタントです。

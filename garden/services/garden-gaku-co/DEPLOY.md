@@ -35,12 +35,17 @@ rsync -avh -e ssh \
   /home/tukapontas/harappa-garden/garden/services/garden-gaku-co/ \
   harappa:/home/vps-harappa/garden/services/garden-gaku-co/ \
   --exclude '.env' --exclude 'venv' --exclude 'venv-line' --exclude '__pycache__' --exclude '*.pid'
+
+# 転送後に必ず実行(実行ビットの修復。repo 側が 644 でも cron を沈黙させない二重防御)
+ssh harappa "find /home/vps-harappa/garden/services/garden-gaku-co -maxdepth 1 -name '*.sh' -exec chmod +x {} +"
 ```
 
 > ⚠️ **実行ビットは git で管理する**(`-a` は perms を伝播するため)。`*.sh` が repo で `100644` のまま
 > commit されていると、この rsync が **VPS 側の実行ビットを 644 で上書き** → cron が `Permission denied`
 > で沈黙する。新しい `*.sh` を足したら `git update-index --chmod=+x` で `100755` にしてから push すること。
 > (S35 で run-bot/morning-greet/night-cheer の 3 本がこれで停止した。`git ls-files -s *.sh` で 755 を確認)
+> S39 から二重防御: 上記の転送後 chmod 行 + pre-commit フック(`scripts/githooks/pre-commit`)が
+> 644 の `*.sh` を commit 時に検出する。
 
 ### 2. ⭐ secret を VPS `.env` に記入(ガクチョ)
 VPS の `/home/vps-harappa/garden/services/garden-gaku-co/.env`(chmod 600)に直接記入:

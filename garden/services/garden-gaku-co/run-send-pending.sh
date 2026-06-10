@@ -7,6 +7,9 @@ cd "$(dirname "$0")"
 LOG=/home/vps-harappa/garden/log/send-pending.log
 mkdir -p "$(dirname "$LOG")"
 
+# 番人(watcher)用ハートビート: cron が生きている証跡(S39)
+touch "$(dirname "$LOG")/.heartbeat-send-pending"
+
 # .env を読み込む(send_pending.py 側でも load_env() するが、明示しておく)
 set -a
 . ./.env

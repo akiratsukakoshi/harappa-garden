@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# pre-commit — secret 誤コミット防止 + *.sh 実行ビット検査
+#
+# 有効化(repo ごとに1回): git config core.hooksPath scripts/githooks
+# 緊急バイパス(誤検知時のみ): GIT_ALLOW_SECRETS=1 git commit ...
+#
+# 背景:
+# - secret 検査: docs/security/README.md(平文 secret を git に置かない)
+# - 実行ビット検査: S36 障害(rsync -a が repo の 100644 を VPS に伝播し cron 沈黙)
+# - 導入: S39 レビュー(2026-06-10)
+#
+# 検出時もsecretの値そのものは出力しない(file:line のみ。security ルール)。
+
+set -uo pipefail
+
+if [[ "${GIT_ALLOW_SECRETS:-}" == "1" ]]; then
+  echo "[pre-commit] GIT_ALLOW_SECRETS=1 → 検査をスキップ"
+  exit 0
+fi
+
+fail=0
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+# --- 1. secret 実体ファイル名のブロック(.example は許可) ---
+forbidden='(^|/)\.env$|(^|/)credentials\.json$|(^|/)token\.json$|(^|/)oauth_credentials\.json$|(^|/)freee_tokens\.json$|\.pem$|(^|/)id_rsa'
+bad_names=$(echo "$staged" | grep -E "$forbidden" || true)
+if [[ -n "$bad_names" ]]; then
+  echo "✗ [pre-commit] secret 実体ファイルが staged になっています:"
+  echo "$bad_names" | sed 's/^/    /'
+  fail=1
+fi
+
+# --- 2. secret らしき文字列の内容スキャン(staged 内容のみ・値は表示しない) ---
+secret_re='sk-ant-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{30,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|discord(app)?\.com/api/webhooks/[0-9]{10,}|EAA[A-Z][A-Za-z0-9]{30,}|ya29\.[A-Za-z0-9_-]{30,}|xox[abpr]-[A-Za-z0-9-]{10,}'
+while IFS= read -r f; do
+  [[ -z "$f" ]] && continue
+  hits=$(git show ":$f" 2>/dev/null | grep -nIE "$secret_re" | cut -d: -f1 | paste -sd, - || true)
+  if [[ -n "$hits" ]]; then
+    echo "✗ [pre-commit] secret らしき文字列を検出: $f (行: $hits)"
+    echo "    値は表示しません。本物なら staged から外す / 例示なら GIT_ALLOW_SECRETS=1 で明示バイパス"
+    fail=1
+  fi
+done <<< "$staged"
+
+# --- 3. 追跡中 *.sh の実行ビット検査(100644 を検出) ---
+bad_sh=$(git ls-files -s -- '*.sh' | awk '$1 == "100644" {print $4}')
+if [[ -n "$bad_sh" ]]; then
+  echo "✗ [pre-commit] 実行ビット(755)が無い *.sh があります(S36 障害の再発要因):"
+  echo "$bad_sh" | sed 's/^/    /'
+  echo "    修正: git update-index --chmod=+x <file>(あわせて chmod +x <file>)"
+  fail=1
+fi
+
+# --- 4. freee_client 正本とコピーのドリフト検査(S39 共通化) ---
+if [[ -x garden/lib/sync-freee-client.sh ]]; then
+  if ! garden/lib/sync-freee-client.sh --check >/dev/null 2>&1; then
+    echo "✗ [pre-commit] freee_client のコピーが正本とずれています"
+    echo "    修正: garden/lib/sync-freee-client.sh を実行(編集は正本 garden/lib/freee_client.py で)"
+    fail=1
+  fi
+fi
+
+if [[ "$fail" -ne 0 ]]; then
+  echo "[pre-commit] commit を中止しました"
+  exit 1
+fi
+exit 0

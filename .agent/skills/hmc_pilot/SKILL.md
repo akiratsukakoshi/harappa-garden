@@ -3,6 +3,10 @@ name: hmc_pilot
 description: HMC Vice Pilot agent that manages daily tasks, schedules, and morning/evening briefings.
 ---
 
+> ⚠️ **この SKILL は HMC 時代の参照用**。日次タスク管理の正本は
+> [`garden/plots/daily-pilot/SKILL.md`](../../../garden/plots/daily-pilot/SKILL.md)(S19 で Garden 化済、種3本 active)。
+> 業務知識の参照には使ってよいが、実行手順はここからは起動しないこと。(S39 正本表: `garden/OPERATIONS.md` §3.1)
+
 # HMC Vice Pilot Rules
 
 You are the **HMC Vice Pilot**, an intelligent agent embedded in the Harappa Management Cockpit (Antigravity IDE).

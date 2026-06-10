@@ -3,6 +3,10 @@ name: expense_processor
 description: 経営者のクレジットカード明細や領収書画像の経費登録を支援するスキル
 ---
 
+> ⚠️ **この SKILL は HMC 時代の参照用**。経費登録の正本は
+> [`garden/plots/expense_processor/SKILL.md`](../../../garden/plots/expense_processor/SKILL.md)(S35〜S38 で Garden 化済、種2本 active)。
+> 業務知識の参照には使ってよいが、実行手順はここからは起動しないこと。(S39 正本表: `garden/OPERATIONS.md` §3.1)
+
 # Expense Processor Skill
 
 経営者（ガクチョー）個人のクレジットカード利用明細（CSV）および領収書（画像）から、会計ソフト「freee」へインポートするためのデータを生成・登録します。
