@@ -36,6 +36,13 @@ run_log.txt
 docs/security/secrets/*
 !docs/security/secrets/.gitkeep
 
+# Garden service の secret / 中間データ(VPS のみ。repo に入れない)
+garden/services/*/secrets/
+garden/services/*/working/
+garden/services/*/temp/
+garden/services/*/input/
+garden/services/*/proceeded/
+
 # VPS リソース管理(secret / backup)
 vps/proxy-manager/backups/*.tar.gz
 vps/proxy-manager/data/

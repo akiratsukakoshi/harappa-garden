@@ -3,6 +3,10 @@ name: invoice_processor
 description: Gmail/Driveの請求書PDFを解析しFreeeへ取引登録するスキル。月次支払処理を塚越さんとステップバイステップで伴走する。
 ---
 
+> ⚠️ **この SKILL は HMC 時代の参照用**。請求書処理の正本は
+> [`garden/plots/invoice_processor/SKILL.md`](../../../garden/plots/invoice_processor/SKILL.md)(S41 で Garden 化 = hybrid 移植 + スタッフ照合/稼働突合を新設)。
+> 業務知識の参照には使ってよいが、実行手順はここからは起動しないこと。(S39 正本表: `garden/OPERATIONS.md` §3.1)
+
 # Invoice Processor Skill
 
 Gmail から請求書を取得 → Google Driveに保存 → AI解析でCSV生成 → Freee登録、までを支援するスキル。

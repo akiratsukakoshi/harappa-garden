@@ -189,3 +189,15 @@
 - type: ingest
 - pages: —
 - summary: 対象範囲(2026-05-27〜2026-06-09)の全 RAW ファイル 4 件(2026-05-31, 2026-06-01, 2026-06-02, 2026-06-08)が処理済み(last_ingested_at 設定済み)。未処理 RAW なし。
+
+## [2026-06-10] edit | スタッフマスター修正 3 件(S41 invoice_processor 稼働突合で発覚)
+- by: claude (with ガクチョ, セッション41)
+- type: edit
+- pages: [[shiiro-kawamura]], [[aya-higashida]], [[misa-mine]], staff/README
+- summary: (1) 河村思依蕗の個人ページ新設(2026-04 加入、契約区分はガクチョ確認待ち、Freee 未登録)(2) 東田彩の個人ページ新設(業務委託・写真、屋号 A and Life、Freee 57561931)(3) 三根さんの正字は「美紗」とガクチョ確定 → Freee 取引先名(API)+ DB_Master_Nicknames を修正、soil の freee_name_variant を撤去。ほか嶋田英津子の 2026-05 稼働シート区分を 業務委託→給与 に修正(Nicknames マスターは既に給与)。29名 → 31名 active。
+
+## [2026-06-10] edit | 河村思依蕗の契約区分を外部スタッフに確定
+- by: claude (with ガクチョ, セッション41)
+- type: edit
+- pages: [[shiiro-kawamura]], staff/README
+- summary: ガクチョ確定「請求ナシの外部スタッフ」。soil contract=外部スタッフ、DB_Master_Nicknames PaymentType=追加、2026-05 稼働シートの区分 業務委託→追加 を修正(5月の「追加」払い CSV に正しく載るように)。外部スタッフ 11→12名。

@@ -247,6 +247,38 @@
 
 ---
 
+### Card 6: invoice_processor(月次請求書処理)
+
+| 項目 | 内容 |
+|---|---|
+| **自動度** | 半自動(cron 自動起動で board 起草まで、Freee 登録は承認必須) |
+| **トリガー** | 毎月 12 日 08:00(VPS cron、前月分)/ 手動「請求書まわして」(Discord master) |
+| **承認境界** | Freee 登録前(レビュー Sheet 確認 → 「承認」→ dry-run 提示 → 本登録) |
+| **通知先** | Discord master(候補起草 + Sheet URL + **請求漏れ疑いリスト** / 完了 / 失敗) |
+
+**月次フロー**:
+
+1. **12 日 08:00**: `monthly-invoice-draft` 種発火 → fetch(Gmail → Drive)→ extract(Gemini 解析 + **soil スタッフ照合**)→ check(**前月稼働と突合 → 請求漏れ検出**)→ レビュー Sheets タブ作成 → board 起草 → Discord 通知
+2. **ガクチョ**: Discord 通知の Sheet URL を開いて確認・編集(スタッフ請求が先頭 / リスト外 = 薄い青 / MISMATCH = 黄色。行削除 = 除外)。**請求漏れの人には催促**(自動催促はしない)
+3. **ガクチョ**: ガクコに「承認」→ ガクコが from-sheet → `register --dry-run` で件数・合計額を提示 → OK で本登録
+4. **service が自動後始末**: Gmail スレッド「処理済」ラベル + アーカイブ / Drive Inbox → Processed
+5. 遅れて届いた請求書: 「請求書まわして」でいつでも再実行(ラベル・Drive 移動でべき等。再集計はマージ安全)
+
+**失敗時に見るところ**:
+
+- VPS: `/home/vps-harappa/garden/log/{date}-invoice-draft.log`
+- Drive の Error フォルダ(登録失敗ファイルの隔離先)
+- `working/invoices_*.csv`(抽出結果。register 失敗行の確認)
+
+**関連ファイル**:
+
+- SKILL: [`garden/plots/invoice_processor/SKILL.md`](plots/invoice_processor/SKILL.md)
+- 種: [`garden/seeds/invoice_processor/monthly-invoice-draft.md`](seeds/invoice_processor/monthly-invoice-draft.md)
+- スクリプト: [`garden/services/invoice-processor/`](services/invoice-processor/)
+- スタッフ照合の正本: [`garden/soil/people/staff/`](soil/people/staff/)
+
+---
+
 ## 3. HMC → HMG 移行マトリクス
 
 業務単位で「HMC ではどう動いていたか / HMG ではどこまで移ったか / ガクチョの作業」を一覧化(2026-06-02 測量士提案 2 採用)。
@@ -262,7 +294,7 @@
 | **永続記憶** | (HMC 期は無し) | Stage A〜C すべて active(S30。RAW logging + ingest-raw + consolidate-wiki + bot 永続記憶ロード) | 🆕 ✅ 完了(Stage D はチーム公開時) | なし(自律) |
 | **経費登録** | `apps/expense_processor` | expense_processor plot + service + 種 2 本 active + cron(S35〜S38) | ✅ 完了(残: 件数多い月の本番 1 周見届け) | 月末に明細・レシートを Drive へ / Discord「経費まわして」or 承認 / Sheets レビュー |
 | **売上記帳(STORES/Square)** | `apps/finance_importer` | 未移植 | ⬜ | HMC で従来通り |
-| **請求書処理** | `apps/invoice_processor` | 未移植 | ⬜ | HMC で従来通り |
+| **請求書処理** | `apps/invoice_processor` | invoice_processor plot + service + 種 1 本(S41、hybrid: スタッフ照合 + 稼働突合を新設) | 🚧 draft(VPS デプロイ + ⭐token/Sheet + 初回実走待ち) | 12 日通知の Sheet 確認 → 「承認」/ 請求漏れの人へ催促 |
 | **メール整理** | `apps/email_organizer` | 未移植 | ⬜ | HMC で従来通り |
 | **議事録(Plaud等)** | `apps/minute_maker` | 未移植 | ⬜ | HMC で従来通り |
 | **SNS 投稿** | `apps/sns_pilot` | 未移植 | ⬜ | HMC で従来通り |
@@ -270,10 +302,11 @@
 | **財務分析(PL/CF)** | `apps/finance_analyzer` | 未移植 | ⬜ | HMC で従来通り |
 | **手紙仕分け** | `apps/letter_opener` | 未移植 | ⬜ | HMC で従来通り |
 
-**移行優先度の現在地**(S39 時点):
+**移行優先度の現在地**(S41 時点):
 
 - 完了: 永続記憶(S30)/ expense_processor(S37-S38)
-- 次の候補: **finance_importer / invoice_processor の Garden 化**(plot_gardener 移植型で。expense の型を流用)
+- 実装中: **invoice_processor**(S41 で plot + service + 種を起草。デプロイ + 初回実走待ち)
+- 次の候補: **finance_importer / freee_auditor の Garden 化**(plot_gardener 移植型で。expense/invoice の型を流用)
 - 後追い: SNS / 議事録 / メール / 監査 / 分析 / 手紙
 
 ### 3.1 SKILL 正本表(どちらを読むべきか)— S39 新設
@@ -286,7 +319,8 @@
 | シフト管理 | [garden/plots/shift_manager/SKILL.md](plots/shift_manager/SKILL.md) | `.agent/skills/shift_manager/` = 参照のみ(冒頭バナー有) |
 | 経費登録 | [garden/plots/expense_processor/SKILL.md](plots/expense_processor/SKILL.md) | `.agent/skills/expense_processor/` = 参照のみ(冒頭バナー有) |
 | 日次タスク管理 | [garden/plots/daily-pilot/SKILL.md](plots/daily-pilot/SKILL.md) | `.agent/skills/hmc_pilot/` = 参照のみ(冒頭バナー有) |
-| 上記以外の 8 業務 | `.agent/skills/{name}/SKILL.md`(HMC 運用継続中) | Garden 化時に plot_gardener を通す |
+| 請求書処理 | [garden/plots/invoice_processor/SKILL.md](plots/invoice_processor/SKILL.md) | `.agent/skills/invoice_processor/` = 参照のみ(冒頭バナー有、S41) |
+| 上記以外の 7 業務 | `.agent/skills/{name}/SKILL.md`(HMC 運用継続中) | Garden 化時に plot_gardener を通す |
 
 業務手順(workflow)の正本は従来通り [`garden/soil/workflows/`](soil/workflows/)(CLAUDE.md 参照)。本表は SKILL(実行手順書)レイヤーの正本を定める。
 

@@ -36,3 +36,5 @@
 */10 * * * * /home/vps-harappa/garden/services/watcher/run-watcher.sh >> /home/vps-harappa/garden/log/watcher.log 2>&1
 # 月初8日 08:00 — シフト回答集計 board 起草(締切7日 → 8日集計 → 10日確定、S40)
 0 8 8 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/monthly-shift-finalize >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+# Garden invoice_processor seed (S41: 2026-06-10 設定)
+0 8 12 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed invoice_processor/monthly-invoice-draft >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1

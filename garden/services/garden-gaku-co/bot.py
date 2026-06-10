@@ -64,6 +64,15 @@ EXPENSE_TOPICS = (
 SHIFT_WORKDIR = "/home/vps-harappa/garden/services/shift-manager"
 SHIFT_AGG_TOPICS = ("シフト集計", "シフト確定", "アンケート集計", "回答集計")
 
+# S41: invoice_processor 区画。expense と同じ「話題検知時のみ SKILL + 実行手段を追加ロード」方式。
+# 「領収書/freee」等は expense 側のトリガーに既にあるため、請求書系の明確な語だけにする。
+INVOICE_SKILL_PATH = os.environ.get(
+    "INVOICE_PROCESSOR_SKILL",
+    "/home/vps-harappa/garden/plots/invoice_processor/SKILL.md",
+)
+INVOICE_WORKDIR = "/home/vps-harappa/garden/services/invoice-processor"
+INVOICE_TOPICS = ("請求書", "インボイス", "invoice", "請求漏れ", "月次支払", "支払処理")
+
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -219,6 +228,7 @@ _persona_cache = _FileCache(PERSONA_PATH)
 _charter_cache = _FileCache(CHARTER_PATH)
 _skill_cache = _FileCache(SKILL_PATH)
 _expense_skill_cache = _FileCache(EXPENSE_SKILL_PATH)
+_invoice_skill_cache = _FileCache(INVOICE_SKILL_PATH)
 _memory_wiki_cache = _DirCache(
     MEMORY_WIKI_DIR, label_prefix="wiki/", index_first="index.md"
 )
@@ -242,6 +252,7 @@ try:
     _charter_cache.get()
     _skill_cache.get()
     _expense_skill_cache.get()
+    _invoice_skill_cache.get()
     _memory_wiki_cache.get()
     _memory_past_raw_cache.get(datetime.datetime.now(JST).date())
 except Exception:
@@ -325,6 +336,33 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "Sheet を出した後は from-sheet を正とする(二重編集を避ける)。\n"
             + "・本登録は不可逆。dry-run の確認を取らずに upload(--dry-run なし)を実行しないこと。\n\n"
         )
+    # S41: invoice_processor は話題検知時のみ SKILL + 実行手段を追加ロード(expense と同方式)
+    invoice_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in INVOICE_TOPICS):
+        _ipy = f"{INVOICE_WORKDIR}/.venv/bin/python"
+        _iproc = f"{INVOICE_WORKDIR}/processor.py"
+        invoice_block = (
+            "──── invoice_processor SKILL(請求書区画 — 話題検知でロード)────\n"
+            + _invoice_skill_cache.get()
+            + "\n──── invoice SKILL ここまで ────\n\n"
+            + "[請求書の実行手段 — あなたは Bash で以下だけ実行できます(settings.json で許可済・他は不可)]\n"
+            + "⚠️ 必ず **絶対パス + cd なし** で実行(権限はこの絶対パス形式にのみ付与。cd や相対パスだと拒否されます):\n"
+            + f"  {_ipy} {_iproc} fetch                             # Gmail → Drive Inbox(FETCHED_FILES を出力。ラベルでべき等)\n"
+            + f"  {_ipy} {_iproc} extract                           # Drive Inbox → working CSV(スタッフ照合つき。REVIEW_CSV を出力)\n"
+            + f"  {_ipy} {_iproc} check --month YYYY-MM             # 稼働突合(請求漏れ検出。CHECK_MISSING を出力)\n"
+            + f"  {_ipy} {_iproc} to-sheet <csv> --tab YYYYMM       # CSV → レビュー用 Sheets タブ(REVIEW_SHEET_URL を出力)\n"
+            + f"  {_ipy} {_iproc} from-sheet <tab>                  # 編集済みタブ → 新 CSV(REVIEWED_CSV を出力)\n"
+            + f"  {_ipy} {_iproc} register --file <csv> --dry-run   # 登録内容を確認(件数・合計)\n"
+            + f"  {_ipy} {_iproc} register --file <csv>             # Freee 本登録 + Gmail 処理済 + Drive 移動\n"
+            + "  (processor.py は内部パスが絶対なので cwd 不問。各コマンドの標準出力から次の入力パス/URL を拾う)\n\n"
+            + "・「請求書まわして」等(Mode 1)→ fetch → extract(0件なら「スキップ」通知で終了)→ "
+            + "check --month {前月} → to-sheet --tab {前月YYYYMM} → "
+            + "board/pending/{今日}-invoice-draft.md に候補一覧 + frontmatter(target_month / working_csv / review_sheet_url / review_tab)を起草 → "
+            + "Discord に **Sheet URL + 請求漏れリスト** つきで通知(漏れの人への催促はガクチョの領分、自動催促しない)。\n"
+            + "・承認(Mode 2)→ **from-sheet <review_tab>** で編集後 CSV を取得 → **register --dry-run** で "
+            + "件数・合計額を1行提示 → ガクチョ OK で本登録(--dry-run なし)→ board を processed/ へ移動。\n"
+            + "・本登録は不可逆。dry-run の確認を取らずに register(--dry-run なし)を実行しないこと。\n\n"
+        )
     # S40: shift_manager Mode 4 手動ルート(シフト回答集計)— 話題検知時のみ実行手段を追加ロード
     shift_agg_block = ""
     if any(t in f"{convo}\n{user_text}" for t in SHIFT_AGG_TOPICS):
@@ -364,6 +402,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + _skill_cache.get()
         + "\n──── SKILL ここまで ────\n\n"
         + expense_block
+        + invoice_block
         + shift_agg_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"
