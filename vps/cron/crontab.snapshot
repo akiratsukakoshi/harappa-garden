@@ -13,7 +13,7 @@
 # Garden shift_manager seeds (S21: 2026-05-30 設定)
 # 月末最終日 22:00 — 稼働表チェックリスト board 起草(28-31 + 種内 is_last_day 判定)
 0 22 28-31 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/month-end-working-hours-prep >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
-# 月初1日 08:00 — 翌々月シフトアンケート board 起草
+# 月初1日 08:00 — 翌月シフトアンケート board 起草
 0 8 1 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/monthly-shift-survey >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
 # 月初1日 09:00 — 前月稼働確認 board 起草
 0 8 1 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/monthly-working-hours-confirmation >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
@@ -34,3 +34,5 @@
 
 # Garden 番人(watcher): cron ログ監視 + ハートビート (S39: 2026-06-10 設定)
 */10 * * * * /home/vps-harappa/garden/services/watcher/run-watcher.sh >> /home/vps-harappa/garden/log/watcher.log 2>&1
+# 月初8日 08:00 — シフト回答集計 board 起草(締切7日 → 8日集計 → 10日確定、S40)
+0 8 8 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/monthly-shift-finalize >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1

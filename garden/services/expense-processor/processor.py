@@ -21,7 +21,8 @@ import csv
 import datetime
 import json
 import logging
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -75,13 +76,12 @@ class ExpenseClassifier:
         self.api_key = os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             logger.warning("GEMINI_API_KEY not found. AI classification will be disabled.")
-            self.model = None
+            self.client = None
         else:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel(GEMINI_MODEL)
+            self.client = genai.Client(api_key=self.api_key)
 
     def classify(self, details: str, amount: int) -> str:
-        if not self.model:
+        if not self.client:
             return "消耗品費" # Default fallback
 
         prompt = f"""
@@ -100,7 +100,7 @@ class ExpenseClassifier:
 
         for attempt in range(max_retries):
             try:
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
                 classified = response.text.strip()
                 if classified in CATEGORIES:
                     return classified
@@ -131,7 +131,7 @@ class ExpenseClassifier:
         """
         if not items:
             return []
-        if not self.model:
+        if not self.client:
             return ["消耗品費"] * len(items)
         results: list = []
         for start in range(0, len(items), CLASSIFY_BATCH_SIZE):
@@ -163,7 +163,7 @@ class ExpenseClassifier:
 
         for attempt in range(max_retries):
             try:
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
                 text = response.text.strip()
                 if text.startswith("```json"):
                     text = text[7:]
@@ -325,13 +325,12 @@ class ImageParser:
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
         if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel(GEMINI_MODEL)
+            self.client = genai.Client(api_key=self.api_key)
         else:
-            self.model = None
+            self.client = None
 
     def parse(self, file_path: str) -> list:
-        if not self.model:
+        if not self.client:
             logger.warning("GEMINI_API_KEY missing. Cannot parse images.")
             return []
 
@@ -369,9 +368,10 @@ class ImageParser:
 
             for attempt in range(max_retries):
                 try:
-                    response = self.model.generate_content(
-                        [
-                            {"mime_type": mime_type, "data": image_data},
+                    response = self.client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=[
+                            genai_types.Part.from_bytes(data=image_data, mime_type=mime_type),
                             prompt
                         ]
                     )

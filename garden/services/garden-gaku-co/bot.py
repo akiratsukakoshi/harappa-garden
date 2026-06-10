@@ -59,6 +59,11 @@ EXPENSE_TOPICS = (
     "費目", "勘定科目", "freee", "Freee", "PayPay", "イオン", "コスモ",
 )
 
+# S40: shift_manager Mode 4 手動ルート(シフト回答集計)のトリガー語。
+# 「シフト集計まわして」で aggregate_responses.py を直接実行できるようにする(遅れ回答の再集計用)。
+SHIFT_WORKDIR = "/home/vps-harappa/garden/services/shift-manager"
+SHIFT_AGG_TOPICS = ("シフト集計", "シフト確定", "アンケート集計", "回答集計")
+
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -320,6 +325,24 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "Sheet を出した後は from-sheet を正とする(二重編集を避ける)。\n"
             + "・本登録は不可逆。dry-run の確認を取らずに upload(--dry-run なし)を実行しないこと。\n\n"
         )
+    # S40: shift_manager Mode 4 手動ルート(シフト回答集計)— 話題検知時のみ実行手段を追加ロード
+    shift_agg_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in SHIFT_AGG_TOPICS):
+        _spy = f"{SHIFT_WORKDIR}/.venv/bin/python"
+        _sagg = f"{SHIFT_WORKDIR}/aggregate_responses.py"
+        shift_agg_block = (
+            "[シフト回答集計 — shift_manager Mode 4 の手動ルート(S40)]\n"
+            + "あなたは Bash で以下だけ実行できます(settings.json で許可済・他は不可)。\n"
+            + "⚠️ 必ず **絶対パス + cd なし** で実行(権限はこの絶対パス形式にのみ付与):\n"
+            + f"  {_spy} {_sagg} --month YYYY-MM                          # Forms 回答 → シフト調整シート Shift_Work_YYYY-MM タブ\n"
+            + f"  {_spy} {_sagg} --month YYYY-MM --output_suffix _test    # _test タブに書く(正規タブを汚さず確認)\n"
+            + "・「シフト集計まわして」→ 対象月は明示があればそれ、無ければ翌月。実行前に「◯月分を集計します」と一言宣言してから実行。\n"
+            + "・既存タブには手動行・既存データを保持してマージ(再実行安全)。遅れ回答が来た後の再集計も同コマンドでよい。\n"
+            + "・完了したら標準出力から件数・人数を拾い、タブ名 Shift_Work_{対象月} とあわせて1行報告。\n"
+            + "・pending に monthly-shift-finalize の board がある場合は board 承認ルート(SKILL Mode 5)を優先"
+            + "(status: approved 化で send_pending が実行する)。board が無い時だけ直接実行。\n"
+            + "・詳細は /home/vps-harappa/garden/plots/shift_manager/SKILL.md の Mode 4 を Read。\n\n"
+        )
 
     # S30: 永続記憶 = wiki + 過去 RAW(mtime 動的キャッシュ)+ 当日 RAW(毎 turn 再読み込み)
     memory_wiki = _memory_wiki_cache.get()
@@ -341,6 +364,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + _skill_cache.get()
         + "\n──── SKILL ここまで ────\n\n"
         + expense_block
+        + shift_agg_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"
         + f"[操作対象ファイル(SKILL の編集権限表に従って使う)]\n"

@@ -5,7 +5,8 @@
   "type": "module",
   "main": "launcher.mjs",
   "scripts": {
-    "start": "node launcher.mjs"
+    "start": "node launcher.mjs",
+    "test": "node --test test/launcher.test.mjs"
   },
   "engines": {
     "node": ">=20"

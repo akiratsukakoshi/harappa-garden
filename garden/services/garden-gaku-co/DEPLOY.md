@@ -115,5 +115,7 @@ Xserver VPS の DNS パネル → `harappa.monster` に追加:
 - NPM admin パスワードリセット(bcrypt、生成→60字 assertion→DB 反映、要 DB バックアップ): ADR [2026-05-25 決定8](../../../docs/decisions/2026-05-25-couchdb-livesync-implementation.md)。
 
 ## 廃止
-- `run-line-server.sh` + `venv-line`(ホストプロセス方式)は S34 のコンテナ化で不要。
+- `run-line-server.sh` + `venv-line`(ホストプロセス方式)は S34 のコンテナ化で不要 →
+  **S40 で物理削除済み**(repo の `run-line-server.sh` を git rm、VPS の両方を rm。
+  コンテナ `garden-gaku-core` 稼働中を確認の上)。rsync の `--exclude 'venv-line'` は残してあるが実体は無い。
 - `docker-compose.line.yml` は compose v1 バグで使えず参考用(起動は `run-line-container.sh`)。

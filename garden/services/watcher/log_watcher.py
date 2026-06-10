@@ -22,6 +22,11 @@ S39 新設(2026-06-10)。Garden 語彙の「番人」の最小実装。
 
 実行:
   cron */10 * * * * /home/vps-harappa/garden/services/watcher/run-watcher.sh
+
+サブコマンド:
+  log_watcher.py summary — 朝ブリーフィング用サマリを stdout に出す(S40)。
+    watcher.log から「番人自身の生存」(相互監視)と「過去24時間のアラート」を要約。
+    Discord 通知はせず、常に exit 0(morning-briefing の computed_inputs から呼ばれる)。
 """
 
 import json
@@ -174,6 +179,60 @@ def check_heartbeats(state: dict) -> list:
     return alerts
 
 
+def summary() -> int:
+    """朝ブリーフィング用サマリ(S40)。watcher.log を読むだけ。常に exit 0。
+
+    番人 cron は */10 で毎回 log() を watcher.log に書くため、mtime の鮮度が
+    そのまま番人自身の生存確認になる(番人は自分の死を通知できない → 朝に拾う)。
+    """
+    lines = []
+    watcher_log = LOG_DIR / "watcher.log"
+    now = now_jst()
+
+    if not watcher_log.exists():
+        lines.append("- ⚠️ 番人ログが見つかりません(watcher 未稼働の可能性)")
+        print("\n".join(lines))
+        return 0
+
+    age_min = int((now.timestamp() - watcher_log.stat().st_mtime) / 60)
+    if age_min > 30:
+        lines.append(
+            f"- ⚠️ 番人が {age_min} 分動いていません(cron */10 のはず)。"
+            f"crontab / 実行ビットの確認を(S36 型)"
+        )
+    else:
+        lines.append(f"- 番人稼働中(最終実行 {age_min} 分前)")
+
+    alerts = []
+    cutoff = now - timedelta(hours=24)
+    try:
+        text = watcher_log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = ""
+    for ln in text.splitlines():
+        m = re.match(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (ALERT: .+)$", ln)
+        if not m:
+            continue
+        try:
+            ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=JST)
+        except ValueError:
+            continue
+        if ts >= cutoff:
+            alerts.append((ts, m.group(2)))
+
+    if alerts:
+        lines.append(f"- 🚨 過去24時間のアラート: {len(alerts)} 件(各詳細は Discord master に通知済み)")
+        for ts, msg in alerts[-5:]:
+            lines.append(f"  - [{ts.strftime('%m/%d %H:%M')}] {msg[:140]}")
+        if len(alerts) > 5:
+            lines.append(f"  - …ほか {len(alerts) - 5} 件")
+    else:
+        lines.append("- 過去24時間のアラート: 0 件")
+
+    print("\n".join(lines))
+    return 0
+
+
 def main() -> int:
     if not LOG_DIR.is_dir():
         log(f"FAIL: LOG_DIR が無い: {LOG_DIR}")
@@ -205,4 +264,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "summary":
+        sys.exit(summary())
     sys.exit(main())

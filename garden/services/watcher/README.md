@@ -23,8 +23,9 @@ VPS の cron `*/10 * * * *` で起動し、2 つの監視を行って異常を *
 
 - **初見のログファイルは遡らない**(導入時・新サービス追加時の過去ログ洪水を防ぐ。基準点だけ記録)
 - **ハートビート警報は 6 時間に 1 回に抑制**(夜中に同じ警報を 36 回受け取らない)
-- **番人自身の死は検知できない**(watcher の cron 行が消えたら沈黙する)。
-  → 対策は「朝ブリーフィングに watcher.log の最終実行時刻を載せる」が将来候補(苗床)
+- **番人自身の死はリアルタイムには検知できない**(watcher の cron 行が消えたら沈黙する)。
+  → S40 で相互監視を実装: `log_watcher.py summary` が watcher.log の鮮度(30 分超で ⚠️)を判定し、
+  morning-briefing(06:30)が computed_inputs で取得して朝に拾う
 - エラーパターンの誤検知(ログ本文に "error" を含む正常行)はあり得る。ノイズが出たら
   `NEGATE_RE` に除外パターンを足す
 
@@ -51,6 +52,6 @@ ssh harappa 'ls -la /home/vps-harappa/garden/log/.heartbeat-*'
 
 | 案 | 状態 |
 |---|---|
-| 朝ブリーフィングに「昨夜の番人サマリ(エラー n 件)」を統合 | 未検討 |
+| 朝ブリーフィングに「昨夜の番人サマリ(エラー n 件)」を統合 | **S40 実装済**(`log_watcher.py summary` + morning-briefing `watcher_block`。異常なし時は NOTIFY 一行、異常時は Triage に転記) |
 | launcher の on_failure 経路と連携(board/failed/ 隔離の自動通知) | 未検討 |
-| 番人自身の死活を朝ブリーフィング側から監視(相互監視) | 未検討 |
+| 番人自身の死活を朝ブリーフィング側から監視(相互監視) | **S40 実装済**(summary が watcher.log 鮮度 30 分超を ⚠️ 判定) |

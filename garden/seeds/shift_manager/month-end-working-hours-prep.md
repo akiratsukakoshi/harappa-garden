@@ -33,7 +33,7 @@ execute:
   working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
     target_month: "$(date +%Y-%m)"          # 当月
-    target_month_jp: "$(date +%-m)月"
+    target_month_jp: "$(date +%-m月)"               # 月は $() 内で付与(launcher は値全体が $(...) の時のみ展開。S40 修正)
     today: "$(date +%Y-%m-%d)"
     tomorrow: "$(date -d 'tomorrow' +%Y-%m-%d)"
     is_last_day: "$(if [ \"$(date -d 'tomorrow' +%d)\" = \"01\" ]; then echo true; else echo false; fi)"

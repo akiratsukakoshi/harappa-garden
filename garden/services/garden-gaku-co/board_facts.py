@@ -81,14 +81,14 @@ def facts_for_month_end_prep(fm: dict) -> list[tuple[str, str]]:
     facts.append(_kodomon_csv_status(target_month))
     if target_month:
         facts.append(_monthly_ui_sheet_link(target_month, "📊 月次 UI Sheet(当月)"))
-        # Mode 2 の翌々月 Q列確認用リンクも併記
+        # 翌日 Mode 2(シフト募集)の対象月 = 月末の当月 +2(Mode 2 発火日から見て翌月)の Q列確認リンクも併記
         try:
             y, m = map(int, target_month.split("-"))
             m2 = m + 2
             y2 = y + (m2 - 1) // 12
             m2 = ((m2 - 1) % 12) + 1
             next_tab = f"{y2:04d}-{m2:02d}"
-            facts.append(_monthly_ui_sheet_link(next_tab, "📊 月次 UI Sheet(翌々月 Q列確認)"))
+            facts.append(_monthly_ui_sheet_link(next_tab, "📊 月次 UI Sheet(翌日シフト募集の対象月 Q列確認)"))
         except Exception:
             pass
     return facts

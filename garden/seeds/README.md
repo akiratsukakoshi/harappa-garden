@@ -231,7 +231,7 @@ workflows/ と同じ表形式。❓未検証 / 💡着手可能 / ✋検討済 /
 
 | 種 ID | trigger | HMC依存 | 該当Phase | 状態 | 一行 |
 |---|---|---|---|---|---|
-| [shift_manager/monthly-shift-survey](shift_manager/monthly-shift-survey.md) | cron 月初1日 | あり | **3c** | draft | 翌々月シフトアンケートを下書き → 剪定 → staff LINE 配信 |
+| [shift_manager/monthly-shift-survey](shift_manager/monthly-shift-survey.md) | cron 月初1日 | あり | **3c** | draft | 翌月シフトアンケートを下書き → 剪定 → staff LINE 配信 |
 | [daily-pilot/recurring-spawn](daily-pilot/recurring-spawn.md) | cron 毎日 06:25 | なし | **3a** | **active** (S15) | recurring_master を見て、当該期間のインスタンスを backlog に追加 |
 | [daily-pilot/morning-briefing](daily-pilot/morning-briefing.md) | cron 毎日 06:30 | なし | **3a** | **active** (S15) | backlog から今日締切を active 抽出 + calendar + Triage + LINE |
 | [daily-pilot/night-review](daily-pilot/night-review.md) | cron 毎日 22:30 | なし | **3a** | **active** (S15) | active の `[x]/[ ]/追加` を backlog/archive 反映 + LINE 報告 |

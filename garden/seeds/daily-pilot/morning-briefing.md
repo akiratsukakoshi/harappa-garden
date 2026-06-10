@@ -7,10 +7,10 @@ status: active
 phase: 3a
 execution_host: vps
 hmc_dependency: none
-version: 1
+version: 2                # S40: watcher_block(番人サマリ)追加
 created: 2026-05-25
 created_by: claude (with 塚越さん, セッション8)
-last_updated: 2026-06-02
+last_updated: 2026-06-10
 activated: 2026-05-28   # セッション15: cron 06:30 自動発火 → backlog→active 抽出 + Triage 生成を実証して active 化(calendar MCP 認証は後追い)
 linked_workflows:
   - "[[daily-cycle]]"   # ステップ2
@@ -42,6 +42,8 @@ execute:
     # 承認待ち board の一覧(S24 追加): pending/ 直下の board を frontmatter 抜粋で列挙
     # blocked: true は「保留中」として末尾に分けて出す。0 件なら空文字。
     board_pending_block: "$(for f in /home/vps-harappa/garden/board/pending/*.md; do [ -e \"$f\" ] || continue; name=$(basename \"$f\"); [ \"$name\" = \"placeholder.md\" ] && continue; seed=$(grep '^from_seed:' \"$f\" | head -1 | sed 's/from_seed: *//'); status=$(grep '^status:' \"$f\" | head -1 | sed 's/status: *//'); blocked=$(grep '^blocked:' \"$f\" | head -1 | sed 's/blocked: *//'); sched=$(grep '^scheduled_send:' \"$f\" | head -1 | sed 's/scheduled_send: *//'); created=$(grep '^created:' \"$f\" | head -1 | sed 's/created: *//'); echo \"- [$name] seed=$seed | status=$status | blocked=${blocked:-false} | scheduled=${sched:-none} | created=$created\"; done)"
+    # 番人サマリ(S40 追加): 昨夜の監視結果 + 番人自身の生存(相互監視)。常に exit 0。
+    watcher_block: "$(python3 /home/vps-harappa/garden/services/watcher/log_watcher.py summary 2>/dev/null)"
   prompt: |
     あなたは daily-pilot 区画の種「morning-briefing」です。
 
@@ -68,6 +70,18 @@ execute:
         {board_pending_block}
         ----
         (空 = 承認待ちなし。`blocked=true` は前段未完了のため庭師判断不能)
+      - 番人サマリ(launcher が `log_watcher.py summary` で事前取得):
+        ----
+        {watcher_block}
+        ----
+
+    番人サマリの取り扱い(S40 追加):
+      - 「アラート 0 件」かつ「番人稼働中」 → Triage には載せず、`==NOTIFY==` の末尾に
+        「🛡 番人: 異常なし」を一行添えるだけ(静かな朝を崩さない)
+      - アラートあり or ⚠️(番人の沈黙・ログ不在)あり → Triage board の末尾に
+        「## 🛡 番人(昨夜の監視)」セクションとしてサマリを転記し、
+        `==NOTIFY==` にも「🚨 番人アラート N 件」を含める
+      - 空文字(取得失敗)→ 「⚠️ 番人サマリ取得失敗」として同様に Triage に載せる
 
     操作対象ファイル(SKILL の「ファイルと役割」表を参照):
       - /home/vps-harappa/garden-mirror/hmc_tasks/backlog.md(読み取り。マスタ。本種では更新しない)

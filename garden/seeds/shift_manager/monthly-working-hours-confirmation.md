@@ -33,7 +33,7 @@ execute:
   working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
     target_month: "$(date -d '-1 month' +%Y-%m)"   # 前月
-    target_month_jp: "$(date -d '-1 month' +%-m)月"
+    target_month_jp: "$(date -d '-1 month' +%-m月)"   # 月は $() 内で付与(launcher は値全体が $(...) の時のみ展開。S40 修正)
     today: "$(date +%Y-%m-%d)"
     deadline: "$(date -d '10 days' +%Y-%m-%d)"     # 月初1日 + 10日 = 11日が当月10日締切に該当
   prompt: |

@@ -100,6 +100,18 @@ node launcher.mjs --seed daily-pilot/morning-briefing --dry-run
 
 → frontmatter パース + 変数評価 + prompt 構築までを実行。`claude -p` は呼ばずログに `[dry-run]` を記録。
 
+### unit test(S40 新設)
+
+```
+npm test
+```
+
+→ [test/launcher.test.mjs](test/launcher.test.mjs)。launcher.mjs 本体は無改修のまま、
+サブプロセス起動 + env 差し替え(`GARDEN_SEEDS_ROOT` 等を tmpdir に向ける)+ `--dry-run` で
+YAML パース / computed_inputs / {var} 置換 / lock / state / 終了コードを検証する 12 ケース。
+最後のケースは **repo の実運用種 3 本を dry-run** して frontmatter の退行を検査する。
+VPS には `test/` を rsync しない(launcher.mjs 単体で動く構造は不変)。
+
 ## 終了コード
 
 | code | 意味 |

@@ -7,10 +7,10 @@ status: draft                     # 6/1 cron 仕込み + post_approval 経路 + 
 phase: 3a                         # Garden 完結化(セッション21 で HMC 依存を撤廃)
 execution_host: vps
 hmc_dependency: none              # Garden services/shift-manager/ に移植済み(セッション21)
-version: 2                        # v1: HMC 直叩き / v2: Garden 完結
+version: 3                        # v1: HMC 直叩き / v2: Garden 完結 / v3: 回答期限を配信月7日に固定(S40)
 created: 2026-05-25
 created_by: claude (with ガクチョ, セッション7)
-last_updated: 2026-05-30
+last_updated: 2026-06-10
 linked_workflows:
   - "[[monthly-cycle]]"           # ステップ 2(a) 翌月シフトアンケート送信
 linked_skills:
@@ -31,9 +31,10 @@ execute:
   working_dir: /home/vps-harappa/garden-mirror
   computed_inputs:
     target_month: "$(date -d '+1 months' +%Y-%m)"
-    target_month_jp: "$(date -d '+1 months' +%-m)月"
+    target_month_jp: "$(date -d '+1 months' +%-m月)"   # 月は $() 内で付与(launcher は値全体が $(...) の時のみ展開。S40 修正)
     target_year: "$(date -d '+1 months' +%Y)"
     today: "$(date +%Y-%m-%d)"
+    deadline_jp: "$(date +%-m/7)"   # 回答期限 = 配信月の7日(7日締切 → 8日集計 → 10日確定。S40)
   prompt: |
     あなたは shift_manager 区画の種「monthly-shift-survey」です。
 
@@ -50,6 +51,11 @@ execute:
       - today: {today}
       - target_month: {target_month}(翌月、generate_shift_form.py に渡す)
       - target_month_jp: {target_month_jp}
+      - deadline_jp: {deadline_jp}(回答期限 = 配信月の7日。曜日は today から判定して付記)
+
+    🔴 配信本文の回答期限は必ず **{deadline_jp}(配信月の7日)** とする(S40 確定)。
+      理由: 7日締切 → 8日に種 monthly-shift-finalize が集計 → 10日にシフト確定、の月内サイクル。
+      10日などそれ以降の日付を期限にしない。
 
     操作対象ファイル / コマンド:
       - 月次シート Q列チェック確認: Monthly UI Sheet({target_month} タブ・Q列)
@@ -225,7 +231,7 @@ created: 2026-06-01T08:00:00+09:00
 
 ​```
 📅 2026年7月のシフト募集のお知らせ
-回答期限: 6/10(水) まで
+回答期限: 6/7(日) まで
 フォーム: https://docs.google.com/forms/.../viewform
 不明点は LINE で塚越まで
 ​```
