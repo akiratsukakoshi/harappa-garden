@@ -86,6 +86,48 @@ def _resolve_source(source: dict) -> tuple[str | None, bool]:
     return None, False  # 個人・未知グループ・room は無視(エアギャップ)
 
 
+# ── LINE userId 収集(S42 field_assistant メンション用)──────────────
+# メンションは userId 必須 + 一括取得 API は認証済アカウント限定のため、
+# 発話イベントから userId → 表示名を収集して field-assistant に渡す。
+# 収集先は config/line_collected.json(userId → displayName)。
+# 紐づけは field-assistant の `processor.py sync-line-users`(soil line_display_name と照合)。
+COLLECT_PATH = os.environ.get(
+    "FIELD_LINE_COLLECT_PATH",
+    "/home/vps-harappa/garden/services/field-assistant/config/line_collected.json",
+)
+
+
+def _collect_line_user(source: dict, user_id: str) -> None:
+    """発話者の userId + 表示名を記録(既知 userId はスキップ。失敗は無視)。"""
+    if not user_id or user_id == "unknown":
+        return
+    try:
+        try:
+            with open(COLLECT_PATH, encoding="utf-8") as f:
+                collected = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            collected = {}
+        if user_id in collected:
+            return
+        import httpx
+
+        token = os.environ.get("LINE_CORE_TEAM_ACCESS_TOKEN", "")
+        if source.get("type") == "group":
+            url = f"https://api.line.me/v2/bot/group/{source.get('groupId')}/member/{user_id}"
+        else:
+            url = f"https://api.line.me/v2/bot/profile/{user_id}"
+        resp = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        if resp.status_code != 200:
+            logger.warning("collect profile failed: %s %s", resp.status_code, resp.text)
+            return
+        collected[user_id] = resp.json().get("displayName", "")
+        with open(COLLECT_PATH, "w", encoding="utf-8") as f:
+            json.dump(collected, f, ensure_ascii=False, indent=1)
+        logger.info("[collect] new LINE user: %s", collected[user_id])
+    except Exception as e:  # noqa: BLE001 — 収集は本流を絶対に止めない
+        logger.warning("collect_line_user failed: %s", e)
+
+
 def _handle_text_sync(group_id: str, sender_id: str, text: str, direct: bool = False) -> str | None:
     """同期パイプライン(gate → respond)。executor で呼ぶ。
 
@@ -96,11 +138,11 @@ def _handle_text_sync(group_id: str, sender_id: str, text: str, direct: bool = F
     history = context.history_text(group_id)
 
     if direct:
-        # 1:1 テストは純粋な会話を見たいので placeholder の echo は渡さない。
-        # (echo は noop の配線確認用。渡すとモデルが無駄に呼んで最終テキストが空になり
-        #  reply が飛ばないことがある。tool-use は smoke で検証済、実ツール実装後に再開。)
-        offer_tools = False
-        logger.info("[gate] bypassed (direct 1:1 test, tools off)")
+        # 1:1(ガクチョの恒久テスト環境、S42)は gate 素通り + tool あり。
+        # S34 当時は echo しか無く「モデルが無駄に呼んで応答が空になる」ため切っていたが、
+        # 実 tool(get_event_roster / get_weather)が入ったので解放。
+        offer_tools = True
+        logger.info("[gate] bypassed (direct 1:1 test, tools on)")
     else:
         g = gate.should_respond(
             provider, latest_message=text, history_text=history, bot_name=context.BOT_NAME
@@ -155,6 +197,8 @@ async def webhook(request: Request) -> Response:
         sender_id = event.get("source", {}).get("userId", "unknown")
         text = msg.get("text", "")
         reply_token = event.get("replyToken")
+        # S42: メンション用 userId 収集(初見の発話者のみ。本流に影響しない)
+        await asyncio.to_thread(_collect_line_user, event.get("source", {}), sender_id)
 
         reply = await asyncio.to_thread(_handle_text_sync, group_id, sender_id, text, direct)
         if reply and reply_token:

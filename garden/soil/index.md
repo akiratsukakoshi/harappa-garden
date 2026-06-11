@@ -3,13 +3,13 @@
 > 土壌の全エントリの意味的サマリ。菌糸(Mode 3)が ingest と編集のたびに更新する。
 > 全件列挙はせず「カテゴリ・件数・主要リンク」に絞る(Karpathy LLM Wiki 哲学)。細部は各カテゴリ README または `[[link]]` 経由で都度 Read。
 
-最終更新: 2026-05-31(セッション23 菌糸 Stage 1 初回 full scan)
+最終更新: 2026-06-11(菌糸 Mode 3 index-refresh / +東田彩・河村思依蕗 追加・三根美紗表記確定)
 
 ## カテゴリ一覧
 
 | カテゴリ | 状態 | 概要 |
 |---|---|---|
-| [people/staff/](people/staff/) | 🌳 **29名 active** | 経営1 / 業務委託13 / 外部スタッフ11 / アルバイト4。詳細は staff README |
+| [people/staff/](people/staff/) | 🌳 **31名 active** | 経営1 / 業務委託14 / 外部スタッフ12 / アルバイト4。詳細は staff README |
 | [people/clients/](people/clients/) | ⬜ 未着手 | クライアント企業の担当者(個人) |
 | [people/partners/](people/partners/) | ⬜ 未着手 | パートナー窓口 |
 | [business/](business/) | 🌱 **21ファイル骨格** | toC 学部別含む18 + toB 5 + communication 1。中身は埋め待ち多数 |
@@ -22,7 +22,7 @@
 
 ---
 
-## people/staff/ — スタッフ(29名 active)
+## people/staff/ — スタッフ(31名 active)
 
 詳細一覧と全 29 名の表は [people/staff/README.md](people/staff/README.md) を参照。本 index は意味的集計のみ:
 
@@ -31,8 +31,8 @@
 | contract | 人数 | 代表的なメンバー |
 |---|---:|---|
 | 経営 | 1 | [[akira-tsukakoshi]](ガクチョ) |
-| 業務委託 | 13 | 運営4([[yuji-wada]] / [[shotaro-shimura]] / [[kei-suzuki]] / [[junki-iida]] 仮) + 写真・フィールド系 9 |
-| 外部スタッフ | 11 | フィールドスタッフ全員(主に逗子・未指定地域) |
+| 業務委託 | 14 | 運営4([[yuji-wada]] / [[shotaro-shimura]] / [[kei-suzuki]] / [[junki-iida]] 仮) + 写真・フィールド系 10([[aya-higashida]] 追加) |
+| 外部スタッフ | 12 | フィールドスタッフ全員(主に逗子・未指定地域。[[shiiro-kawamura]] 追加) |
 | アルバイト | 4 | フィールドスタッフ全員(逗子) |
 
 ### role 集計(役割 × 複数可)
@@ -40,8 +40,8 @@
 | role | 人数 | 内訳 |
 |---|---:|---|
 | 運営 | 4 | [[akira-tsukakoshi]] / [[yuji-wada]] / [[shotaro-shimura]] / [[kei-suzuki]] |
-| フィールドスタッフ | 21 | アルバイト4 + 外部スタッフ11 + 業務委託6(城家・中辻・前田・守田・大吉美穂・飯田) |
-| 写真 | 5 | [[keiko-uchiyama]] / [[miho-oyoshi]] / [[kasumi-tachibana]] / [[misa-mine]] / [[kosaku-yoshida]](大吉美穂は写真+フィールド兼任) |
+| フィールドスタッフ | 22 | アルバイト4 + 外部スタッフ12(河村追加) + 業務委託6(城家・中辻・前田・守田・大吉美穂・飯田) |
+| 写真 | 6 | [[keiko-uchiyama]] / [[miho-oyoshi]] / [[kasumi-tachibana]] / [[misa-mine]] / [[kosaku-yoshida]] / [[aya-higashida]](大吉美穂は写真+フィールド兼任) |
 | 調理 | 0 | 未割り当て |
 
 ### area 集計(拠点)
@@ -52,13 +52,13 @@
 | 逗子 | 16 | 主力拠点 |
 | 千葉 | 4 | フィールド+写真 |
 | 大阪 | 2 | [[naoko-shiroie]] / [[mie-morite]] |
-| 未指定 | 6 | 主に外部スタッフ |
+| 未指定 | 8 | 主に外部スタッフ(河村思依蕗・東田彩 追加) |
 
 ### 集計外メモ
 
 - alumni 候補 48名 → `[_review-2026-05-22-master-data-candidates.md](people/staff/_review-2026-05-22-master-data-candidates.md)` で保留(ガクチョ判定「無視で OK」)
 - 退任 7名 → `[_alumni.md](people/staff/_alumni.md)` に集約
-- 同期上の注意: [[kei-suzuki]] / [[yuji-wada]] は freee_id 統合あり、[[misa-mine]] は Freee 漢字違い(三根美沙)
+- 同期上の注意: [[kei-suzuki]] / [[yuji-wada]] は freee_id 統合あり、[[misa-mine]] は Freee 漢字ゆれを 2026-06-10 に解消(誤: 美沙 → 正: 美紗)
 
 ---
 
@@ -97,7 +97,7 @@
 | ファイル | cycle | scope |
 |---|---|---|
 | [[annual-quarterly-planning]] | 年次 + 3ヶ月単位 | toC 原っぱ大学 おやこ/こども/おとな |
-| [[monthly-cycle]] | 月次 | toC 原っぱ大学(月末/月初1日/月初10日/適宜)+ kodomon 連携 |
+| [[monthly-cycle]] | 月次 | toC 原っぱ大学(月末→1日→**7日締切→8日集計**→10日確定/適宜)+ kodomon 連携(S40 日程確定) |
 | [[daily-cycle]] | 日次 | 個人(ガクチョ)の業務管理(daily-pilot 区画の業務正本) |
 | [[program-execution]] | プログラム開催毎 | toC 原っぱ大学 + Notion フィールドレポート連携 |
 

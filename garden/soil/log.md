@@ -201,3 +201,22 @@
 - type: edit
 - pages: [[shiiro-kawamura]], staff/README
 - summary: ガクチョ確定「請求ナシの外部スタッフ」。soil contract=外部スタッフ、DB_Master_Nicknames PaymentType=追加、2026-05 稼働シートの区分 業務委託→追加 を修正(5月の「追加」払い CSV に正しく載るように)。外部スタッフ 11→12名。
+
+## [2026-06-11] index-refresh | 検知 6 件
+- by: mycelium (Stage 1)
+- type: index
+- pages: index.md
+- summary: 東田彩(業務委託・写真)新設 + 河村思依蕗(外部スタッフ)確定 + 三根美紗表記確定(S41) / monthly-cycle 日程確定(S40: 締切7日・集計8日)を index.md に反映。staff 29名→31名・写真5→6・フィールド21→22・外部スタッフ11→12・業務委託13→14・未指定area 6→8。
+- detected: staff 3(aya-higashida 新設 / shiiro-kawamura 確定 / misa-mine 表記修正), staff/README 1, workflows 2(monthly-cycle S40確定 / README mtime変化)
+
+## [2026-06-11] ingest-raw | 7月シフトアンケート集計完了
+- by: mycelium (Stage A.5)
+- type: ingest
+- pages: memory/master/raw/2026-06-10.md
+- summary: 7月シフトアンケート集計完了(2026-06-10)。有効回答数 14 名(6/8 時点は 11 名 → 3 名が追加回答)、NG マトリクスを Shift_Work_2026-07 シートに書き出し済み。
+
+## [2026-06-11] edit | 運営5名に line_display_name 欄を追加(S42)
+- by: claude (with ガクチョ, セッション42)
+- type: edit
+- pages: people/staff/{akira-tsukakoshi,yuji-wada,shotaro-shimura,kei-suzuki,junki-iida}.md
+- summary: field_assistant のメンション紐づけ用に `line_display_name:`(LINE アカウント名)を frontmatter に追加(値は未記入)。LINE 仕様 = メンションは userId 必須・group/room 宛のみ。グループ投入後に webhook が userId+表示名を収集 → `processor.py sync-line-users` が本欄と照合して line_users.json(全 nicknames → userId)を自動更新する設計。

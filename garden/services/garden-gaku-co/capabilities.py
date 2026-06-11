@@ -16,10 +16,11 @@ ADR 2026-05-31 memory-three-layer §4(情報境界)/ gaku-co5.0 app/config/chann
 from __future__ import annotations
 
 # scope -> 使える tool 名の集合。
-# まだ tool は echo のみ。core_team / staff 機能は後続(LINE 着手時)で足す。
+# S42: core_team 初の実 tool = get_event_roster(field_assistant、read-only)。
+# line_staff には出さない(保護者・子どもの個人情報を扱うため staff_ops 階層ではない)。
 CAPABILITIES: dict[str, frozenset[str]] = {
-    "master":         frozenset({"echo"}),   # 将来: private 系も含む(全許可)
-    "line_core_team": frozenset({"echo"}),   # 将来: basic + staff_ops + hmc_team
+    "master":         frozenset({"echo", "get_event_roster", "get_weather"}),
+    "line_core_team": frozenset({"echo", "get_event_roster", "get_weather"}),
     "line_staff":     frozenset({"echo"}),   # 将来: basic + staff_ops のみ(厳密)
 }
 

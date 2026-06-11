@@ -54,3 +54,6 @@ vps/**/*.db
 # ADR: docs/decisions/2026-05-31-memory-three-layer-and-soil-routing.md
 garden/memory/**/raw/*.md
 !garden/memory/**/raw/.gitkeep
+
+# field-assistant (S42): 名簿/振替の出力 CSV は PII を含むため repo に載せない
+garden/services/field-assistant/output/

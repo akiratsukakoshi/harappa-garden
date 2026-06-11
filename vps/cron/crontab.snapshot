@@ -38,3 +38,8 @@
 0 8 8 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed shift_manager/monthly-shift-finalize >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
 # Garden invoice_processor seed (S41: 2026-06-10 設定)
 0 8 12 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed invoice_processor/monthly-invoice-draft >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+
+# Garden field_assistant seeds (S42: 2026-06-11 設定)
+10 8 * * 1 cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed field_assistant/weekly-prep-reminder >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+30 7 * * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed field_assistant/daily-event-brief >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1
+30 19 28-31 * * cd /home/vps-harappa/garden/services/launcher && /usr/bin/node launcher.mjs --seed field_assistant/monthly-furikae-check >> /home/vps-harappa/garden/log/cron-launcher.log 2>&1

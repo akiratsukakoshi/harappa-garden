@@ -11,6 +11,7 @@ freee_id: 4418211
 freee_type: partner
 email:
   - shotaroshimura@icloud.com
+line_display_name:        # LINE アカウント名(メンション紐づけ用、S42。グループ投入後に収集 or ガクチョ記入)
 nicknames:
   - 少佐
   - 正太郎さん

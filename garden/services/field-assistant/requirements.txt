@@ -1,0 +1,3 @@
+# calendar_reader / sheets_export 用(STORES / 天気 / LINE push は stdlib のみ)
+gspread>=6.0
+google-auth>=2.0

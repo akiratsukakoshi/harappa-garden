@@ -279,6 +279,38 @@
 
 ---
 
+### Card 7: field_assistant(フィールド運営アシスタント)← S42 新設
+
+| 項目 | 内容 |
+|---|---|
+| **自動度** | 全自動(read-only + 通知のみ。Garden 初の承認境界なし区画) |
+| **トリガー** | 月曜 08:10(週初め)/ 毎朝 07:30(D-2 判定)/ 月末日 19:30(月謝チェック)/ 対話「○日の名簿出して」 |
+| **承認境界** | なし(外部書き込みゼロ。STORES API は参照系のみ) |
+| **通知先** | **LINE core_team グループ**(投入までガクチョ 1:1 テスト)。Garden 初の core_team 向け区画 |
+
+**週次・日次フロー**:
+
+1. **月曜 08:10**: 当該週の現場責任者に準備チェック(物品 / スタッフスレ / 体験者案内 / 天気判断)をメンション + 翌週おやこ・こども学部の企画者に企画MTG確認(リマインドのみ)
+2. **毎朝 07:30**: あさって(D+2)にイベントがあれば当日ブリーフ = 企画・担当 4 役・名簿(苗字 + 子ども + チケット)・会場の天気(降水確率・風)。無ければ無言スキップ
+3. **月末日 19:30**: 月謝未消化者(振替対象)を通知 + 名簿スプシ全タブクリア。**振替発行はガクチョ/運営が STORES 管理画面で**
+4. **対話**: LINE グループ or Discord で「6/14 の名簿出して」→ テキストサマリ。「詳しく」でスプシ出力(保護者名・アレルギー・緊急連絡先)
+
+**PII 境界**: LINE 本文は「苗字 + 子ども名 + チケット」まで。フル名簿(電話・アレルギー)はスプシのみ + 月末自動クリア。
+
+**失敗時に見るところ**:
+
+- VPS: `/home/vps-harappa/garden/log/{date}-field-{weekly,brief,furikae}.log`(番人の監視対象)
+- 名簿 CSV: `/home/vps-harappa/garden/services/field-assistant/output/`(VPS のみ、repo 非搭載)
+
+**関連ファイル**:
+
+- SKILL: [`garden/plots/field_assistant/SKILL.md`](plots/field_assistant/SKILL.md)
+- 種: [`garden/seeds/field_assistant/`](seeds/field_assistant/)(weekly-prep-reminder / daily-event-brief / monthly-furikae-check)
+- スクリプト: [`garden/services/field-assistant/`](services/field-assistant/)
+- 発火マスター: シフトカレンダー(shift_manager Monthly UI Sheet、タブ `YYYY-MM` の H 企画者 / I 現場責任者)
+
+---
+
 ## 3. HMC → HMG 移行マトリクス
 
 業務単位で「HMC ではどう動いていたか / HMG ではどこまで移ったか / ガクチョの作業」を一覧化(2026-06-02 測量士提案 2 採用)。
@@ -294,7 +326,8 @@
 | **永続記憶** | (HMC 期は無し) | Stage A〜C すべて active(S30。RAW logging + ingest-raw + consolidate-wiki + bot 永続記憶ロード) | 🆕 ✅ 完了(Stage D はチーム公開時) | なし(自律) |
 | **経費登録** | `apps/expense_processor` | expense_processor plot + service + 種 2 本 active + cron(S35〜S38) | ✅ 完了(残: 件数多い月の本番 1 周見届け) | 月末に明細・レシートを Drive へ / Discord「経費まわして」or 承認 / Sheets レビュー |
 | **売上記帳(STORES/Square)** | `apps/finance_importer` | 未移植 | ⬜ | HMC で従来通り |
-| **請求書処理** | `apps/invoice_processor` | invoice_processor plot + service + 種 1 本(S41、hybrid: スタッフ照合 + 稼働突合を新設) | 🚧 draft(VPS デプロイ + ⭐token/Sheet + 初回実走待ち) | 12 日通知の Sheet 確認 → 「承認」/ 請求漏れの人へ催促 |
+| **請求書処理** | `apps/invoice_processor` | invoice_processor plot + service + 種 1 本(S41、hybrid: スタッフ照合 + 稼働突合を新設) | 🚧 test(VPS デプロイ・スモーク済。初回発火 7/12 見届け待ち) | 12 日通知の Sheet 確認 → 「承認」/ 請求漏れの人へ催促 |
+| **フィールド運営アシスト** | (HMC 期は無し。storesyoyaku 単機能ツールのみ) | field_assistant plot + service + 種 3 本 + core_team tool `get_event_roster`(S42、**seedling 初適用**) | 🆕 🚧 test(スモーク済。LINE グループ投入 + 初回発火見届け待ち) | LINE グループにガクコ投入 → グループ ID 連携 / 名簿 WB 作成(⭐)/ 月末振替発行は管理画面 |
 | **メール整理** | `apps/email_organizer` | 未移植 | ⬜ | HMC で従来通り |
 | **議事録(Plaud等)** | `apps/minute_maker` | 未移植 | ⬜ | HMC で従来通り |
 | **SNS 投稿** | `apps/sns_pilot` | 未移植 | ⬜ | HMC で従来通り |

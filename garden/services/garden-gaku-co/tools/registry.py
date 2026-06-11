@@ -69,3 +69,62 @@ def all_names() -> set[str]:
 )
 def _echo(args: dict[str, Any]) -> str:
     return str(args.get("text", ""))
+
+
+# ── field_assistant: イベント参加者名簿(read-only)──────────────
+@register(
+    "get_event_roster",
+    "指定日の原っぱ大学イベント参加者名簿を返す(苗字・子どもの名前・利用チケット)。"
+    "ユーザーが「詳しく」「一覧で」「アレルギーも」等フル名簿を求めた時だけ to_sheet=true にすると、"
+    "スプレッドシートに詳細(保護者名・電話・アレルギー・緊急連絡先)を出力して URL も返す。",
+    {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string", "description": "対象日 YYYY-MM-DD"},
+            "to_sheet": {"type": "boolean", "description": "フル名簿をスプシに出力するか(既定 false)"},
+        },
+        "required": ["date"],
+    },
+)
+def _get_event_roster(args: dict[str, Any]) -> str:
+    try:
+        return _field_assistant().roster_text(
+            str(args["date"]), to_sheet=bool(args.get("to_sheet"))
+        )
+    except Exception as e:
+        return f"名簿の取得に失敗しました({type(e).__name__}: {e})"
+
+
+def _field_assistant():
+    """field-assistant の processor を import して返す(パスは env で差し替え可)。"""
+    import os
+    import sys
+    fa_dir = os.environ.get(
+        "FIELD_ASSISTANT_DIR", "/home/vps-harappa/garden/services/field-assistant"
+    )
+    if fa_dir not in sys.path:
+        sys.path.insert(0, fa_dir)
+    import processor as fa_processor
+    return fa_processor
+
+
+# ── field_assistant: 任意地点・任意日の天気(read-only)─────────────
+@register(
+    "get_weather",
+    "指定した場所と日付の天気予報(天気・気温・降水確率・風/突風)を返す。"
+    "場所は会場名(逗子/森戸海岸/千葉)でも任意の地名でもよい(地名検索で解決)。"
+    "16 日先まで。日付は YYYY-MM-DD で渡す(「あさって」等は変換してから)。",
+    {
+        "type": "object",
+        "properties": {
+            "place": {"type": "string", "description": "会場名または地名"},
+            "date": {"type": "string", "description": "対象日 YYYY-MM-DD"},
+        },
+        "required": ["place", "date"],
+    },
+)
+def _get_weather(args: dict[str, Any]) -> str:
+    try:
+        return _field_assistant().weather_text(str(args["place"]), str(args["date"]))
+    except Exception as e:
+        return f"天気の取得に失敗しました({type(e).__name__}: {e})"

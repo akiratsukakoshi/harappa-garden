@@ -20,6 +20,8 @@ import send as sender
 
 JST = datetime.timezone(datetime.timedelta(hours=9))
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
+# S27 で board は LiveSync 隔離領域へ移動済(bot.py と同じ既定値)
+BOARD_DIR = os.environ.get("BOARD_DIR", "/home/vps-harappa/garden/board")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CHARTER_PATH = os.environ.get(
@@ -46,7 +48,7 @@ def active_path() -> str:
 
 def triage_board_path(d: datetime.date) -> str:
     return os.path.join(
-        MIRROR_DIR, "garden", "board", "triage",
+        BOARD_DIR, "triage",
         f"{d.isoformat()}-morning-briefing.md",
     )
 

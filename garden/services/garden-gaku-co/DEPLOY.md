@@ -54,7 +54,7 @@ LINE_CORE_TEAM_CHANNEL_SECRET=<社内チャネルの Channel secret(32 字)>
 LINE_CORE_TEAM_ACCESS_TOKEN=<社内チャネルの Channel access token(long-lived)>
 ANTHROPIC_API_KEY=<社内専用 API key(sk-ant…、社外と別建て)>
 LINE_CORE_TEAM_GROUP_ID=          # 手順6で確定してから記入(最初は空)
-LINE_TEST_USER_IDS=              # テスト中はガクチョ個人 userId。本番投入後は空に戻す
+LINE_TEST_USER_IDS=              # ガクチョ個人 userId(S42: 本番投入後も恒久テスト環境として維持。1:1 = gate 素通り + tool あり)
 ```
 ※ 値の確認は length / set 判定のみ(`echo "$VAR"` 禁止、security ルール)。
 ※ nano 保存時は `..env.swp` が残らない(= 確実に保存された)ことを確認。
@@ -99,7 +99,7 @@ Xserver VPS の DNS パネル → `harappa.monster` に追加:
 - LINE Developers Console で「Allow bot to join group chats」ON。
 - ガクチョが bot を運営スタッフ LINE グループに招待 → グループで 1 発言。
 - Claude が `docker logs garden-gaku-core` から `groupId` を取得。
-- ⭐ `.env` の `LINE_CORE_TEAM_GROUP_ID` に記入 + `LINE_TEST_USER_IDS` を空に → `./run-line-container.sh`。
+- ⭐ `.env` の `LINE_CORE_TEAM_GROUP_ID` に記入 (`LINE_TEST_USER_IDS` はガクチョ 1:1 を恒久テスト環境として残す。S42 変更) → `./run-line-container.sh`。
 - 「ガクコ」と呼びかけて応答が返れば本番疎通完了。
 
 ## 検証ポイント

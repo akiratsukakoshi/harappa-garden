@@ -73,6 +73,17 @@ INVOICE_SKILL_PATH = os.environ.get(
 INVOICE_WORKDIR = "/home/vps-harappa/garden/services/invoice-processor"
 INVOICE_TOPICS = ("請求書", "インボイス", "invoice", "請求漏れ", "月次支払", "支払処理")
 
+# S42: field_assistant 区画(フィールド運営アシスタント、core_team 向け区画の master 側窓口)。
+FIELD_SKILL_PATH = os.environ.get(
+    "FIELD_ASSISTANT_SKILL",
+    "/home/vps-harappa/garden/plots/field_assistant/SKILL.md",
+)
+FIELD_WORKDIR = "/home/vps-harappa/garden/services/field-assistant"
+FIELD_TOPICS = (
+    "名簿", "参加者", "体験者", "フィールド予定", "現場責任者", "月謝", "振替",
+    "週初めリマインド", "当日ブリーフ", "天気", "風速", "降水",
+)
+
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -229,6 +240,7 @@ _charter_cache = _FileCache(CHARTER_PATH)
 _skill_cache = _FileCache(SKILL_PATH)
 _expense_skill_cache = _FileCache(EXPENSE_SKILL_PATH)
 _invoice_skill_cache = _FileCache(INVOICE_SKILL_PATH)
+_field_skill_cache = _FileCache(FIELD_SKILL_PATH)
 _memory_wiki_cache = _DirCache(
     MEMORY_WIKI_DIR, label_prefix="wiki/", index_first="index.md"
 )
@@ -363,6 +375,29 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "件数・合計額を1行提示 → ガクチョ OK で本登録(--dry-run なし)→ board を processed/ へ移動。\n"
             + "・本登録は不可逆。dry-run の確認を取らずに register(--dry-run なし)を実行しないこと。\n\n"
         )
+    # S42: field_assistant(フィールド運営アシスタント)— 話題検知時のみ実行手段を追加ロード
+    field_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in FIELD_TOPICS):
+        _fpy = f"{FIELD_WORKDIR}/.venv/bin/python"
+        _fproc = f"{FIELD_WORKDIR}/processor.py"
+        field_block = (
+            "──── field_assistant SKILL(フィールド運営区画 — 話題検知でロード)────\n"
+            + _field_skill_cache.get()
+            + "\n──── field SKILL ここまで ────\n\n"
+            + "[フィールド運営の実行手段 — あなたは Bash で以下だけ実行できます(settings.json で許可済・他は不可)]\n"
+            + "⚠️ 必ず **絶対パス + cd なし** で実行(権限はこの絶対パス形式にのみ付与):\n"
+            + f"  {_fpy} {_fproc} roster --date YYYY-MM-DD             # 参加者名簿(テキスト)\n"
+            + f"  {_fpy} {_fproc} roster --date YYYY-MM-DD --to-sheet  # + フル名簿をスプシ出力(URL を出力)\n"
+            + f"  {_fpy} {_fproc} weekly --dry-run                     # 週初めリマインドのプレビュー\n"
+            + f"  {_fpy} {_fproc} brief --date YYYY-MM-DD --dry-run    # D-2 ブリーフのプレビュー\n"
+            + f"  {_fpy} {_fproc} furikae --month YYYY-MM --dry-run    # 月謝未消化チェックのプレビュー\n"
+            + f"  {_fpy} {_fproc} weather --place <会場名/地名> --date YYYY-MM-DD  # 天気・気温・風(16日先まで。地名は何でも可)\n"
+            + "・「○日の名簿出して」→ roster。アレルギー・連絡先などフル詳細を求められた時だけ --to-sheet。\n"
+            + "・「○○の□日の天気は?」→ weather(「あさって」等は日付に変換してから)。\n"
+            + "・--dry-run なしの weekly / brief / furikae は LINE core_team へ実配信される。"
+            + "ガクチョの明示依頼なしに実配信しないこと。\n"
+            + "・この区画は read-only(STORES API は参照系のみ)。Freee や金額の話は expense/invoice 区画の領分。\n\n"
+        )
     # S40: shift_manager Mode 4 手動ルート(シフト回答集計)— 話題検知時のみ実行手段を追加ロード
     shift_agg_block = ""
     if any(t in f"{convo}\n{user_text}" for t in SHIFT_AGG_TOPICS):
@@ -403,6 +438,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + "\n──── SKILL ここまで ────\n\n"
         + expense_block
         + invoice_block
+        + field_block
         + shift_agg_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"
