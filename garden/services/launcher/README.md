@@ -42,7 +42,25 @@ node launcher.mjs --seed daily-pilot/morning-briefing
 | `GARDEN_STATE_FILE` | `<launcher dir>/state.json` | 状態永続化先 |
 | `GARDEN_LOCK_DIR` | `/tmp` | lockfile 配置先 |
 | `CLAUDE_BIN` | `~/.npm-global/bin/claude` | Claude Code バイナリ |
-| `CLAUDE_TIMEOUT_MS` | `600000`(10 分) | claude -p のタイムアウト |
+| `CLAUDE_TIMEOUT_MS` | `600000`(10 分) | claude -p のタイムアウト(全種共通の既定) |
+
+### 種ごとのタイムアウト(S43)
+
+重い種(invoice の Gemini PDF 解析×件数等)は frontmatter で個別に延長できる:
+
+```yaml
+execute:
+  timeout_minutes: 30
+```
+
+未指定なら `CLAUDE_TIMEOUT_MS`。タイムアウト時は claude が SIGTERM され exit 143 になる。
+
+### lock の安全装置(S43)
+
+- lock 取得時に記録 pid の死活を確認し、**死んでいる pid の stale lock は乗っ取る**
+- `process.on('exit')` でも解放するため、失敗パス(`process.exit`)でも lock が残らない
+- 背景: S43 で invoice 種が timeout(exit 143)した際、finally が走らず lock が残留 →
+  次回発火が exit 3 で黙ってスキップされる構造だった
 
 ## VPS 配置
 
@@ -108,7 +126,7 @@ npm test
 
 → [test/launcher.test.mjs](test/launcher.test.mjs)。launcher.mjs 本体は無改修のまま、
 サブプロセス起動 + env 差し替え(`GARDEN_SEEDS_ROOT` 等を tmpdir に向ける)+ `--dry-run` で
-YAML パース / computed_inputs / {var} 置換 / lock / state / 終了コードを検証する 12 ケース。
+YAML パース / computed_inputs / {var} 置換 / lock(生存 pid ブロック・stale 乗っ取り・失敗パス解放)/ state / 終了コードを検証する 14 ケース(S43 で 2 ケース追加)。
 最後のケースは **repo の実運用種 3 本を dry-run** して frontmatter の退行を検査する。
 VPS には `test/` を rsync しない(launcher.mjs 単体で動く構造は不変)。
 

@@ -100,14 +100,17 @@ HMC の `apps/invoice_processor/`(fetch / extract / register)を **改植型(hyb
 - 標準出力: `REVIEW_CSV` / `EXTRACT_ROWS` / `EXTRACT_STAFF_FILES` / `EXTRACT_OUTSIDE_FILES`
 
 ### Step 3: 空判定(★重要)
-- **fetch 0 件かつ Inbox 空(EXTRACT_ROWS: 0)** → board は作らず「今月は請求書なしでスキップ。届いたら『請求書まわして』と言ってください」を通知して終了
+- **fetch 0 件かつ Inbox 空(EXTRACT_ROWS: 0)** → そのままスキップせず、まず `external --month {前月}` を実行(★S43。請求書ゼロでも外部スタッフの稼働分はあり得る)
+  - external も 0 行 → board は作らず「今月は請求書なしでスキップ。届いたら『請求書まわして』と言ってください」を通知して終了
+  - external が 1 行以上 → `to-sheet {EXTERNAL_CSV} --tab {前月YYYYMM}` でタブを作り、Step 4 → 6 へ(Step 5.5 は済んでいるので飛ばす。board は外部スタッフ分のみ)
 - 1 件以上 → Step 4 へ
 
 ### Step 4: check(★稼働突合 — 請求漏れ検出)
 ```bash
 ... processor.py check --month {前月 YYYY-MM}
 ```
-- 前月の `{YYYY-MM}_稼働時間` シートの **区分=業務委託** で稼働がある人と、Step 2 のスタッフ請求書を突合
+- 突合対象 = 前月の `{YYYY-MM}_稼働時間` シートの **区分=業務委託** で稼働がある人 **+ soil で `invoice_monthly: true` の人**(★S43。大阪の守田美枝・安藤寛人 — 稼働シート外だが毎月請求が来る)
+- soil `contract: 経営`(ガクチョ)は自動除外(★S43。請求書を出さない働き方)
 - `CHECK_MISSING:` に **稼働があるのに請求書が無い人** が出る(稼働時間つき)
 - シートがまだ無い月は `NO_WORKTIME_SHEET`(突合不可の旨を board に明記して続行)
 
@@ -116,15 +119,25 @@ HMC の `apps/invoice_processor/`(fetch / extract / register)を **改植型(hyb
 ... processor.py to-sheet {REVIEW_CSV} --tab {前月YYYYMM}
 ```
 - スタッフ請求が先頭・リスト外(薄い青)が後ろ。MISMATCH 等の警告行は黄色
-- 勘定科目・部門はプルダウン。列の並べ替えは禁止(from-sheet が位置でマップ)
+- 勘定科目・部門・税区分はプルダウン。列の並べ替えは禁止(from-sheet が位置でマップ)
+
+### Step 5.5: external(★S43 — 外部スタッフの稼働金額を追記)
+```bash
+... processor.py external --month {前月 YYYY-MM} --append-sheet {前月YYYYMM}
+```
+- 稼働シート **区分=追加**(請求書を出さない外部スタッフ)の部門別稼働金額を、レビュータブ末尾に**薄緑**で追記(HMC export_external_staff.py 継承。金額はシートの生成済みカテゴリ列を読む)
+- tax = `20: 不課税`(個人払い)/ 勘定科目 = 外注費 / 部門 = `config/section_mapping.json` で Freee 正式名へ
+- 取引先は soil freee_id → Freee 名前照合の順で解決。未解決は警告列に `PARTNER未解決`(Freee 登録待ち)
+- ⚠️ **同じタブに再実行すると二重追記になる**。やり直す時は薄緑行を削除してから
+- `NO_WORKTIME_SHEET` / 0 行なら何もしない(board に一行記す)
 
 ### Step 6: board に剪定依頼を起草
 `garden/board/pending/{today}-invoice-draft.md` に:
-- サマリ: スタッフ請求 {n}名 / リスト外 {m}件 / **請求漏れ疑い {k}名(名前 + 稼働時間)** / 警告 {w}件
+- サマリ: スタッフ請求 {n}名 / リスト外 {m}件 / 外部スタッフ稼働分 {e}行 ¥{計} / **請求漏れ疑い {k}名(名前 + 稼働時間)** / 警告 {w}件
 - frontmatter に必ず: `target_month:` / `working_csv:` / `review_sheet_url:` / `review_tab:`
 
 ### Step 7: 庭師通知(Discord master、Sheet URL 必須)
-> 🧾 {前月}分の請求書、{総件数}件を処理しました(スタッフ {n}名 / リスト外 {m}件)。
+> 🧾 {前月}分の請求書、{総件数}件を処理しました(スタッフ {n}名 / リスト外 {m}件 / 外部スタッフ稼働分 {e}行)。
 > ⚠️ 稼働があるのに請求書が無い人: {names or なし}
 > 直接編集できる表 → {REVIEW_SHEET_URL}
 > 確認して「承認」で Freee 登録します。漏れの人には催促を。
@@ -149,6 +162,9 @@ HMC の `apps/invoice_processor/`(fetch / extract / register)を **改植型(hyb
 |---|---|
 | 「承認」「OK」「登録して」 | `from-sheet {review_tab}` → **必ず `register --file {REVIEWED_CSV} --dry-run` を先に** → 件数・合計額を 1 行報告 → OK で本登録 |
 | 「○○の請求書は除外」 | Sheet で行削除してもらう(or こちらで金額を 0 に)→ from-sheet → dry-run → 本登録 |
+| 「○○の過去分は不要/処理済みにして」(★S43) | ① Drive Inbox の該当 PDF を Processed へ移動(下の運用ノウハウ参照)② Sheet の該当行を削除。**移動しないと毎月再解析されて拾い続ける** |
+| 「この請求は来月にまわす」(★S43) | Sheet の行だけ削除し、**Drive Inbox には残す**(来月の extract が自動で再抽出する)。原本は Gmail にあり、Inbox の PDF はコピーなので「完全に不要」なら削除も可 |
+| 「△△は Freee にいるはず」(★S43) | invoice venv python で `FreeeClient().get_partners()` を部分一致検索(空白・表記ゆれに注意)→ 見つかれば Sheet の 取引先コード/取引先ID に記入 |
 | 「却下」「来月まとめる」 | 登録せず board を pending 残置 |
 | 「board 見せて」 | board 全文 + Sheet URL を Discord に貼る |
 
@@ -156,6 +172,32 @@ HMC の `apps/invoice_processor/`(fetch / extract / register)を **改植型(hyb
 - **必ず dry-run を先に通し、件数・合計額をガクチョに見せてから本登録**
 - 本登録成功後(service が自動で実施): Gmail スレッドに `処理済` ラベル + アーカイブ / Drive Inbox → Processed(エラー行のファイルは Error)
 - board を `garden/board/processed/` へ移動 + Discord に完了報告(`✅ {N}件を Freee 登録(支出・未決済)`)
+
+### 運用ノウハウ(★S43 初回運用で確立)
+
+**レビュー Sheet の色分け**(ガクチョに聞かれたら):
+- **黄色** = 警告(MISMATCH)行。総額≠明細合計で**人の確認が必須**。最優先で見る
+- **薄い青** = リスト外(スタッフでない請求元)。エラーではないが取引先・科目を一応確認
+- **無地** = スタッフ請求の正常行。基本そのまま登録 OK
+- 黄と青は排他で**黄が勝つ**(リスト外かつ MISMATCH は黄色)
+
+**不要 PDF の処理済み化**(Drive 移動。invoice venv python のインライン実行で可):
+```python
+# processor を import すると .env が読まれる。DriveClient で Inbox → Processed
+import os, sys; sys.path.insert(0, '/home/vps-harappa/garden/services/invoice-processor')
+import processor
+from lib.drive_client import DriveClient
+drive = DriveClient()
+inbox, processed = os.getenv('DRIVE_INBOX_ID'), os.getenv('DRIVE_PROCESSED_ID')
+for f in drive.list_files_in_folder(inbox):
+    if '<対象を特定する部分文字列>' in f['name']:
+        drive.move_file(f['id'], inbox, processed)
+```
+⚠️ move 直後の `list_files_in_folder` は Drive の整合性遅延で不正確なことがある(数秒置いて再取得)
+
+**Sheet の行操作**(`lib/sheets_client.py` の `_spreadsheet()` → gspread):
+- 行削除は番号が下から(`sorted(doomed, reverse=True)` で `delete_rows`)
+- 値の記入は `update_cell(row, col, value)`(列番号はヘッダ行から `index('取引先ID') + 1`)
 
 ---
 
@@ -169,6 +211,10 @@ HMC の `apps/invoice_processor/`(fetch / extract / register)を **改植型(hyb
 | `partner_id` 空欄 | Freee に取引先が未登録。新規登録するか既存先に紐付けてから登録(空欄のまま登録すると摘要に支払先名が前置される) |
 | **スタッフなのにリスト外判定**(★S41) | 屋号で請求している可能性(niyatto design = 吉田さん等)。`config/mapping_config.json` の partner_rules に屋号を足す + soil の freee_id を確認 |
 | **請求漏れ検出**(★S41) | 稼働シートに居て請求書が無い人 → ガクチョから催促。**自動催促はしない**(人間関係はガクチョの領分) |
+| **soil contract=経営 のスタッフ**(★S43) | 請求書を出さない働き方(ガクチョ)。check が自動除外する(稼働シートの区分が業務委託でも対象外) |
+| **soil invoice_monthly: true**(★S43) | 稼働シート外でも毎月請求が来る人(大阪の守田・安藤)。check が常に突合対象に含める。同類が増えたら soil にこのフラグを足すだけ |
+| **区分=給与 のスタッフ**(★S43) | **この区画の対象外**。給与は人事労務 freee の領分(会計 freee に取引登録すると二重計上)。HMC に register_payroll.py(勤怠を人事労務 freee へ PUT)があり、Garden 化は別途検討 |
+| **支払先の空白表記ゆれ**(★S43) | 「内山 景子」vs Freee「内山景子」型。normalize_payee が空白正規化で照合する(S43 修正済)。それでも partner_id 空欄なら Freee 側を検索して確認 |
 | 勘定科目が Freee と不一致(`Invalid Account Item`) | 登録時スキップ → dry-run で検出して科目名を直す |
 | Gemini timeout / 503 | service 内で 429 リトライ済。503 連発時は 10–30 分待って手動再実行 |
 | 外部スタッフ CSV 由来の行(file_name 空) | Drive/Gmail 後始末を自動スキップ(HMC ではエラーが出ていた想定挙動を解消済) |

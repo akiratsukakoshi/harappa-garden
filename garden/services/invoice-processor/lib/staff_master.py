@@ -78,6 +78,8 @@ def load_staff(staff_dir=None):
                 "freee_id": str(meta.get("freee_id", "") or ""),
                 "freee_type": meta.get("freee_type", ""),
                 "nicknames": meta.get("nicknames") or [],
+                # 稼働シート外でも毎月請求が来る人(大阪チーム等。check が突合対象に含める)
+                "invoice_monthly": bool(meta.get("invoice_monthly", False)),
             })
         except Exception as e:
             logger.warning(f"スタッフページの読み取り失敗(スキップ): {fn}: {e}")

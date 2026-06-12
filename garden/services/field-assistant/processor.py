@@ -60,7 +60,11 @@ def _send(text: str, dry_run: bool):
 
 def _mention(name: str) -> str:
     name = (name or "").strip()
-    return f"@{name} さん" if name else "(未記入⚠️)"
+    if not name:
+        return "(未記入⚠️)"
+    # 「ゆーじさん」のように呼称込みのニックネームには「 さん」を重ねない
+    suffix = "" if name.endswith(("さん", "ちゃん", "くん", "先生")) else " さん"
+    return f"@{name}{suffix}"
 
 
 def _event_line(e) -> str:
@@ -117,7 +121,43 @@ def _roster_rows_for_date(date: dt.date):
     token = os.environ.get("STORES_API_TOKEN")
     client = stores_lib.StoresClient(token, verbose=False)
     start, end = stores_lib.day_bounds(date.isoformat())
-    return stores_lib.build_roster(client.list_reservations(start, end))
+    return stores_lib.build_roster(client.list_reservations(start, end), client=client)
+
+
+def _rows_for_event(rows, e, n_calendar_events):
+    """カレンダーのイベント e に対応する STORES 名簿行を選ぶ。対応なしは None。
+
+    企業案件・スペシャルイベントは STORES に存在しないことがある(S43 ガクチョ指摘)。
+    その場合に同日の別イベントの名簿を誤って張り付けないこと。
+    照合は ①活動名の部分一致 → ②学部(category)名の一致 → ③同日イベントが
+    カレンダー上 1 件だけなら表記ゆれとみなして全行、の順。
+    """
+    if not rows:
+        return None
+    act = (e.get("activity") or "").strip()
+    by_name = [r for r in rows if r["イベント名"] and act and
+               (r["イベント名"] in act or act in r["イベント名"])]
+    if by_name:
+        return by_name
+    cat = (e.get("category") or "").strip()
+    if cat:
+        by_cat = [r for r in rows if cat in (r["イベント名"] or "")]
+        if by_cat:
+            return by_cat
+    if n_calendar_events == 1:
+        return rows
+    return None
+
+
+def _kids_part(row) -> str:
+    """子ども名の括弧表示。記入が無い行は「空欄」と明示(S43 ガクチョ指示)。
+    おとな学部はそもそも子ども欄が無いので付けない。"""
+    kids = "・".join(stores_lib.kids_names(row))
+    if kids:
+        return f"({kids})"
+    if "おとな" in (row.get("イベント名") or ""):
+        return ""
+    return "(子ども欄: 空欄)"
 
 
 def cmd_brief(args) -> int:
@@ -146,22 +186,15 @@ def cmd_brief(args) -> int:
         if staff_bits:
             lines.append("　" + " / ".join(staff_bits))
 
-        # この活動の名簿(イベント名と活動内容は表記が違うことがあるため、同日の
-        # 予約が 1 イベントだけなら全件、複数イベントなら名前の部分一致で寄せる)
-        ev_names = sorted({r["イベント名"] for r in rows})
-        if len(ev_names) <= 1:
-            ev_rows = rows
+        ev_rows = _rows_for_event(rows, e, len(events))
+        if ev_rows is None:
+            lines.append("　👨‍👩‍👧 名簿: ストアズなし(STORES に該当イベントの予約がありません)")
         else:
-            act = e.get("activity", "")
-            ev_rows = [r for r in rows if r["イベント名"] and
-                       (r["イベント名"] in act or act in r["イベント名"])] or rows
-        total_groups = len(ev_rows)
-        total_people = sum(r.get("参加人数") or 0 for r in ev_rows)
-        lines.append(f"　👨‍👩‍👧 参加 {total_groups}組 {total_people}名")
-        for r in ev_rows:
-            kids = "・".join(stores_lib.kids_names(r))
-            kids_part = f"({kids})" if kids else ""
-            lines.append(f"　・{stores_lib.surname(r['保護者名'])}{kids_part} {r['支払方法']}")
+            total_groups = len(ev_rows)
+            total_people = sum(r.get("参加人数") or 0 for r in ev_rows)
+            lines.append(f"　👨‍👩‍👧 参加 {total_groups}組 {total_people}名")
+            for r in ev_rows:
+                lines.append(f"　・{r['苗字']}{_kids_part(r)} {r['支払方法']}")
 
         try:
             f = wx.forecast(e.get("venue", ""), target)
@@ -191,13 +224,11 @@ def roster_text(date_str: str, to_sheet: bool = False) -> str:
         people = sum(r.get("参加人数") or 0 for r in ev_rows)
         lines.append(f"■ {ev}({len(ev_rows)}組 {people}名)")
         for r in ev_rows:
-            kids = "・".join(stores_lib.kids_names(r))
-            kids_part = f"({kids})" if kids else ""
             mark = ""
             a = (r.get("アレルギー・留意事項") or "").strip()
             if a and a not in ("なし", "ナシ", "無し", "特になし"):
                 mark = " ⚠️留意事項あり"
-            lines.append(f"・{stores_lib.surname(r['保護者名'])}{kids_part} {r['支払方法']}{mark}")
+            lines.append(f"・{r['苗字']}{_kids_part(r)} {r['支払方法']}{mark}")
     if to_sheet:
         from lib import sheets_export
         url = sheets_export.write_roster_tab(rows, date.strftime("%m%d"))
@@ -317,7 +348,8 @@ def cmd_sync_line_users(args) -> int:
             continue
         fm = head[1]
         m = _re.search(r"^line_display_name:\s*(.+)$", fm, _re.M)
-        display = m.group(1).strip().strip('"') if m else ""
+        # 値の後ろのインラインコメント(` # …`)は捨てる
+        display = _re.sub(r"\s+#.*$", "", m.group(1)).strip().strip('"') if m else ""
         if not display or display in ("null", "~"):
             continue
         # nicknames: の直後のリストだけ取る(次のキーで打ち切り)

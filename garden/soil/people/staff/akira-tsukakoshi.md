@@ -12,7 +12,7 @@ freee_type: partner
 email:
   - tukapontas@gmail.com
   - tuka@harappa-daigaku.jp
-line_display_name:        # LINE アカウント名(メンション紐づけ用、S42。グループ投入後に収集 or ガクチョ記入)
+line_display_name: 塚越 暁  # LINE アカウント名(メンション紐づけ用、S42。S43 ガクチョ確認 + webhook 収集一致)
 nicknames:
   - ガクチョー
   - 塚越さん

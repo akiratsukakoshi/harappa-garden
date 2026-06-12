@@ -403,11 +403,21 @@ def cmd_check(args):
         if h in ("", "-", "0") or h.startswith("0:00"):
             continue
         staff = matcher.find_by_name(w["name"])
+        # soil で contract=経営(代表)は請求書を出さない働き方なので突合対象外
+        # (S43 ガクチョ「僕は請求ナシです」。稼働シートの区分が業務委託のままでも除外)
+        if staff and staff.get("contract") == "経営":
+            continue
         expected.append({
             "name": w["name"],
             "slug": staff["slug"] if staff else "",
             "hours": w["hours"],
         })
+
+    # 稼働シート外でも毎月請求が来る人(soil の invoice_monthly: true。大阪チーム等、S43)
+    expected_slugs = {e["slug"] for e in expected if e["slug"]}
+    for s in matcher.staff:
+        if s.get("invoice_monthly") and s["slug"] not in expected_slugs:
+            expected.append({"name": s["name"], "slug": s["slug"], "hours": ""})
 
     missing = [
         e for e in expected
@@ -422,7 +432,7 @@ def cmd_check(args):
         print(f"CHECK_MISSING: {','.join(m['name'] for m in missing)}")
         print(f"\n⚠️ {target_ym} に稼働があるのに請求書が見当たらない業務委託スタッフ({len(missing)} 名):")
         for m in missing:
-            hours = f"(稼働 {m['hours']}h)" if m["hours"] else ""
+            hours = f"(稼働 {m['hours']}h)" if m["hours"] else "(毎月請求・稼働シート外)"
             soil = "" if m["slug"] else " ※soil スタッフマスター未照合"
             print(f"  - {m['name']} {hours}{soil}")
     else:
@@ -438,6 +448,104 @@ def cmd_check(args):
 # =====================================================================
 # to-sheet / from-sheet — レビュー用 Sheets(expense S38 案A と同 UX)
 # =====================================================================
+
+def cmd_external(args):
+    """外部スタッフ(稼働シート区分=追加)の稼働金額 → レビュー行(S43)。
+
+    HMC export_external_staff.py を移植。請求書を出さない外部スタッフは
+    稼働時間シートのカテゴリ別金額(生成済み)から部門ごとに行を展開し、
+    Freee 登録候補としてレビュー Sheet に追記する。tax は不課税(20)。
+    """
+    from lib.worktime import read_external_amounts
+    from lib.staff_master import StaffMatcher
+    from lib.freee_client import FreeeClient
+
+    target_ym = args.month or previous_month()
+    data = read_external_amounts(target_ym)
+    if data is None:
+        print(f"EXTERNAL_RESULT: NO_WORKTIME_SHEET({target_ym})")
+        return 0
+    if not data:
+        print("EXTERNAL_ROWS: 0")
+        print(f"({target_ym} は区分=追加の外部スタッフがいません)")
+        return 0
+
+    import json
+    mapping_path = os.path.join(_BASE_DIR, "config", "section_mapping.json")
+    with open(mapping_path, encoding="utf-8") as f:
+        sm = json.load(f)
+    section_map = sm.get("mapping", {})
+    default_account = sm.get("default_account_item", "外注費")
+
+    matcher = StaffMatcher()
+    freee = FreeeClient()
+    partners = {p["name"].replace(" ", "").replace("　", ""): p for p in freee.get_partners() or []}
+
+    # 請求日 = 月末
+    year, month = map(int, target_ym.split("-"))
+    nxt = datetime.date(year + 1, 1, 1) if month == 12 else datetime.date(year, month + 1, 1)
+    invoice_date = (nxt - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    rows, unmatched = [], []
+    for i, ext in enumerate(data, start=1):
+        staff = matcher.find_by_name(ext["name"])
+        partner_id = staff["freee_id"] if staff and staff.get("freee_id") else ""
+        if not partner_id:
+            p = partners.get(ext["name"].replace(" ", "").replace("　", ""))
+            partner_id = p["id"] if p else ""
+        if not partner_id:
+            unmatched.append(ext["name"])
+        for cat, amount in ext["amounts"].items():
+            rows.append({
+                "file_id": f"{target_ym.replace('-', '')}_extra_{i:03d}",
+                "file_name": "",  # 空 = register が Gmail/Drive 後始末をスキップ(既存仕様)
+                "date": invoice_date,
+                "payee": ext["name"],
+                "partner_code": "",
+                "partner_id": partner_id,
+                "description": f"{target_ym} {cat} 稼働分",
+                "section_name": section_map.get(cat, cat),
+                "section_id": "",
+                "account_item_name": default_account,
+                "invoice_number": "",
+                "amount": amount,
+                "document_total": "",
+                "calculated_total": "",
+                "diff": "",
+                "warning": "" if partner_id else "PARTNER未解決",
+                "tax_code": "20: 不課税",  # 個人払い(HMC 既定を継承、表記は Freee name_ja)
+                "staff_slug": staff["slug"] if staff else "",
+                "staff_contract": "外部スタッフ",
+                "group": "外部スタッフ",
+            })
+
+    if not rows:
+        print("EXTERNAL_ROWS: 0")
+        print(f"({target_ym} の区分=追加スタッフに金額>0 のカテゴリがありません)")
+        return 0
+
+    ensure_directory(WORKING_DIR)
+    out = os.path.join(WORKING_DIR, f"external_{target_ym.replace('-', '')}.csv")
+    headers = list(rows[0].keys())
+    with open(out, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=headers)
+        w.writeheader()
+        w.writerows(rows)
+
+    total = sum(r["amount"] for r in rows)
+    print(f"EXTERNAL_CSV: {out}")
+    print(f"EXTERNAL_ROWS: {len(rows)}({len(data)}名 / 計 ¥{total:,})")
+    if unmatched:
+        print(f"EXTERNAL_UNMATCHED: {','.join(unmatched)}(Freee 取引先未解決 — 警告列に記載)")
+
+    if args.append_sheet:
+        from lib import sheets_client
+        url, start_row = sheets_client.append_rows(
+            rows, args.append_sheet, background=sheets_client.EXTERNAL_BG)
+        print(f"EXTERNAL_SHEET_URL: {url}")
+        print(f"(タブ {args.append_sheet} の {start_row} 行目から薄緑で追記)")
+    return 0
+
 
 def cmd_to_sheet(args):
     from lib import sheets_client
@@ -668,6 +776,12 @@ def main():
     p_register.add_argument("--file", required=True, help="登録する CSV のパス")
     p_register.add_argument("--dry-run", action="store_true")
 
+    p_external = subparsers.add_parser(
+        "external", help="外部スタッフ(区分=追加)の稼働金額 → レビュー行(S43)")
+    p_external.add_argument("--month", help="対象月 YYYY-MM(省略時は前月)")
+    p_external.add_argument("--append-sheet", default=None,
+                            help="既存レビュータブ(YYYYMM)の末尾に追記する")
+
     args = parser.parse_args()
     handlers = {
         "fetch": cmd_fetch,
@@ -676,6 +790,7 @@ def main():
         "to-sheet": cmd_to_sheet,
         "from-sheet": cmd_from_sheet,
         "register": cmd_register,
+        "external": cmd_external,
     }
     rc = handlers[args.command](args)
     if rc:

@@ -90,14 +90,20 @@ class RuleEngine:
         if not self.partners or not extracted_payee:
             return extracted_payee
 
+        # Freee 照合も空白(半角/全角)を均してから比較する
+        # (S43: 請求書の「内山 景子」が Freee の「内山景子」に届かなかった)
+        def _clean(s):
+            return (s or "").replace(" ", "").replace("　", "").lower()
+
+        clean_payee = _clean(extracted_payee)
         for p in self.partners:
-            if p["name"].lower() == extracted_payee.lower():
+            if _clean(p["name"]) == clean_payee:
                 return p["name"]
 
         for p in self.partners:
-            p_name = p["name"]
-            if extracted_payee in p_name or p_name in extracted_payee:
-                return p_name
+            p_clean = _clean(p["name"])
+            if clean_payee in p_clean or p_clean in clean_payee:
+                return p["name"]
 
         return extracted_payee
 
@@ -119,9 +125,10 @@ class RuleEngine:
             self.taxes = []
 
     def get_tax_code_name(self, tax_code: int) -> str:
+        # 日本語名を優先(S43: レビュー Sheet のプルダウン表記と揃える)
         for t in self.taxes:
             if t["code"] == tax_code:
-                return t["name"]
+                return t.get("name_ja") or t["name"]
         return str(tax_code)
 
     def guess_section(self, description: str) -> dict:

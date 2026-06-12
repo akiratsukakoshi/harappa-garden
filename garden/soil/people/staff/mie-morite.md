@@ -9,6 +9,7 @@ kana: もりてみえ
 area: 大阪
 freee_id: 35984072
 freee_type: partner
+invoice_monthly: true   # 稼働シート外だが毎月請求が来る(大阪、S43 ガクチョ指定)
 email:
   - dacchimo09145@gmail.com
 nicknames: []

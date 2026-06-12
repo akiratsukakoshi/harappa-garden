@@ -29,6 +29,7 @@ trigger:
 engine: claude-code
 execute:
   working_dir: /home/vps-harappa/garden/services/invoice-processor
+  timeout_minutes: 30             # Gemini PDF 解析×件数で 10 分超え(S43 初回発火 exit 143 の教訓)
   computed_inputs:
     target_month: "$(date -d 'last month' +%Y-%m)"        # 前月(12日に処理するのは前月分)
     target_month_jp: "$(date -d 'last month' +%-m月)"      # ⚠️ 月は $() 内で完結(S37/S40 型の未展開バグ防止)
@@ -65,21 +66,33 @@ execute:
       → 標準出力の REVIEW_CSV / EXTRACT_ROWS / EXTRACT_STAFF_FILES / EXTRACT_OUTSIDE_FILES を控える
 
     Step 3 空判定(★重要):
-      - EXTRACT_ROWS: 0 → board を作らず、log に `==NOTIFY==` で
-        「🧾 {target_month_jp}分の請求書、新着がありませんでした。今月は処理なしでスキップします。
-        届いたら『請求書まわして』と言ってください。」を append して exit 0
+      - EXTRACT_ROWS: 0 → まず {PY} {PROC} external --month {target_month} を実行(★S43。
+        請求書ゼロの月でも外部スタッフの稼働分はあり得る):
+        - external も 0 行 → board を作らず、log に `==NOTIFY==` で
+          「🧾 {target_month_jp}分の請求書、新着がありませんでした。今月は処理なしでスキップします。
+          届いたら『請求書まわして』と言ってください。」を append して exit 0
+        - external 1 行以上 → {PY} {PROC} to-sheet {EXTERNAL_CSV} --tab {target_tab} でタブを作り
+          Step 4 → Step 6 へ(Step 5.5 は済み。board は外部スタッフ分のみと明記)
       - 1 件以上 → Step 4 へ
 
     Step 4 check(稼働突合 — 請求漏れ検出):
       {PY} {PROC} check --month {target_month}
       → CHECK_MISSING(稼働があるのに請求書が無い業務委託スタッフ)/ NO_WORKTIME_SHEET を控える
+      ※ 突合対象 = 稼働シートの区分=業務委託 + soil の invoice_monthly: true(大阪の守田・安藤、
+        稼働シート外でも毎月請求が来る)。contract=経営(ガクチョ)は自動除外(S43)。
 
     Step 5 レビュー用 Sheets 化:
       {PY} {PROC} to-sheet {REVIEW_CSV} --tab {target_tab}
       → REVIEW_SHEET_URL / REVIEW_TAB / REVIEW_ROWS を控える
 
+    Step 5.5 外部スタッフの稼働金額を追記(★S43 新設):
+      {PY} {PROC} external --month {target_month} --append-sheet {target_tab}
+      → EXTERNAL_ROWS / EXTERNAL_UNMATCHED を控える(稼働シート区分=追加 の人の
+        部門別稼働金額をレビュータブ末尾に薄緑で追記。請求書を出さない人の支払い分)
+      → NO_WORKTIME_SHEET / 0 行なら何もせず次へ(board にその旨を一行)
+
     Step 6 board 起草: garden/board/pending/{today}-invoice-draft.md に SKILL Mode 1 Step 6 のとおり:
-      - サマリ(スタッフ請求 n名 / リスト外 m件 / 請求漏れ疑い k名[名前+稼働時間] / 警告 w件)
+      - サマリ(スタッフ請求 n名 / リスト外 m件 / 外部スタッフ稼働分 e行 ¥計 / 請求漏れ疑い k名[名前+稼働時間] / 警告 w件)
       - 支払先別の候補一覧(支払先 / 金額 / 勘定科目 / 部門 / グループ)
       - frontmatter に必ず(承認時に from-sheet で読み戻すため):
         ---
@@ -96,7 +109,7 @@ execute:
         配信ではないので send_pending には載せない(master/Discord 完結)。
 
     Step 7 庭師通知: log に `==NOTIFY==` で append(Sheet URL を必ず含める):
-      「🧾 {target_month_jp}分の請求書 {総件数}件を処理(スタッフ {n}名 / リスト外 {m}件)。
+      「🧾 {target_month_jp}分の請求書 {総件数}件を処理(スタッフ {n}名 / リスト外 {m}件 / 外部スタッフ稼働分 {e}行)。
         ⚠️ 稼働があるのに請求書が無い人: {names or なし}
         直接編集できる表 → {REVIEW_SHEET_URL}
         確認して『承認』で Freee 登録します。漏れの人には催促をお願いします。」

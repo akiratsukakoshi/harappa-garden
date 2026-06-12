@@ -49,6 +49,39 @@ ACCOUNT_ITEM_COL = CSV_KEYS.index("account_item_name")
 SECTION_NAME_COL = CSV_KEYS.index("section_name")
 WARNING_COL = CSV_KEYS.index("warning")
 GROUP_COL = CSV_KEYS.index("group")
+TAX_CODE_COL = CSV_KEYS.index("tax_code")
+
+# 税区分プルダウンの選択肢(S43 ガクチョ依頼)。Freee get_taxes 由来の
+# 「コード: 日本語名」形式(register は先頭の数字だけ読むので表記は自由)。
+# 業務委託で専門職でないスタッフは課税対象外 → 「2: 対象外」等を選ぶ。
+TAX_CHOICES = [
+    "189: 課対仕入（控80）10%",  # 既定(インボイス未登録の個人事業主、経過措置80%)
+    "136: 課対仕入10%",           # 適格請求書(インボイス番号あり)
+    "163: 課対仕入8%（軽）",      # 軽減税率(食材等)
+    "2: 対象外",                   # 課税対象外(専門職でない業務委託スタッフ等)
+    "20: 不課税",
+    "3: 非課税",
+]  # ⚠️ 表記は Freee get_taxes の name_ja と完全一致させること(全角括弧)。ずれると既存セルに無効マークが付く
+
+# 数値で書き込む列(S43: 全列 str() だと金額が文字列セル('12345)になり SUM 検算できない)
+NUMERIC_KEYS = {"amount", "document_total", "calculated_total", "diff",
+                "partner_id", "section_id"}
+
+
+def _typed_cell(key, value):
+    """セル値の型付け。数値列は int/float、他は str(RAW 書き込みでも型が立つ)。"""
+    if value is None or value == "":
+        return ""
+    if key in NUMERIC_KEYS:
+        s = str(value).replace(",", "").replace("¥", "").strip()
+        try:
+            return int(s)
+        except ValueError:
+            try:
+                return float(s)
+            except ValueError:
+                return str(value)
+    return str(value)
 
 
 def _spreadsheet(review_id=None):
@@ -83,7 +116,7 @@ def write_tab(rows, tab_name, categories, sections=None, review_id=None):
     mismatch_rows = []   # 0 始まり(ヘッダ除く)
     outside_rows = []    # リスト外(スタッフでない請求元)
     for i, r in enumerate(rows):
-        values.append([str(r.get(k, "") if r.get(k) is not None else "") for k in CSV_KEYS])
+        values.append([_typed_cell(k, r.get(k)) for k in CSV_KEYS])
         if str(r.get("warning", "")).strip():
             mismatch_rows.append(i)
         elif str(r.get("group", "")) == "リスト外":
@@ -126,6 +159,17 @@ def write_tab(rows, tab_name, categories, sections=None, review_id=None):
                 "strict": False,
             },
         }})
+    # 税区分プルダウン(S43)
+    requests.append({"setDataValidation": {
+        "range": {"sheetId": ws.id, "startRowIndex": 1, "endRowIndex": n + 1,
+                  "startColumnIndex": TAX_CODE_COL, "endColumnIndex": TAX_CODE_COL + 1},
+        "rule": {
+            "condition": {"type": "ONE_OF_LIST",
+                          "values": [{"userEnteredValue": t} for t in TAX_CHOICES]},
+            "showCustomUi": True,
+            "strict": False,
+        },
+    }})
     # リスト外行 = 薄い青(どれがスタッフ請求でないか一目で分かるように)
     for idx in outside_rows:
         requests.append({"repeatCell": {
@@ -151,6 +195,47 @@ def write_tab(rows, tab_name, categories, sections=None, review_id=None):
 
     url = f"https://docs.google.com/spreadsheets/d/{sh.id}/edit#gid={ws.id}"
     return url, ws.id
+
+
+# 外部スタッフ(稼働由来の自動計算)行の背景 = 薄い緑(請求書由来の行と見分けるため)
+EXTERNAL_BG = {"red": 0.86, "green": 0.95, "blue": 0.86}
+
+
+def append_rows(rows, tab_name, review_id=None, background=None, tax_validation=True):
+    """既存タブの末尾に行を追記する(S43: external 外部スタッフ行用)。
+
+    write_tab と違いタブを作り直さないので、ガクチョの編集中でも安全。
+    background を渡すと追記行に背景色、tax_validation で税区分プルダウンも延長する。
+    戻り値: (sheet_url, 追記開始行番号)
+    """
+    sh = _spreadsheet(review_id)
+    ws = sh.worksheet(tab_name)
+    start = len(ws.get_all_values()) + 1  # 1 始まりの次の空行
+    values = [[_typed_cell(k, r.get(k)) for k in CSV_KEYS] for r in rows]
+    ws.update(range_name=f"A{start}", values=values, value_input_option="RAW")
+
+    requests = []
+    if background:
+        requests.append({"repeatCell": {
+            "range": {"sheetId": ws.id, "startRowIndex": start - 1,
+                      "endRowIndex": start - 1 + len(rows),
+                      "startColumnIndex": 0, "endColumnIndex": len(COLUMNS)},
+            "cell": {"userEnteredFormat": {"backgroundColor": background}},
+            "fields": "userEnteredFormat.backgroundColor",
+        }})
+    if tax_validation:
+        requests.append({"setDataValidation": {
+            "range": {"sheetId": ws.id, "startRowIndex": start - 1,
+                      "endRowIndex": start - 1 + len(rows),
+                      "startColumnIndex": TAX_CODE_COL, "endColumnIndex": TAX_CODE_COL + 1},
+            "rule": {"condition": {"type": "ONE_OF_LIST",
+                                   "values": [{"userEnteredValue": t} for t in TAX_CHOICES]},
+                     "showCustomUi": True, "strict": False},
+        }})
+    if requests:
+        sh.batch_update({"requests": requests})
+    url = f"https://docs.google.com/spreadsheets/d/{sh.id}/edit#gid={ws.id}"
+    return url, start
 
 
 def read_tab(tab_name, review_id=None):

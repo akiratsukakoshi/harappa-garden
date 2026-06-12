@@ -61,7 +61,10 @@ function readState() {
 }
 
 function todayLog(seedName) {
-  const today = new Date().toISOString().slice(0, 10);
+  // launcher のログ名は `$(date +%Y-%m-%d)`(ローカル = JST)由来。
+  // toISOString()(UTC)だと JST 00:00〜09:00 にズレて ENOENT になる(S43 で実検出)。
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   return path.join(workdir, 'log', `${today}-${seedName}.log`);
 }
 
@@ -166,16 +169,39 @@ test('検証: frontmatter が無いファイルは異常終了(0 以外)', () =>
   assert.notEqual(ret.status, 0);
 });
 
-test('並行制御: 既存 lock があると exit 3、lock 解放後は再実行できる', () => {
+test('並行制御: 生きている pid の lock があると exit 3、lock 解放後は再実行できる', () => {
   writeSeed('unit-valid', VALID_SEED);
   const lockFile = path.join(workdir, 'locks', 'garden-launcher-test_plot_unit-valid.lock');
-  fs.writeFileSync(lockFile, 'pid=99999\n');
+  fs.writeFileSync(lockFile, `pid=${process.pid}\n`); // テストランナー自身 = 確実に生存
   const blocked = runLauncher('test_plot/unit-valid');
   assert.equal(blocked.status, 3);
   assert.match(blocked.stderr, /another instance is running/);
   fs.unlinkSync(lockFile);
   const retry = runLauncher('test_plot/unit-valid');
   assert.equal(retry.status, 0);
+});
+
+test('並行制御: 死んだ pid の stale lock は乗っ取って実行し、終了後に lock が残らない(S43)', () => {
+  writeSeed('unit-valid', VALID_SEED);
+  const lockFile = path.join(workdir, 'locks', 'garden-launcher-test_plot_unit-valid.lock');
+  // 確実に死んでいる pid: 自分で spawn して終了済みの子プロセス
+  const dead = spawnSync('node', ['-e', 'process.exit(0)'], { encoding: 'utf8' });
+  fs.writeFileSync(lockFile, `pid=${dead.pid}\nstarted=2026-01-01T00:00:00Z\n`);
+  const ret = runLauncher('test_plot/unit-valid');
+  assert.equal(ret.status, 0);
+  assert.match(ret.stderr, /stale lock/);
+  assert.equal(fs.existsSync(lockFile), false);
+});
+
+test('並行制御: 失敗パス(working_dir 不在)でも lock が残らない(S43 exit143 障害の再発防止)', () => {
+  const seed = VALID_SEED
+    .replace('working_dir: /tmp', 'working_dir: /nonexistent-dir-for-test')
+    .replace('name: unit-valid', 'name: unit-faildir');
+  writeSeed('unit-faildir', seed);
+  const lockFile = path.join(workdir, 'locks', 'garden-launcher-test_plot_unit-faildir.lock');
+  const ret = runLauncher('test_plot/unit-faildir', { dryRun: false });
+  assert.equal(ret.status, 4);
+  assert.equal(fs.existsSync(lockFile), false);
 });
 
 test('CLI: --seed 無しは exit 2 / --help は exit 0', () => {

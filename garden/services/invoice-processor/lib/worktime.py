@@ -105,3 +105,89 @@ def read_worked_staff(target_ym: str, creds=None):
 
     logger.info(f"Read {len(rows)} staff rows from '{target_ym}_稼働時間'")
     return rows
+
+
+def _parse_amount(cell):
+    """「¥36,958」「36958」「¥0」「-」「」等を int に(HMC export_external_staff 継承)。"""
+    s = (cell or "").strip().replace("¥", "").replace(",", "")
+    if not s or s == "-":
+        return 0
+    try:
+        return int(float(s))
+    except ValueError:
+        return 0
+
+
+def read_external_amounts(target_ym: str, creds=None):
+    """`{target_ym}_稼働時間` の区分=「追加」(外部スタッフ)行を、部門カテゴリ別金額つきで返す。
+
+    HMC export_external_staff.py の列検出を継承:
+    「合計」列の次から金額カテゴリが並び、「合計額」または「区分」で終わる。
+    戻り値: [{name, amounts: {カテゴリ名: 金額(>0 のみ)}}, ...]。シート無し月は None。
+    """
+    creds = creds or load_credentials()
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(_workbook_id())
+    try:
+        ws = sh.worksheet(f"{target_ym}_稼働時間")
+    except gspread.exceptions.WorksheetNotFound:
+        logger.warning(f"シート '{target_ym}_稼働時間' が見つかりません。")
+        return None
+
+    data = ws.get_all_values()
+    if len(data) < 4:
+        return []
+
+    header = data[1]
+    cat_label = data[2] if len(data) > 2 else []
+
+    try:
+        total_hours_idx = header.index("合計")
+    except ValueError:
+        raise RuntimeError("ヘッダー行に「合計」列が見つかりません(金額カテゴリの起点が不明)。")
+
+    amount_start_idx = total_hours_idx + 1
+    amount_cats = []
+    payment_type_idx = None
+    for col_idx in range(amount_start_idx, len(header)):
+        h = header[col_idx].strip() if col_idx < len(header) else ""
+        c = cat_label[col_idx].strip() if col_idx < len(cat_label) else ""
+        if h == "合計額" or (not h and c == "合計"):
+            break
+        if h == "区分":
+            payment_type_idx = col_idx
+            break
+        if h.endswith("額"):
+            amount_cats.append((col_idx, h[:-1]))
+        elif c and c != "合計":
+            amount_cats.append((col_idx, c))
+        elif h:
+            amount_cats.append((col_idx, h))
+        else:
+            break
+    if not amount_cats:
+        raise RuntimeError("金額カテゴリ列が検出できません(シートのフォーマット要確認)。")
+
+    if payment_type_idx is None:
+        for i, h in enumerate(header):
+            if h.strip() == "区分":
+                payment_type_idx = i
+                break
+    if payment_type_idx is None:
+        raise RuntimeError(f"'{target_ym}_稼働時間' の区分列が検出できません。")
+
+    result = []
+    for row in data[3:]:
+        if not row or not row[0].strip():
+            continue
+        if payment_type_idx >= len(row) or row[payment_type_idx].strip() != "追加":
+            continue
+        amounts = {}
+        for col_idx, cat in amount_cats:
+            v = _parse_amount(row[col_idx] if col_idx < len(row) else "")
+            if v > 0:
+                amounts[cat] = v
+        result.append({"name": row[0].strip(), "amounts": amounts})
+
+    logger.info(f"外部スタッフ(区分=追加): {len(result)} 名(カテゴリ: {[c for _, c in amount_cats]})")
+    return result

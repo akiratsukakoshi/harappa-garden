@@ -364,6 +364,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + f"  {_ipy} {_iproc} check --month YYYY-MM             # 稼働突合(請求漏れ検出。CHECK_MISSING を出力)\n"
             + f"  {_ipy} {_iproc} to-sheet <csv> --tab YYYYMM       # CSV → レビュー用 Sheets タブ(REVIEW_SHEET_URL を出力)\n"
             + f"  {_ipy} {_iproc} from-sheet <tab>                  # 編集済みタブ → 新 CSV(REVIEWED_CSV を出力)\n"
+            + f"  {_ipy} {_iproc} external --month YYYY-MM --append-sheet YYYYMM  # 外部スタッフ(区分=追加)の稼働金額をタブに追記(S43。再実行は二重注意)\n"
             + f"  {_ipy} {_iproc} register --file <csv> --dry-run   # 登録内容を確認(件数・合計)\n"
             + f"  {_ipy} {_iproc} register --file <csv>             # Freee 本登録 + Gmail 処理済 + Drive 移動\n"
             + "  (processor.py は内部パスが絶対なので cwd 不問。各コマンドの標準出力から次の入力パス/URL を拾う)\n\n"

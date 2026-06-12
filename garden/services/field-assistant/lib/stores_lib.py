@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -104,6 +105,11 @@ class StoresClient:
     def list_customers(self):
         return self._paginate("/customers", {}, "customers")
 
+    def get_customer(self, canonical_id):
+        """顧客詳細(一覧と違い subscriptions / ticket_books の product_name を含む)。"""
+        data = self._get(f"/customers/{canonical_id}")
+        return data.get("customer") or data
+
     def list_reservations(self, booking_start_from, booking_start_to):
         params = {
             "booking_start_from": booking_start_from,
@@ -154,13 +160,47 @@ def profile_answer(profile_fields, *keywords):
     return ""
 
 
-def payment_label(reservation):
+def _short_product(name):
+    """商品名の表示用短縮(「おやこ学部 振替チケット 」→「振替チケット」)。"""
+    return re.sub(r"^(おやこ|こども|おとな)学部[・\s ]*", "", (name or "").strip())
+
+
+def product_name_map(client, customer_ids):
+    """顧客詳細から {商品ID: 商品名} を引く(used_products.canonical_id と突合用)。
+
+    同一人物が月謝と回数券を併有するケースで「今回どれを使ったか」を名前で
+    出すために必要(used_products には ID しか入っていない。実測 S43)。
+    """
+    m = {}
+    for cid in customer_ids:
+        if cid is None:
+            continue
+        try:
+            cust = client.get_customer(cid)
+        except StoresApiError:
+            continue  # 名前が引けないだけなら名簿自体は止めない
+        for s in cust.get("subscriptions") or []:
+            m[s.get("product_canonical_id")] = s.get("product_name") or ""
+        for t in cust.get("ticket_books") or []:
+            m[t.get("product_canonical_id")] = t.get("product_name") or ""
+    return m
+
+
+def payment_label(reservation, product_names=None):
+    """支払方法の表示。商品名マップがあれば「今回使った月謝/回数券の名前」を添える。"""
     pm = reservation.get("payment_method") or {}
     label = PAYMENT_METHOD_JA.get(pm.get("name"), pm.get("name") or "")
-    extras = [f"残{u['remaining_tickets']}" for u in pm.get("used_products") or []
-              if u.get("remaining_tickets") is not None]
-    if extras:
-        label += "(" + " ".join(extras) + ")"
+    bits = []
+    for u in pm.get("used_products") or []:
+        name = _short_product((product_names or {}).get(u.get("canonical_id"), ""))
+        rem = u.get("remaining_tickets")
+        bit = name
+        if rem is not None:
+            bit = (f"{name} " if name else "") + f"残{rem}"
+        if bit:
+            bits.append(bit)
+    if bits:
+        label += "(" + "・".join(bits) + ")"
     return label
 
 
@@ -168,19 +208,28 @@ def uses_subscription(reservation):
     return (reservation.get("payment_method") or {}).get("name") == "subscription"
 
 
-def build_roster(reservations):
-    """参加確定(accepted)の予約 → 名簿行。アレルギー・緊急連絡先込み(S42 追加)。"""
+def build_roster(reservations, client=None):
+    """参加確定(accepted)の予約 → 名簿行。アレルギー・緊急連絡先込み(S42 追加)。
+
+    client を渡すと顧客詳細を引き、支払方法に「今回使った月謝/回数券の商品名」を
+    添える(S43。1 顧客 1 GET 増えるが日次名簿の件数なら軽い)。
+    """
+    accepted = [r for r in reservations if r.get("status") == "accepted"]
+    pmap = {}
+    if client is not None:
+        ids = {(r.get("customer") or {}).get("canonical_id") for r in accepted}
+        pmap = product_name_map(client, ids)
     rows = []
-    for r in reservations:
-        if r.get("status") != "accepted":
-            continue
+    for r in accepted:
         cust = r.get("customer") or {}
         pf = cust.get("profile_fields")
+        primary = r.get("customer_name") or cust.get("name") or ""
         row = {
             "イベント名": r.get("booking_service_name") or "",
             "開催日時": fmt_dt(r.get("booking_start")),
             "予約番号": r.get("canonical_id"),
-            "保護者名": r.get("customer_name") or cust.get("name") or "",
+            "保護者名": primary,
+            "苗字": parent_surname(primary, cust.get("name") or ""),
             "電話番号": cust.get("phone_number") or cust.get("primary_phone_number") or "",
             "会員番号": cust.get("membership_number") or "",
             "参加人数": r.get("num_attendees"),
@@ -190,7 +239,7 @@ def build_roster(reservations):
             row[f"子ども{n} 生年"] = profile_answer(pf, "生年", f"子ども{n}")
         row["アレルギー・留意事項"] = profile_answer(pf, "アレルギー")
         row["緊急連絡先"] = profile_answer(pf, "緊急連絡先")
-        row["支払方法"] = payment_label(r)
+        row["支払方法"] = payment_label(r, pmap)
         rows.append(row)
     rows.sort(key=lambda x: (x["イベント名"], x["開催日時"], x["保護者名"]))
     return rows
@@ -209,17 +258,52 @@ def surname(name):
     return (name or "").replace("　", " ").split(" ")[0]
 
 
+def parent_surname(primary, registry=""):
+    """保護者の姓。予約者名(primary)と顧客台帳名(registry)を突き合わせて判定する。
+
+    予約者名が「祥子 黒川」のように名・姓逆で入っているケースがあるため(実測 S43)、
+    台帳名が分かち書きならその先頭を正とし、そうでなければ逆順の痕跡を見る。
+    """
+    p_tokens = [t for t in (primary or "").replace("　", " ").split(" ") if t]
+    r_tokens = [t for t in (registry or "").replace("　", " ").split(" ") if t]
+    if len(r_tokens) >= 2:
+        return r_tokens[0]
+    reg_flat = "".join(r_tokens)
+    if (len(p_tokens) >= 2 and reg_flat
+            and not reg_flat.startswith(p_tokens[0])
+            and reg_flat.startswith(p_tokens[-1])):
+        return p_tokens[-1]
+    return p_tokens[0] if p_tokens else reg_flat
+
+
+_HIRAGANA_ONLY = re.compile(r"^[ぁ-ゖー]+$")
+_KIDS_EMPTY_MARKERS = {"なし", "ナシ", "無し", "無", "-", "ー"}
+
+
 def kids_names(row):
-    """名簿行から子どもの名前(ふりがな括弧を除いた表記)を全員分返す。"""
+    """名簿行から子どもの名前を全員分返す(1 回答 = 1 名)。
+
+    回答の実測バリエーション(S43): 「結太　ゆうた」「依莉・えり」「穣(じょう)」
+    「津野　太志、たいし」(姓つき)など。括弧内とひらがなのみのトークン(ふりがな)を
+    落とし、保護者の姓と同じトークンも落として本名 1 つを選ぶ。
+    """
+    surname_ = (row.get("苗字") or "").strip()
     names = []
     for n in (1, 2, 3):
-        v = row.get(f"子ども{n} 名前") or ""
-        if v:
-            # 「太郎(たろう)」「結太 ゆうた」のようにふりがなが付くため、
-            # 括弧前 + 先頭トークンだけ取る
-            v = v.split("(")[0].split("(")[0].strip()
-            v = v.replace("　", " ").split(" ")[0]
-            names.append(v)
+        raw = (row.get(f"子ども{n} 名前") or "").strip()
+        if not raw:
+            continue
+        s = re.sub(r"[((][^))]*[))]?", "", raw)  # ふりがな括弧(閉じ忘れ含む)除去
+        tokens = [t for t in re.split(r"[\s 、,・/／]+", s) if t]
+        tokens = [t for t in tokens if t not in _KIDS_EMPTY_MARKERS]
+        if surname_:
+            tokens = [t for t in tokens if t != surname_]
+        if not tokens:
+            continue
+        # 漢字・カタカナ表記を優先(ひらがなのみはふりがなの可能性が高い)。
+        # 全トークンがひらがなならそれが本名なので先頭を採る。
+        pick = next((t for t in tokens if not _HIRAGANA_ONLY.match(t)), tokens[0])
+        names.append(pick)
     return names
 
 
@@ -232,10 +316,10 @@ def active_subscription_names(customer):
             if s.get("contract_status") == "active"]
 
 
-def attendance_detail(reservation):
+def attendance_detail(reservation, product_names=None):
     """1回の参加を『MM/DD 使用チケット』形式で表す(移植元と同形式)。"""
     date = fmt_dt(reservation.get("checked_in_at")) or fmt_dt(reservation.get("booking_start"))
-    return f"{date} {payment_label(reservation)}".strip()
+    return f"{date} {payment_label(reservation, product_names)}".strip()
 
 
 def build_furikae(customers, reservations):
@@ -250,6 +334,14 @@ def build_furikae(customers, reservations):
         cid = (r.get("customer") or {}).get("canonical_id")
         if cid is not None:
             by_customer.setdefault(cid, []).append(r)
+
+    # 顧客一覧に契約情報が乗っていれば商品名マップを作る(参加明細の表示用)
+    pmap = {}
+    for c in customers:
+        for s in c.get("subscriptions") or []:
+            pmap[s.get("product_canonical_id")] = s.get("product_name") or ""
+        for t in c.get("ticket_books") or []:
+            pmap[t.get("product_canonical_id")] = t.get("product_name") or ""
 
     rows = []
     for c in customers:
@@ -268,7 +360,7 @@ def build_furikae(customers, reservations):
             "当月予約件数": len(my_res),
             "当月参加回数": len(attended),
             "うち月謝利用回数": len(subs_attended),
-            "参加明細": "; ".join(attendance_detail(r) for r in attended),
+            "参加明細": "; ".join(attendance_detail(r, pmap) for r in attended),
             "振替要否": "不要" if subs_attended else "要",
         })
     rows.sort(key=lambda x: (x["振替要否"] != "要", x["顧客名"]))

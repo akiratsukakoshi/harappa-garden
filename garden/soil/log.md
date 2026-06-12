@@ -220,3 +220,17 @@
 - type: edit
 - pages: people/staff/{akira-tsukakoshi,yuji-wada,shotaro-shimura,kei-suzuki,junki-iida}.md
 - summary: field_assistant のメンション紐づけ用に `line_display_name:`(LINE アカウント名)を frontmatter に追加(値は未記入)。LINE 仕様 = メンションは userId 必須・group/room 宛のみ。グループ投入後に webhook が userId+表示名を収集 → `processor.py sync-line-users` が本欄と照合して line_users.json(全 nicknames → userId)を自動更新する設計。
+
+## [2026-06-12] index-refresh | 検知 5 件
+- by: mycelium (Stage 1)
+- type: index
+- pages: index.md(変更なし)
+- summary: S42 で運営5名に line_display_name フィールドを追加(値は未記入)。集計値・ロール変更なし → index.md は Pattern A で変更不要と判断。
+- detected: staff 5(akira-tsukakoshi / yuji-wada / shotaro-shimura / kei-suzuki / junki-iida)
+
+## 2026-06-12 (セッション43)
+
+- by: claude (with ガクチョ)
+- type: edit
+- pages: hiroto-ando.md(新設)/ mie-morite.md / yuji-wada.md / shotaro-shimura.md / kei-suzuki.md / akira-tsukakoshi.md
+- summary: ①運営5名(塚越/和田/志村/鈴木/飯田除く4名+塚越)の line_display_name 記入 + 和田にひらがなニックネーム(ゆーじさん/ゆーじ)追加(LINE メンション有効化) ②安藤寛人ページ新設(大阪・業務委託・freee_id 47229597。31→32名)③大阪2名(mie-morite / hiroto-ando)に invoice_monthly: true 新設(稼働シート外だが毎月請求が来る → invoice check が突合対象に含めるフラグ、ガクチョ指定)

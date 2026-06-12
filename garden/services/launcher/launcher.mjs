@@ -279,19 +279,43 @@ function substituteVars(s, vars) {
 }
 
 // ---- ロック処理 ----
+function pidAlive(pid) {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM'; // 権限エラー = プロセス自体は存在する
+  }
+}
+
 function acquireLock(seedName) {
   const lockFile = path.join(LOCK_DIR, `garden-launcher-${seedName.replace(/\//g, '_')}.lock`);
-  let fd;
-  try {
-    fd = fs.openSync(lockFile, 'wx');
-    fs.writeFileSync(fd, `pid=${process.pid}\nstarted=${new Date().toISOString()}\n`);
-    return { fd, lockFile, acquired: true };
-  } catch (e) {
-    if (e.code === 'EEXIST') {
-      return { fd: null, lockFile, acquired: false };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = fs.openSync(lockFile, 'wx');
+      fs.writeFileSync(fd, `pid=${process.pid}\nstarted=${new Date().toISOString()}\n`);
+      return { fd, lockFile, acquired: true };
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      // stale 判定: 記録 pid が死んでいれば残骸とみなして乗っ取る
+      // (S43: claude SIGTERM 後の process.exit で finally が走らず lock が残り、
+      //  次回発火が exit 3 で黙ってスキップされる事故の対策)
+      let stale = false;
+      try {
+        const m = /pid=(\d+)/.exec(fs.readFileSync(lockFile, 'utf8'));
+        stale = !m || !pidAlive(parseInt(m[1], 10));
+      } catch {
+        stale = true; // 読めない lock も残骸扱い
+      }
+      if (!stale || attempt > 0) {
+        return { fd: null, lockFile, acquired: false };
+      }
+      console.error(`[lock] stale lock (dead pid) — removing: ${lockFile}`);
+      try { fs.unlinkSync(lockFile); } catch {}
     }
-    throw e;
   }
+  return { fd: null, lockFile, acquired: false };
 }
 
 function releaseLock(lock) {
@@ -375,6 +399,9 @@ function main() {
     console.error(`another instance is running (lock: ${lock.lockFile})`);
     process.exit(3);
   }
+  // process.exit() は finally を実行しないため、exit フックでも必ず解放する
+  // (S43: 失敗パス exit(143) で lock が残った実障害の再発防止)
+  process.on('exit', () => releaseLock(lock));
 
   const state = loadState();
 
@@ -396,6 +423,11 @@ function main() {
     ensureLogDir(logPath);
 
     const model = seed.execute?.model || null;
+    // 種ごとの timeout(分)。重い種(invoice の Gemini 解析等)が既定 10 分で
+    // SIGTERM(exit 143)されるのを防ぐ(S43)。未指定は CLAUDE_TIMEOUT_MS。
+    const timeoutMs = seed.execute?.timeout_minutes
+      ? parseInt(seed.execute.timeout_minutes, 10) * 60 * 1000
+      : CLAUDE_TIMEOUT_MS;
 
     const header = [
       '',
@@ -407,6 +439,7 @@ function main() {
       `working_dir: ${seed.execute?.working_dir || process.cwd()}`,
       `claude_bin: ${CLAUDE_BIN}`,
       `model: ${model || '(default)'}`,
+      `timeout_ms: ${timeoutMs}`,
       `dry_run: ${args.dryRun}`,
       `---- vars ----`,
       JSON.stringify(vars, null, 2),
@@ -441,7 +474,7 @@ function main() {
     const ret = spawnSync(CLAUDE_BIN, cliArgs, {
       cwd,
       encoding: 'utf8',
-      timeout: CLAUDE_TIMEOUT_MS,
+      timeout: timeoutMs,
       maxBuffer: 50 * 1024 * 1024, // 50MB
       env: { ...process.env },
     });
@@ -455,7 +488,7 @@ function main() {
     appendLog(logPath, `\n---- end ----\nexit_code: ${exitCode}\nfinished_at: ${finishedAt}\n`);
 
     if (exitCode === 0) {
-      updateAudit(state, seedKey, 'success', { last_log: logPath });
+      updateAudit(state, seedKey, 'success', { last_log: logPath, exit_code: 0 });
       console.log(`[ok] ${seedKey} → ${logPath}`);
     } else {
       updateAudit(state, seedKey, 'failed', { last_log: logPath, exit_code: exitCode });
