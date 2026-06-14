@@ -3,13 +3,13 @@
 > 土壌の全エントリの意味的サマリ。菌糸(Mode 3)が ingest と編集のたびに更新する。
 > 全件列挙はせず「カテゴリ・件数・主要リンク」に絞る(Karpathy LLM Wiki 哲学)。細部は各カテゴリ README または `[[link]]` 経由で都度 Read。
 
-最終更新: 2026-06-11(菌糸 Mode 3 index-refresh / +東田彩・河村思依蕗 追加・三根美紗表記確定)
+最終更新: 2026-06-14(+熊澤満穂 追加(外部スタッフ・Freee 取引先 Z102 登録)/ README の業務委託表に安藤寛人を反映し active 32→33 に整合)
 
 ## カテゴリ一覧
 
 | カテゴリ | 状態 | 概要 |
 |---|---|---|
-| [people/staff/](people/staff/) | 🌳 **31名 active** | 経営1 / 業務委託14 / 外部スタッフ12 / アルバイト4。詳細は staff README |
+| [people/staff/](people/staff/) | 🌳 **33名 active** | 経営1 / 業務委託15 / 外部スタッフ13 / アルバイト4。詳細は staff README |
 | [people/clients/](people/clients/) | ⬜ 未着手 | クライアント企業の担当者(個人) |
 | [people/partners/](people/partners/) | ⬜ 未着手 | パートナー窓口 |
 | [business/](business/) | 🌱 **21ファイル骨格** | toC 学部別含む18 + toB 5 + communication 1。中身は埋め待ち多数 |
@@ -22,17 +22,17 @@
 
 ---
 
-## people/staff/ — スタッフ(31名 active)
+## people/staff/ — スタッフ(33名 active)
 
-詳細一覧と全 29 名の表は [people/staff/README.md](people/staff/README.md) を参照。本 index は意味的集計のみ:
+詳細一覧と全 33 名の表は [people/staff/README.md](people/staff/README.md) を参照。本 index は意味的集計のみ:
 
 ### contract 集計(契約 × 1軸排他)
 
 | contract | 人数 | 代表的なメンバー |
 |---|---:|---|
 | 経営 | 1 | [[akira-tsukakoshi]](ガクチョ) |
-| 業務委託 | 14 | 運営4([[yuji-wada]] / [[shotaro-shimura]] / [[kei-suzuki]] / [[junki-iida]] 仮) + 写真・フィールド系 10([[aya-higashida]] 追加) |
-| 外部スタッフ | 12 | フィールドスタッフ全員(主に逗子・未指定地域。[[shiiro-kawamura]] 追加) |
+| 業務委託 | 15 | 運営4([[yuji-wada]] / [[shotaro-shimura]] / [[kei-suzuki]] / [[junki-iida]] 仮) + 写真・フィールド系 11([[aya-higashida]] / [[hiroto-ando]] 追加) |
+| 外部スタッフ | 13 | フィールドスタッフ全員(主に逗子・未指定地域。[[shiiro-kawamura]]・[[maho-kumazawa]] 追加) |
 | アルバイト | 4 | フィールドスタッフ全員(逗子) |
 
 ### role 集計(役割 × 複数可)
@@ -40,7 +40,7 @@
 | role | 人数 | 内訳 |
 |---|---:|---|
 | 運営 | 4 | [[akira-tsukakoshi]] / [[yuji-wada]] / [[shotaro-shimura]] / [[kei-suzuki]] |
-| フィールドスタッフ | 22 | アルバイト4 + 外部スタッフ12(河村追加) + 業務委託6(城家・中辻・前田・守田・大吉美穂・飯田) |
+| フィールドスタッフ | 24 | アルバイト4 + 外部スタッフ13(河村・熊澤含む) + 業務委託7(城家・中辻・前田・守田・安藤・大吉美穂・飯田) |
 | 写真 | 6 | [[keiko-uchiyama]] / [[miho-oyoshi]] / [[kasumi-tachibana]] / [[misa-mine]] / [[kosaku-yoshida]] / [[aya-higashida]](大吉美穂は写真+フィールド兼任) |
 | 調理 | 0 | 未割り当て |
 
@@ -51,8 +51,8 @@
 | 全社 | 1 | [[akira-tsukakoshi]] |
 | 逗子 | 16 | 主力拠点 |
 | 千葉 | 4 | フィールド+写真 |
-| 大阪 | 2 | [[naoko-shiroie]] / [[mie-morite]] |
-| 未指定 | 8 | 主に外部スタッフ(河村思依蕗・東田彩 追加) |
+| 大阪 | 3 | [[naoko-shiroie]] / [[mie-morite]] / [[hiroto-ando]] |
+| 未指定 | 9 | 主に外部スタッフ(河村思依蕗・東田彩・熊澤満穂 追加) |
 
 ### 集計外メモ
 

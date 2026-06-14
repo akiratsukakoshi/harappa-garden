@@ -234,3 +234,19 @@
 - type: edit
 - pages: hiroto-ando.md(新設)/ mie-morite.md / yuji-wada.md / shotaro-shimura.md / kei-suzuki.md / akira-tsukakoshi.md
 - summary: ①運営5名(塚越/和田/志村/鈴木/飯田除く4名+塚越)の line_display_name 記入 + 和田にひらがなニックネーム(ゆーじさん/ゆーじ)追加(LINE メンション有効化) ②安藤寛人ページ新設(大阪・業務委託・freee_id 47229597。31→32名)③大阪2名(mie-morite / hiroto-ando)に invoice_monthly: true 新設(稼働シート外だが毎月請求が来る → invoice check が突合対象に含めるフラグ、ガクチョ指定)
+
+## [2026-06-13] index-refresh | 検知 6 件
+- by: mycelium (Stage 1)
+- type: index
+- pages: index.md
+- summary: 安藤寛人(大阪・業務委託・フィールドスタッフ)新設に伴い、staff 31名→32名・業務委託14→15・フィールドスタッフ22→23・大阪エリア2→3 を index.md に反映。
+- detected: staff 6(hiroto-ando 新設 / akira-tsukakoshi / mie-morite / shotaro-shimura / kei-suzuki / yuji-wada は mirror mtime のみ、実質変更は hiroto-ando のみ)
+
+## 2026-06-14 (セッション44)
+
+- by: claude (with ガクチョ)
+- type: edit
+- pages: [[maho-kumazawa]](新設)/ [[shiiro-kawamura]] / staff/README.md / index.md
+- summary: ガクチョが請求処理向けに2名を Freee 取引先登録した報告を soil に反映。①熊澤満穂ページ新設(外部スタッフ・フィールド・2026-04 加入・2026-05 稼働シート区分=追加で確認。Freee 取引先コード Z102 / 数値ID 118889424)②河村思依蕗の freee_id を 118889450(取引先コード Z103)で確定・freee_type を manual→partner(これまで「Freee 未登録」だった外部スタッフ追加払いの partner 解決用)。③README 業務委託表に安藤寛人(S43新設・index.md には反映済だが README 表だけ漏れていた)を追記し active 31→33・業務委託14→15・外部12→13 に整合。④index.md を 32→33・外部13 に更新。
+- note: ⚠️ ガクチョのメッセージは「河村 Z102 / 熊澤 Z103」だったが Freee 実データは逆(熊澤=Z102 / 河村=Z103)。Freee を正本として記録。安藤寛人は大阪フィールドスタッフ(page の role に元から記載あり)として role 集計に計上 → フィールドスタッフ 23→24(ガクチョ確認 2026-06-14)。
+- source: Freee Partner DB(get_partners: 熊澤満穂=118889424/Z102, 河村思依蕗=118889450/Z103), 2026-05_稼働時間シート(区分=追加)

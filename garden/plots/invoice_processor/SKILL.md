@@ -267,11 +267,12 @@ CHARTER の Output Style 質感に従いつつ、固有のセクション順:
 
 ## このSKILLの昇格状態
 
-- 段階: **draft → test**(S41 で起草 + VPS デプロイ + スモーク検証 GREEN まで完了。初回実走待ち)
+- 段階: **active**(S44 で初回実走 1 周完了 = 5月分を board → 承認 → Freee 登録までガクチョが完走。draft[S41]→test[S41]→active[S44])
 - active 条件:
   1. [x] VPS デプロイ(rsync + venv + .env + secrets 600)(S41)
   2. [x] ⭐ user OAuth token 発行(ローカル issue_token.py → ガクチョ同意 → VPS scp)(S41)
   3. [x] ⭐ レビュー用ワークブック作成(`INVOICE_REVIEW_SHEET_ID`)(S41)
   4. [x] スモーク検証(Gmail 検索 10 スレッド / Drive Inbox / check 実シートで請求漏れ 7 名検出[0h 除外] / Sheets ラウンドトリップ / launcher --dry-run)(S41)
   5. [x] 種 cron 登録(毎月12日 08:00)+ Discord「請求書まわして」配線(bot.py 話題検知、S41)
-  6. [ ] 初回実走(7/12 or 手動)で board → 承認 → Freee 登録を 1 周 → **active 昇格**
+  6. [x] 初回実走で board → 承認 → Freee 登録を 1 周 → **active 昇格**(S44。5月分。事前に河村思依蕗・熊澤満穂の Freee 取引先登録 → soil 反映 → 承認一周をガクチョ確認)
+- 次回自動発火: 7/12 08:00(6月分、external 込みの新フロー初通し)
