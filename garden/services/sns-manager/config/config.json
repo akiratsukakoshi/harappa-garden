@@ -1,0 +1,10 @@
+{
+  "_comment": "HMC apps/sns_pilot/config.json から継承。spreadsheet_id / drive folder は env(SNS_SHEET_ID / SNS_DRIVE_FOLDER_ID)に分離。",
+  "posting_schedule": {
+    "tuesday":   { "purpose": "B",     "hour": 20, "minute": 0 },
+    "thursday":  { "purpose": "reels", "hour": 12, "minute": 0 },
+    "saturday":  { "purpose": "AC",    "hour": 8,  "minute": 0 }
+  },
+  "reels_target_non_follower_reach_rate": 0.60,
+  "reels_target_3sec_retention_rate": 0.50
+}

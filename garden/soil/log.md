@@ -250,3 +250,17 @@
 - summary: ガクチョが請求処理向けに2名を Freee 取引先登録した報告を soil に反映。①熊澤満穂ページ新設(外部スタッフ・フィールド・2026-04 加入・2026-05 稼働シート区分=追加で確認。Freee 取引先コード Z102 / 数値ID 118889424)②河村思依蕗の freee_id を 118889450(取引先コード Z103)で確定・freee_type を manual→partner(これまで「Freee 未登録」だった外部スタッフ追加払いの partner 解決用)。③README 業務委託表に安藤寛人(S43新設・index.md には反映済だが README 表だけ漏れていた)を追記し active 31→33・業務委託14→15・外部12→13 に整合。④index.md を 32→33・外部13 に更新。
 - note: ⚠️ ガクチョのメッセージは「河村 Z102 / 熊澤 Z103」だったが Freee 実データは逆(熊澤=Z102 / 河村=Z103)。Freee を正本として記録。安藤寛人は大阪フィールドスタッフ(page の role に元から記載あり)として role 集計に計上 → フィールドスタッフ 23→24(ガクチョ確認 2026-06-14)。
 - source: Freee Partner DB(get_partners: 熊澤満穂=118889424/Z102, 河村思依蕗=118889450/Z103), 2026-05_稼働時間シート(区分=追加)
+
+## [2026-06-15] index-refresh | 検知 3 件
+- by: mycelium (Stage 1)
+- type: index
+- pages: index.md
+- summary: 2026-06-14(S44)で更新された3ファイルを検知。counts は index に反映済みのため変更なし。河村思依蕗 Freee Z103 / 熊澤満穂 Z102 の登録を集計外メモに追記。
+- detected: staff 2(shiiro-kawamura Freee Z103 確定 / maho-kumazawa 新設 Freee Z102), staff/README 1
+
+## [2026-06-15] ingest-raw | 2026-06-14 RAW
+- by: mycelium (Mode 1 ingest-raw)
+- type: ingest
+- source_date: 2026-06-14
+- pages: [[daily_operation]]
+- summary: 5月分請求書 Freee登録完了(67件・¥799,516・エラー0)を daily_operation wiki に追記。外部スタッフ2名(河村思依蕗・熊澤満穂)の Freee 登録情報は S44 で soil 既記録のため staff メモ追記 skip。グレー廃棄 4 turn。

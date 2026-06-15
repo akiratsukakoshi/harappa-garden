@@ -84,6 +84,18 @@ FIELD_TOPICS = (
     "週初めリマインド", "当日ブリーフ", "天気", "風速", "降水",
 )
 
+# S45: sns_manager 区画(SNS 運用、master 窓口)。話題検知時のみ SKILL + 実行手段を追加ロード。
+# 「投稿」単独は誤発火しやすいため、SNS が明確な語だけにする。
+SNS_SKILL_PATH = os.environ.get(
+    "SNS_MANAGER_SKILL",
+    "/home/vps-harappa/garden/plots/sns_manager/SKILL.md",
+)
+SNS_WORKDIR = "/home/vps-harappa/garden/services/sns-manager"
+SNS_TOPICS = (
+    "sns", "SNS", "インスタ", "instagram", "投稿文案", "画像セレクト",
+    "投稿予約", "reels", "リール", "フィード投稿", "週次レポート", "sns レポート",
+)
+
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -241,6 +253,7 @@ _skill_cache = _FileCache(SKILL_PATH)
 _expense_skill_cache = _FileCache(EXPENSE_SKILL_PATH)
 _invoice_skill_cache = _FileCache(INVOICE_SKILL_PATH)
 _field_skill_cache = _FileCache(FIELD_SKILL_PATH)
+_sns_skill_cache = _FileCache(SNS_SKILL_PATH)
 _memory_wiki_cache = _DirCache(
     MEMORY_WIKI_DIR, label_prefix="wiki/", index_first="index.md"
 )
@@ -265,6 +278,7 @@ try:
     _skill_cache.get()
     _expense_skill_cache.get()
     _invoice_skill_cache.get()
+    _sns_skill_cache.get()
     _memory_wiki_cache.get()
     _memory_past_raw_cache.get(datetime.datetime.now(JST).date())
 except Exception:
@@ -399,6 +413,31 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "ガクチョの明示依頼なしに実配信しないこと。\n"
             + "・この区画は read-only(STORES API は参照系のみ)。Freee や金額の話は expense/invoice 区画の領分。\n\n"
         )
+    # S45: sns_manager(SNS 運用)— 話題検知時のみ SKILL + 実行手段を追加ロード(master 窓口)
+    sns_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in SNS_TOPICS):
+        _npy = f"{SNS_WORKDIR}/.venv/bin/python"
+        _nproc = f"{SNS_WORKDIR}/processor.py"
+        sns_block = (
+            "──── sns_manager SKILL(SNS 運用区画 — 話題検知でロード)────\n"
+            + _sns_skill_cache.get()
+            + "\n──── sns SKILL ここまで ────\n\n"
+            + "[SNS の実行手段 — あなたは Bash で以下だけ実行できます(settings.json で許可済・他は不可)]\n"
+            + "⚠️ 必ず **絶対パス + cd なし** で実行(権限はこの絶対パス形式にのみ付与):\n"
+            + f"  {_npy} {_nproc} fetch-images --week YYYY-MM-DD     # Drive 候補画像を DL(その週の月曜)\n"
+            + f"  {_npy} {_nproc} report [--dry-run]                 # 先週の Meta Insights → Sheet + MD レポート\n"
+            + f"  {_npy} {_nproc} schedule --image PATH --caption-file PATH --publish-at YYYY-MM-DDTHH:MM:SS [--platform both|ig|fb] [--dry-run]\n"
+            + f"     カルーセルは --image の代わりに --images 'a.jpg,b.jpg'(2〜10 枚。IG=カルーセル / FB=アルバム[複数写真])\n"
+            + "・イレギュラー単発(「明日 20 時にこの画像で投稿作って」等)も可 = --publish-at に任意日時。週次カレンダーに縛られない(SKILL Mode A3)。\n"
+            + "・「画像セレクトして」→ fetch-images → DL 画像を Read で見て火(B 既存共感)・土(A/C 交互)用 2 枚を選定 → "
+            + "board/pending/{今日}-sns-select.md に描写・選定理由・一言コメント欄つきで起草 → Discord 通知。\n"
+            + "・「文案作って」→ 承認済の sns-select board(画像+一言コメント)を読む → ガクチョー文体で火・土の文案 → "
+            + "board/pending/{今日}-sns-caption.md に起草 → Discord 通知。⭐一言コメントを必ず起点に、ゼロから創作しない。\n"
+            + "・承認 → 各投稿について schedule で IG(ig_scheduler 経由)+ FB に予約(火 20:00 / 土 8:00)。"
+            + "承認前に予約しない(外部公開は不可逆)。\n"
+            + "・「先週の SNS レポート」→ report。標準出力の MD レポートをそのまま提示。\n"
+            + "・文体は SNS_STRATEGY.md と SKILL の文体ルール厳守(塚越が著者・Garden が整形者)。\n\n"
+        )
     # S40: shift_manager Mode 4 手動ルート(シフト回答集計)— 話題検知時のみ実行手段を追加ロード
     shift_agg_block = ""
     if any(t in f"{convo}\n{user_text}" for t in SHIFT_AGG_TOPICS):
@@ -440,6 +479,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + expense_block
         + invoice_block
         + field_block
+        + sns_block
         + shift_agg_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"

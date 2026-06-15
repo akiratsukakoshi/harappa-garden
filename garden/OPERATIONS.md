@@ -311,6 +311,40 @@
 
 ---
 
+### Card 8: sns_manager(SNS 運用)← S45 新設
+
+| 項目 | 内容 |
+|---|---|
+| **自動度** | 半自動(画像セレクト・文案は Garden が起草 → ガクチョ承認 → 予約。週次レポートは全自動通知) |
+| **トリガー** | 土 09:00(画像セレクト)/ 月 07:00(週次レポート)/ 月 07:30(文案作成)/ 対話「画像セレクトして」「文案作って」「先週の SNS レポート」 |
+| **承認境界** | セレクト・文案は **board 承認必須**(外部公開は不可逆)。週次レポートは承認なし(read-only 通知) |
+| **通知先** | **Discord master**(SNS は creative 判断・公開を伴うため master 一本。core_team/staff には出さない) |
+
+**週次フロー(塚越が著者・Garden が整形者)**:
+
+1. **金(ガクチョ)**: 候補画像を Google Drive フォルダ(`SNS_DRIVE_FOLDER_ID`)に設置 ← recurring task でリマインド
+2. **土 09:00**: Garden が候補から火(B 既存共感)・土(A/C 交互)用 2 枚を選定(画像を Read)→ board に描写・選定理由・一言コメント欄 → Discord 通知
+3. **〜日曜夜(ガクチョ)**: board で画像差し替え・**一言コメント記入**・承認
+4. **月 07:00**: 先週の Meta インサイト → Sheet 記録 → MD レポートを Discord 通知(承認不要)
+5. **月 07:30**: 承認済み画像 + 一言コメントを起点に火・土の文案(ガクチョー文体)→ board → Discord 通知
+6. **月〜(ガクチョ)**: board で赤入れ・承認 → Garden が IG(ig_scheduler)+ FB に予約(火 20:00 / 土 8:00)
+
+**MVP 範囲**: 火・土のフィード写真 2 本。木の Reels(動画)は当面ガクチョ手動。LINE@ は HMC でも未実装(対象外)。
+
+**失敗時に見るところ**:
+
+- VPS: `/home/vps-harappa/garden/log/{date}-sns-{select,caption,report}.log`(番人の監視対象)
+- 候補画像 DL 先: `/home/vps-harappa/garden/services/sns-manager/temp/`(VPS のみ)
+
+**関連ファイル**:
+
+- SKILL: [`garden/plots/sns_manager/SKILL.md`](plots/sns_manager/SKILL.md) + [`SNS_STRATEGY.md`](plots/sns_manager/SNS_STRATEGY.md)
+- 種: [`garden/seeds/sns_manager/`](seeds/sns_manager/)(saturday-image-select / monday-caption-draft / monday-weekly-report)
+- スクリプト: [`garden/services/sns-manager/`](services/sns-manager/)
+- 投稿予約: VPS `ig_scheduler` コンテナ(`ig-api.harappa.monster`、HMC と共用)
+
+---
+
 ## 3. HMC → HMG 移行マトリクス
 
 業務単位で「HMC ではどう動いていたか / HMG ではどこまで移ったか / ガクチョの作業」を一覧化(2026-06-02 測量士提案 2 採用)。
@@ -330,17 +364,17 @@
 | **フィールド運営アシスト** | (HMC 期は無し。storesyoyaku 単機能ツールのみ) | field_assistant plot + service + 種 3 本 + core_team tool `get_event_roster`(S42、**seedling 初適用**) | 🆕 🚧 test(スモーク済。LINE グループ投入 + 初回発火見届け待ち) | LINE グループにガクコ投入 → グループ ID 連携 / 名簿 WB 作成(⭐)/ 月末振替発行は管理画面 |
 | **メール整理** | `apps/email_organizer` | 未移植 | ⬜ | HMC で従来通り |
 | **議事録(Plaud等)** | `apps/minute_maker` | 未移植 | ⬜ | HMC で従来通り |
-| **SNS 投稿** | `apps/sns_pilot` | 未移植 | ⬜ | HMC で従来通り |
+| **SNS 投稿** | `apps/sns_pilot`(meta_client / schedule_posts / weekly_report)| sns_manager plot + service + 種 3 本(S45、transplant: 画像セレクト + 文案 + 週次レポート)| 🚧 draft(repo 実装・コンパイル済。VPS デプロイ + secret + Drive フォルダ待ち)| 金: 画像を Drive 設置 / 土: セレクト承認 + 一言コメント / 月: 文案承認 |
 | **部門振り分け監査** | `apps/freee_auditor` | 未移植 | ⬜ | HMC で従来通り |
 | **財務分析(PL/CF)** | `apps/finance_analyzer` | 未移植 | ⬜ | HMC で従来通り |
 | **手紙仕分け** | `apps/letter_opener` | 未移植 | ⬜ | HMC で従来通り |
 
-**移行優先度の現在地**(S41 時点):
+**移行優先度の現在地**(S45 時点):
 
-- 完了: 永続記憶(S30)/ expense_processor(S37-S38)
-- 実装中: **invoice_processor**(S41 で plot + service + 種を起草。デプロイ + 初回実走待ち)
+- 完了: 永続記憶(S30)/ expense_processor(S37-S38)/ invoice_processor(S44 active)
+- 実装中: **sns_manager**(S45 で plot + service + 種 3 本 + bot 配線を起草。VPS デプロイ + secret + Drive フォルダ待ち)
 - 次の候補: **finance_importer / freee_auditor の Garden 化**(plot_gardener 移植型で。expense/invoice の型を流用)
-- 後追い: SNS / 議事録 / メール / 監査 / 分析 / 手紙
+- 後追い: 議事録 / メール / 監査 / 分析 / 手紙
 
 ### 3.1 SKILL 正本表(どちらを読むべきか)— S39 新設
 

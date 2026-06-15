@@ -3,7 +3,7 @@
 > 土壌の全エントリの意味的サマリ。菌糸(Mode 3)が ingest と編集のたびに更新する。
 > 全件列挙はせず「カテゴリ・件数・主要リンク」に絞る(Karpathy LLM Wiki 哲学)。細部は各カテゴリ README または `[[link]]` 経由で都度 Read。
 
-最終更新: 2026-06-14(+熊澤満穂 追加(外部スタッフ・Freee 取引先 Z102 登録)/ README の業務委託表に安藤寛人を反映し active 32→33 に整合)
+最終更新: 2026-06-15(+河村思依蕗 Freee 取引先 Z103 確認・集計外メモ追記 / mycelium index-refresh)
 
 ## カテゴリ一覧
 
@@ -59,6 +59,7 @@
 - alumni 候補 48名 → `[_review-2026-05-22-master-data-candidates.md](people/staff/_review-2026-05-22-master-data-candidates.md)` で保留(ガクチョ判定「無視で OK」)
 - 退任 7名 → `[_alumni.md](people/staff/_alumni.md)` に集約
 - 同期上の注意: [[kei-suzuki]] / [[yuji-wada]] は freee_id 統合あり、[[misa-mine]] は Freee 漢字ゆれを 2026-06-10 に解消(誤: 美沙 → 正: 美紗)
+- [[shiiro-kawamura]] は Freee 取引先コード Z103 / ID 118889450 を 2026-06-14 に登録(外部スタッフ「追加」払い partner 解決用。[[maho-kumazawa]] は Z102 / ID 118889424 で同日登録)
 
 ---
 
