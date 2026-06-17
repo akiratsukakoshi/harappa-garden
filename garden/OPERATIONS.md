@@ -377,6 +377,27 @@
 
 ---
 
+### Card 10: client_steward(クライアント台帳の世話役)← S48 新設
+
+| 項目 | 内容 |
+|---|---|
+| **自動度** | 半自動(生取り込み=自動 digest / 解釈=board → ガクチョ剪定)。soil 自動書込は次段 |
+| **トリガー** | 週次 月 08:20(全 active client の Gmail 差分 sweep)/ 対話「クライアント見て」「{社名} どうなってる」 |
+| **承認境界** | 生取り込み(新メール要点)= 自動。**解釈(確度変更・新規案件・freee反映の断定・担当追加)= board**。担当実名はメール署名のみ(Plaud 話者は不採用) |
+| **通知先** | **Discord master 一本**(クライアント経営情報は機微。core_team/staff/LINE には出さない = 構造遮断) |
+
+**思想 = 横展開(Bootstrap)も進化(Sweep)も「ドメインで Gmail / 名前で Plaud」の別トリガー**。watermark(`last_synced`)で差分同期。
+
+**MVP 範囲(S48)**: Sweep 種1本(Gmail 差分 digest、当面 active=MTI)+ sweep ツール。**ローカル dry-run GREEN**(MTI:要フォロー/finance シグナル/担当者発見[大木敦を新規検出])。状態 **draft**(VPS デプロイ + cron で test)。
+
+**宿題(次段)**: Brief(打合せ前ブリーフィング)/ Plaud cron 取り込み(MCP ブリッジ)/ soil 自動 append + board 起草(update_client_ledger / draft_client_board)/ finance 月次連携(確度・freee反映 自動更新)/ 横展開(MTI 型で他社 bootstrap)。
+
+**失敗時に見るところ**: VPS `log/{date}-client-sweep.log` / token 失効(invoice の user OAuth 流用)/ Gmail quota。
+
+**関連ファイル**: SKILL [`garden/plots/client_steward/SKILL.md`](plots/client_steward/SKILL.md) / 種 [`garden/seeds/client_steward/weekly-client-sweep.md`](seeds/client_steward/weekly-client-sweep.md) / サービス [`garden/services/client-steward/`](services/client-steward/) / soil 構造 [`garden/soil/clients/README.md`](soil/clients/README.md)
+
+---
+
 ## 3. HMC → HMG 移行マトリクス
 
 業務単位で「HMC ではどう動いていたか / HMG ではどこまで移ったか / ガクチョの作業」を一覧化(2026-06-02 測量士提案 2 採用)。

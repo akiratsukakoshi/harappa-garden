@@ -41,8 +41,20 @@ status: draft   # 各案件の個別ファイル化・clientリンクは宿題(R
 - MTI・一丸ファルコスの追加案件の目
 - AI研修(toB)のアドオン展開
 
+## クライアント正本化の進捗(S48〜)
+
+各案件を企業正本 [soil/clients/](../clients/) に展開し、a〜f(打合せ/資料/見積/実績/請求)+ finance を1枚に集約していく。
+
+| クライアント | 状態 | 正本 |
+|---|---|---|
+| **MTI** | ✅ 型の参照実装(第1号) | [soil/clients/mti/](../clients/mti/)(新人研修[請求実物]/経営研修2026[Plaud 3本+台帳]/経営者研修[見積実物]) |
+| パナソニックホームズ / ゴンチャ / boundlesslife / 白井松 / 三井 / 京急 | ⬜ 未着手 | MTI を参照実装に横展開 |
+
+> 構造仕様 = [soil/clients/README.md](../clients/README.md)。見積/請求様式 = [soil/finance/templates/](../finance/templates/)。
+
 ## 関連
 
 - 着地予測・目標: [soil/finance/targets.md](../finance/targets.md)
 - 議論の経緯: [soil/finance/discussions/](../finance/discussions/)
+- クライアント正本: [soil/clients/](../clients/)
 - AI関連(toC)・toC基盤は finance discussions 参照(本ファイルは toB のみ)
