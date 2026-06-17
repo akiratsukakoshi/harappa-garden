@@ -263,6 +263,141 @@ class FreeeClient:
             self._cache["taxes"] = taxes
         return taxes
 
+    # ── 財務レポート / 取引 / 口座 の読み取り(S47 finance 区画で追加) ───────────────
+    # HMC modules/freee_client/client.py から忠実移植。finance_analyzer(PL/CF)と
+    # freee_auditor(部門漏れ scan + 部門更新)が使う。読み取りはキャッシュしない
+    # (期間・年度でパラメータが変わるため)。
+
+    def get_trial_pl(self, fiscal_year, start_month=1, end_month=12, section_id=None, **kwargs):
+        """月次損益計算書(PL)を取得。fiscal_year: int(例 2025)。"""
+        url = "https://api.freee.co.jp/api/1/reports/trial_pl"
+        params = {
+            "company_id": self.target_company_id,
+            "fiscal_year": fiscal_year,
+            "start_month": start_month,
+            "end_month": end_month,
+            "step_size": "month",
+            "account_item_display_type": "account_item",
+        }
+        if section_id:
+            params["section_id"] = section_id
+        if kwargs:
+            params.update(kwargs)
+        return self.request("GET", url, params=params)
+
+    def get_trial_bs(self, fiscal_year, start_month=1, end_month=12, section_id=None):
+        """月次貸借対照表(BS)を取得。"""
+        url = "https://api.freee.co.jp/api/1/reports/trial_bs"
+        params = {
+            "company_id": self.target_company_id,
+            "fiscal_year": fiscal_year,
+            "start_month": start_month,
+            "end_month": end_month,
+            "step_size": "month",
+            "account_item_display_type": "account_item",
+        }
+        if section_id:
+            params["section_id"] = section_id
+        return self.request("GET", url, params=params)
+
+    def get_deal(self, deal_id):
+        """取引を1件取得(部門更新の前に全明細を取るために使う)。"""
+        url = f"https://api.freee.co.jp/api/1/deals/{deal_id}"
+        params = {"company_id": self.target_company_id}
+        return self.request("GET", url, params=params)
+
+    def get_all_deals(self, start_issue_date=None, end_issue_date=None, **kwargs):
+        """全取引をページネーション付きで取得(部門漏れ scan / データ品質 check 用)。"""
+        all_deals = []
+        offset = 0
+        limit = 100
+        while True:
+            params = {
+                "company_id": self.target_company_id,
+                "limit": limit,
+                "offset": offset,
+            }
+            if start_issue_date:
+                params["start_issue_date"] = start_issue_date
+            if end_issue_date:
+                params["end_issue_date"] = end_issue_date
+            params.update(kwargs)
+            response = self.request("GET", "https://api.freee.co.jp/api/1/deals", params=params)
+            if not response or "deals" not in response:
+                break
+            batch = response["deals"]
+            all_deals.extend(batch)
+            if len(batch) < limit:
+                break
+            offset += limit
+        return all_deals
+
+    def update_deal_section(self, deal_id, detail_id, section_id):
+        """取引明細の部門IDを更新する(全フィールド PUT。freee は部分更新非対応)。"""
+        deal_resp = self.get_deal(deal_id)
+        if not deal_resp or "deal" not in deal_resp:
+            self.logger.error(f"取引 {deal_id} の取得に失敗しました")
+            return None
+        deal = deal_resp["deal"]
+
+        updated_details = []
+        for d in deal.get("details", []):
+            detail = {
+                "id": d["id"],
+                "account_item_id": d["account_item_id"],
+                "amount": d["amount"],
+                "tax_code": d["tax_code"],
+                "description": d.get("description", ""),
+                "section_id": section_id if d["id"] == detail_id else d.get("section_id"),
+            }
+            updated_details.append(detail)
+
+        url = f"https://api.freee.co.jp/api/1/deals/{deal_id}"
+        payload = {
+            "company_id": self.target_company_id,
+            "issue_date": deal["issue_date"],
+            "type": deal["type"],
+            "details": updated_details,
+        }
+        if deal.get("partner_id"):
+            payload["partner_id"] = deal["partner_id"]
+        if deal.get("due_date"):
+            payload["due_date"] = deal["due_date"]
+        return self.request("PUT", url, json_data=payload)
+
+    def get_walletables(self):
+        """口座・カード等の一覧と残高を取得(CF 分析用)。"""
+        url = "https://api.freee.co.jp/api/1/walletables"
+        params = {"company_id": self.target_company_id}
+        response = self.request("GET", url, params=params)
+        if response:
+            return response.get("walletables", [])
+        return []
+
+    def get_wallet_txns(self, walletable_type=None, walletable_id=None,
+                        start_date=None, end_date=None, limit=100, offset=0):
+        """口座/カードの明細(wallet_txns)を取得。
+
+        freee「自動で経理」に同期済みだが取引化されていない明細(= PL に未反映)を
+        auditor が検出するために使う。/api/1/walletable_txns(口座振替)とは別物の
+        /api/1/wallet_txns(明細)を叩く点に注意。明細の `status` の意味は
+        初回実データで確定する(finance 区画 SKILL Mode D 参照)。
+        """
+        url = "https://api.freee.co.jp/api/1/wallet_txns"
+        params = {"company_id": self.target_company_id, "limit": limit, "offset": offset}
+        if walletable_type:
+            params["walletable_type"] = walletable_type
+        if walletable_id:
+            params["walletable_id"] = walletable_id
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        response = self.request("GET", url, params=params)
+        if response:
+            return response.get("wallet_txns", [])
+        return []
+
     def request(self, method, url, params=None, json_data=None):
         if not self.tokens:
             self.logger.error("Not authenticated.")

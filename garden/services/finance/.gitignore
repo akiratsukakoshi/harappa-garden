@@ -1,0 +1,23 @@
+# Secrets (VPS only, 600 perm)
+secrets/
+.env
+
+# Data(売上CSV・財務レポート・スキャン結果。機微な財務情報を含む。VPS のみ)
+input/
+review/
+scan/
+applied/
+proceeded/
+reports/
+
+# config/targets.json は雛形(0)を repo に置くが、VPS は実数値で diverge する。
+# デプロイ rsync は config/targets.json を --exclude すること(実数値を repo に戻さない)。
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local
+*.log

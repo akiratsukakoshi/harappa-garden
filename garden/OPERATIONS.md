@@ -345,6 +345,38 @@
 
 ---
 
+### Card 9: finance(財務 — 売上記帳 / データ整合性 / 財務分析)← S47 新設
+
+| 項目 | 内容 |
+|---|---|
+| **自動度** | 半自動(記帳・部門修正は Garden が候補起草 → ガクチョ承認 → Freee 書込。分析は read-only 投げかけ) |
+| **トリガー** | 6日 08:00(売上記帳)/ 9日 08:00(データ監査)/ 10日 08:00(財務分析の投げかけ)/ 対話「売上記帳まわして」「部門監査まわして」「財務見せて」 |
+| **承認境界** | 記帳(manual_journal)・部門一括修正(PUT)は **board + dry-run 必須**(外部書込・不可逆)。分析は承認なし(read-only) |
+| **通知先** | **Discord master**(財務は機微 + 書込。core_team/staff には一切出さない = 構造遮断) |
+
+**月次サイクル(ガクチョ設計、S47)= 前段が整地してから次が走る直列フロー**:
+
+1. **5日(ガクチョ)**: STORES/Square 売上CSV を Google Drive(`FINANCE_SALES_DRIVE_FOLDER_ID`)にアップ ← recurring task でリマインド
+2. **6日 08:00 記帳(I)**: `importer.py` fetch → generate(部門ルール推定)→ Sheets レビュー → board → Discord(Sheet URL)。ガクチョが部門を埋め →「承認」→ from-sheet → register --dry-run → 振替伝票本登録(借方=前受金/貸方=売上高、月末起票)
+3. **9日 08:00 監査(D)**: `auditor.py scan` で **部門漏れ + 未登録明細(口座同期済だが取引化されていない = PL未反映)**を検出 → 部門漏れは Sheets レビュー → 承認 → PUT 修正。**analyzer 前のデータ地ならし役**
+4. **10日 08:00 分析(A)**: `analyzer.py summary` → 整地済みデータで PL/CF/着地予測 → Discord に**数値+論点で対話の投げかけ**(board は作らない、read-only)
+
+**MVP 範囲**: 記帳 + 部門漏れ修正 + 財務分析の対話。**未登録明細は当面「検出・報告」まで**(自動登録アシストは初回実データで `wallet_txns` の未登録 status を確定 → expense と被る分の境界を決めてから)。
+
+**失敗時に見るところ**:
+
+- VPS: `/home/vps-harappa/garden/log/{date}-{sales-import,data-audit,finance-review}.log`(番人の監視対象)
+- 売上CSV: Drive `FINANCE_SALES_DRIVE_FOLDER_ID`(register 後 `processed/YYYYMMDD/` へ)/ レビュー: `FINANCE_REVIEW_SHEET_ID`
+
+**関連ファイル**:
+
+- SKILL: [`garden/plots/finance/SKILL.md`](plots/finance/SKILL.md)(Mode I 記帳 / D 監査 / A 分析)
+- 種: [`garden/seeds/finance/`](seeds/finance/)(monthly-sales-import / monthly-data-audit / monthly-finance-review)
+- スクリプト: [`garden/services/finance/`](services/finance/)(importer.py / auditor.py / analyzer.py)
+- Freee 連携: 正本 [`garden/lib/freee_client.py`](lib/freee_client.py)(S47 で読み取りメソッド追記)を expense/invoice/shift と共有(新トークン作らず)
+
+---
+
 ## 3. HMC → HMG 移行マトリクス
 
 業務単位で「HMC ではどう動いていたか / HMG ではどこまで移ったか / ガクチョの作業」を一覧化(2026-06-02 測量士提案 2 採用)。
@@ -359,22 +391,21 @@
 | **土壌維持(soil index)** | (HMC 期は無し) | mycelium index-refresh active | 🆕 ✅ 完了(Stage 1) | なし(自律) |
 | **永続記憶** | (HMC 期は無し) | Stage A〜C すべて active(S30。RAW logging + ingest-raw + consolidate-wiki + bot 永続記憶ロード) | 🆕 ✅ 完了(Stage D はチーム公開時) | なし(自律) |
 | **経費登録** | `apps/expense_processor` | expense_processor plot + service + 種 2 本 active + cron(S35〜S38) | ✅ 完了(残: 件数多い月の本番 1 周見届け) | 月末に明細・レシートを Drive へ / Discord「経費まわして」or 承認 / Sheets レビュー |
-| **売上記帳(STORES/Square)** | `apps/finance_importer` | 未移植 | ⬜ | HMC で従来通り |
+| **売上記帳(STORES/Square)** | `apps/finance_importer` | **finance plot Mode I** + service `importer.py` + 種 monthly-sales-import(S47、transplant) | 🆕 🚧 draft(repo 実装・importer オフライン GREEN。VPS デプロイ + secret + Drive/WB 待ち) | 5日 CSV アップ → 6日 Sheet で部門を埋めて「承認」 |
 | **請求書処理** | `apps/invoice_processor` | invoice_processor plot + service + 種 1 本(S41、hybrid: スタッフ照合 + 稼働突合を新設) | 🚧 test(VPS デプロイ・スモーク済。初回発火 7/12 見届け待ち) | 12 日通知の Sheet 確認 → 「承認」/ 請求漏れの人へ催促 |
 | **フィールド運営アシスト** | (HMC 期は無し。storesyoyaku 単機能ツールのみ) | field_assistant plot + service + 種 3 本 + core_team tool `get_event_roster`(S42、**seedling 初適用**) | 🆕 🚧 test(スモーク済。LINE グループ投入 + 初回発火見届け待ち) | LINE グループにガクコ投入 → グループ ID 連携 / 名簿 WB 作成(⭐)/ 月末振替発行は管理画面 |
 | **メール整理** | `apps/email_organizer` | 未移植 | ⬜ | HMC で従来通り |
 | **議事録(Plaud等)** | `apps/minute_maker` | 未移植 | ⬜ | HMC で従来通り |
 | **SNS 投稿** | `apps/sns_pilot`(meta_client / schedule_posts / weekly_report)| sns_manager plot + service + 種 3 本(S45、transplant: 画像セレクト + 文案 + 週次レポート)| 🚧 draft(repo 実装・コンパイル済。VPS デプロイ + secret + Drive フォルダ待ち)| 金: 画像を Drive 設置 / 土: セレクト承認 + 一言コメント / 月: 文案承認 |
-| **部門振り分け監査** | `apps/freee_auditor` | 未移植 | ⬜ | HMC で従来通り |
-| **財務分析(PL/CF)** | `apps/finance_analyzer` | 未移植 | ⬜ | HMC で従来通り |
+| **部門振り分け監査 + データ整合性** | `apps/freee_auditor` | **finance plot Mode D** + service `auditor.py` + 種 monthly-data-audit(S47、transplant + 役割拡張: 未登録明細検出を追加) | 🆕 🚧 draft(repo 実装・コンパイル済。VPS デプロイ待ち) | 9日 監査の board で部門を埋めて「承認」 |
+| **財務分析(PL/CF)** | `apps/finance_analyzer` | **finance plot Mode A** + service `analyzer.py` + 種 monthly-finance-review(S47、transplant) | 🆕 🚧 draft(repo 実装・コンパイル済。VPS デプロイ待ち) | 10日 の投げかけに乗って戦略議論 / 「財務見せて」 |
 | **手紙仕分け** | `apps/letter_opener` | 未移植 | ⬜ | HMC で従来通り |
 
 **移行優先度の現在地**(S45 時点):
 
-- 完了: 永続記憶(S30)/ expense_processor(S37-S38)/ invoice_processor(S44 active)
-- 実装中: **sns_manager**(S45 で plot + service + 種 3 本 + bot 配線を起草。VPS デプロイ + secret + Drive フォルダ待ち)
-- 次の候補: **finance_importer / freee_auditor の Garden 化**(plot_gardener 移植型で。expense/invoice の型を流用)
-- 後追い: 議事録 / メール / 監査 / 分析 / 手紙
+- 完了: 永続記憶(S30)/ expense_processor(S37-S38)/ invoice_processor(S44 active)/ sns_manager(S47 active)
+- 実装中: **finance**(S47 で 1 区画に finance_importer + finance_analyzer + freee_auditor を transplant。plot + service[importer/auditor/analyzer]+ 種 3 本 + bot 配線を起草。VPS デプロイ + secret + Drive/WB 待ち)
+- 後追い: 議事録 / メール / 手紙
 
 ### 3.1 SKILL 正本表(どちらを読むべきか)— S39 新設
 
@@ -387,7 +418,9 @@
 | 経費登録 | [garden/plots/expense_processor/SKILL.md](plots/expense_processor/SKILL.md) | `.agent/skills/expense_processor/` = 参照のみ(冒頭バナー有) |
 | 日次タスク管理 | [garden/plots/daily-pilot/SKILL.md](plots/daily-pilot/SKILL.md) | `.agent/skills/hmc_pilot/` = 参照のみ(冒頭バナー有) |
 | 請求書処理 | [garden/plots/invoice_processor/SKILL.md](plots/invoice_processor/SKILL.md) | `.agent/skills/invoice_processor/` = 参照のみ(冒頭バナー有、S41) |
-| 上記以外の 7 業務 | `.agent/skills/{name}/SKILL.md`(HMC 運用継続中) | Garden 化時に plot_gardener を通す |
+| SNS 運用 | [garden/plots/sns_manager/SKILL.md](plots/sns_manager/SKILL.md) | `.agent/skills/sns_pilot/` = 参照のみ(S45) |
+| 財務(売上記帳 / 監査 / 分析) | [garden/plots/finance/SKILL.md](plots/finance/SKILL.md) | `.agent/skills/{finance_importer,finance_analyzer,freee_auditor}/` = 参照のみ(S47、3 スキルを 1 区画に統合) |
+| 上記以外の業務 | `.agent/skills/{name}/SKILL.md`(HMC 運用継続中) | Garden 化時に plot_gardener を通す |
 
 業務手順(workflow)の正本は従来通り [`garden/soil/workflows/`](soil/workflows/)(CLAUDE.md 参照)。本表は SKILL(実行手順書)レイヤーの正本を定める。
 

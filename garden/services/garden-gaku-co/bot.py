@@ -96,6 +96,18 @@ SNS_TOPICS = (
     "投稿予約", "reels", "リール", "フィード投稿", "週次レポート", "sns レポート",
 )
 
+# S47: finance 区画(財務 — 売上記帳 / データ整合性 / 財務分析、master 窓口)。
+# 話題検知時のみ SKILL + 実行手段を追加ロード。財務が明確な語だけにする(「売上」単独は誤発火しやすい)。
+FINANCE_SKILL_PATH = os.environ.get(
+    "FINANCE_SKILL",
+    "/home/vps-harappa/garden/plots/finance/SKILL.md",
+)
+FINANCE_WORKDIR = "/home/vps-harappa/garden/services/finance"
+FINANCE_TOPICS = (
+    "財務", "売上記帳", "振替伝票", "部門監査", "部門漏れ", "データ整合性",
+    "未登録明細", "PL", "損益", "キャッシュフロー", "着地予測", "財務分析", "売上CSV",
+)
+
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -254,6 +266,7 @@ _expense_skill_cache = _FileCache(EXPENSE_SKILL_PATH)
 _invoice_skill_cache = _FileCache(INVOICE_SKILL_PATH)
 _field_skill_cache = _FileCache(FIELD_SKILL_PATH)
 _sns_skill_cache = _FileCache(SNS_SKILL_PATH)
+_finance_skill_cache = _FileCache(FINANCE_SKILL_PATH)
 _memory_wiki_cache = _DirCache(
     MEMORY_WIKI_DIR, label_prefix="wiki/", index_first="index.md"
 )
@@ -438,6 +451,41 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "・「先週の SNS レポート」→ report。標準出力の MD レポートをそのまま提示。\n"
             + "・文体は SNS_STRATEGY.md と SKILL の文体ルール厳守(塚越が著者・Garden が整形者)。\n\n"
         )
+    # S47: finance(財務 — 売上記帳 / データ整合性 / 財務分析)— 話題検知時のみ SKILL + 実行手段を追加ロード(master 窓口)
+    finance_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in FINANCE_TOPICS):
+        _fipy = f"{FINANCE_WORKDIR}/.venv/bin/python"
+        finance_block = (
+            "──── finance SKILL(財務区画 — 話題検知でロード)────\n"
+            + _finance_skill_cache.get()
+            + "\n──── finance SKILL ここまで ────\n\n"
+            + "[財務の実行手段 — あなたは Bash で以下だけ実行できます(settings.json で許可済・他は不可)]\n"
+            + "⚠️ 必ず **絶対パス + cd なし** で実行(権限はこの絶対パス形式にのみ付与。cd や相対パスだと拒否されます):\n"
+            + "・Mode I 売上記帳(書込):\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/importer.py fetch                       # Drive 売上CSV → input/\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/importer.py generate --month YYYY-MM   # input → 振替伝票候補 review CSV(入金ベース=全行をその月末起票。REVIEW_CSV/EXTRACT_ROWS/SECTION_MISSING)\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/importer.py to-sheet <csv> --tab YYYYMM # レビュー用 Sheets(REVIEW_SHEET_URL / REVIEW_TAB)\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/importer.py from-sheet <tab>            # 編集後タブ → CSV(REVIEWED_CSV)\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/importer.py register <csv> --dry-run    # 振替伝票の件数・合計を確認\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/importer.py register <csv>              # Freee 本登録(manual_journal)+ Drive 原本を processed へ\n"
+            + "・Mode D データ整合性(書込・破壊的):\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/auditor.py scan --month YYYY-MM         # 部門漏れ + 未登録明細(AUDIT_MISSING / AUDIT_CSV / UNREGISTERED_TXNS)\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/auditor.py to-sheet <csv> --tab audit YYYYMM\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/auditor.py from-sheet <tab>\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/auditor.py apply <csv> --dry-run        # PUT 内容を確認(必須)\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/auditor.py apply <csv>                  # 部門を Freee に反映(PUT /deals。ロールバック無し)\n"
+            + "・Mode A 財務分析(read-only):\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/analyzer.py check|pl|cf|summary         # データ品質 / PL / CF / サマリー(SUMMARY_JSON)\n"
+            + f"  {_fipy} {FINANCE_WORKDIR}/analyzer.py targets --set-revenue N --set-operating-profit N\n\n"
+            + "・「売上記帳まわして」(Mode I)→ fetch → generate(0件なら「スキップ」通知)→ to-sheet → "
+            + "board/pending/{今日}-sales-import.md に候補 + frontmatter(target_month / review_csv / review_sheet_url / review_tab)→ "
+            + "Discord に **Sheet URL** つきで通知。承認 → from-sheet → register --dry-run → 本登録。\n"
+            + "・「部門監査まわして」「データ整合性チェック」(Mode D)→ scan → 部門漏れあれば to-sheet + board、"
+            + "未登録明細は status 内訳を board に出す。承認 → from-sheet → apply --dry-run → 本適用。\n"
+            + "・「財務見せて」「PL見せて」「キャッシュ大丈夫?」(Mode A)→ summary / pl / cf を叩き、"
+            + "SKILL の議論フレームに沿って数値+論点で投げかける(read-only)。\n"
+            + "・Freee 書込(register / apply)は不可逆。**必ず dry-run の確認を取ってから**本実行。未登録明細の自動登録は当面しない。\n\n"
+        )
     # S40: shift_manager Mode 4 手動ルート(シフト回答集計)— 話題検知時のみ実行手段を追加ロード
     shift_agg_block = ""
     if any(t in f"{convo}\n{user_text}" for t in SHIFT_AGG_TOPICS):
@@ -480,6 +528,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + invoice_block
         + field_block
         + sns_block
+        + finance_block
         + shift_agg_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"

@@ -1,0 +1,10 @@
+{
+  "fiscal_year": 2025,
+  "fiscal_start_month": 10,
+  "annual_targets": {
+    "revenue": 0,
+    "gross_profit": 0,
+    "operating_profit": 0
+  },
+  "notes": "雛形(目標0)。実数値はガクチョが VPS で `analyzer.py targets --set-revenue ... --set-operating-profit ...` で設定する。財務の実数値は repo に置かず VPS 正本(config/targets.json は .gitignore で実値を除外)。"
+}

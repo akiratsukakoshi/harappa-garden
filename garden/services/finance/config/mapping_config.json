@@ -1,0 +1,76 @@
+{
+  "_note": "sections は現行 Freee(S47 deploy 時に live get_sections() から取得)。importer の to-sheet ドロップダウン / register の name→id は **実行時に実 Freee を正本**として参照する(auditor と同様)。この表は section_guesser のヒント用。Freee 側で部門が増減したら更新する。",
+  "sections": {
+    "AI関連": 3939043,
+    "おとな学部": 2985715,
+    "おやこ学部": 2985717,
+    "こども学部": 2985716,
+    "ナーフ学園": 3381924,
+    "ハラチュウ": 1694590,
+    "企業案件": 153355,
+    "俺のヨガ": 2501870,
+    "個人向けイベント": 1424127,
+    "全社共通": 1052584,
+    "共創プロジェクト": 3114498,
+    "千葉_SSEK": 1424129,
+    "千葉_コース": 561527,
+    "原っぱの学校": 1656062,
+    "大人の寺子屋": 1694592,
+    "大阪_イベント": 1424131,
+    "大阪_コース": 246400,
+    "放課後サボール": 1052577,
+    "逗子_イベントその他": 153360,
+    "逗子_ギャング": 153361,
+    "逗子_リトル": 153382,
+    "逗子_共通": 1052579,
+    "（旧）大人原っぱ": 1238241,
+    "（旧）逗子 セイシュンラボ": 153357,
+    "（旧）逗子 リトル（平日）": 153354,
+    "（旧）逗子100sai共通": 153359,
+    "（旧）逗子ベビーサボール": 1237923
+  },
+  "keyword_rules": {
+    "大阪": "大阪_コース",
+    "オンライン対談": "全社共通",
+    "デジタル原っぱ大学": "AI関連"
+  },
+  "stores": {
+    "_note": "STORES 実エクスポート(payment_transactions products/reservations)は utf-8-sig。amount=売上 は STORES 手数料控除後の純額(HMC 継承)。検出は importer が複数エンコーディングで自動判定するので encoding は fallback。",
+    "encoding": "utf-8-sig",
+    "header_row": 1,
+    "date_column": "取引日時",
+    "date_format": "%Y年%m月%d日 %H:%M",
+    "amount_column": "売上",
+    "description_options": ["タイトル", "商品名", "メニュー"],
+    "account_item_name": "売上高",
+    "debit_account_item_name": "前受金"
+  },
+  "square": {
+    "encoding": "utf-16",
+    "delimiter": "\t",
+    "header_row": 1,
+    "date_column": "日付",
+    "time_column": "時間",
+    "date_format": "%Y-%m-%d %H:%M:%S",
+    "amount_column": "合計（純額 ）",
+    "amount_params": {
+      "remove_chars": ["¥", "\"", ","],
+      "is_quoted": true
+    },
+    "description_column": "詳細",
+    "account_item_name": "売上高",
+    "debit_account_item_name": "前受金"
+  },
+  "review": {
+    "encoding": "utf-8-sig",
+    "header_row": 1,
+    "date_column": "date",
+    "registration_date_column": "registration_date",
+    "amount_column": "amount",
+    "description_column": "description",
+    "section_column": "section_name",
+    "date_format": "%Y-%m-%d",
+    "account_item_name": "売上高",
+    "debit_account_item_name": "前受金"
+  }
+}

@@ -9,9 +9,9 @@ linked_workflows: []
 requires_soil:
   - garden/soil/business/            # 事業構造・各サービスの文脈(文案の素材)
 created: 2026-06-15
-last_updated: 2026-06-15
+last_updated: 2026-06-17
 created_by: claude (with ガクチョ, セッション45 / plot_gardener transplant)
-status: draft                        # 種3本起草 → dry-run で test、初回1周見届けで active
+status: active                       # S47: 初回実投稿(火6/16 IG+FB)着地確認 → test→active 昇格
 ---
 
 # sns_manager — SNS 運用区画

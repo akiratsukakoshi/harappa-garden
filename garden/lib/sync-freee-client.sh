@@ -15,6 +15,7 @@ TARGETS=(
   ../services/expense-processor/lib/freee_client.py
   ../services/shift-manager/lib/freee_client.py
   ../services/invoice-processor/lib/freee_client.py
+  ../services/finance/lib/freee_client.py
 )
 
 if [[ "${1:-}" == "--check" ]]; then
