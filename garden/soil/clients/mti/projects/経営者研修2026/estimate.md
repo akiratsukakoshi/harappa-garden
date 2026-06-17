@@ -29,7 +29,7 @@ line_items:
 | 有効期限 | 2026年1月31日 |
 | **合計金額** | **¥3,195,800** |
 
-発行元: [HARAPPA株式会社(harappa-billing)](../../../finance/harappa-billing.md)
+発行元: [HARAPPA株式会社(harappa-billing)](../../../../finance/harappa-billing.md)
 
 ## 明細
 

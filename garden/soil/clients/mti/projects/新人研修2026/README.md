@@ -25,6 +25,6 @@ last_updated: 2026-06-17
 | d 見積 | — | — |
 | e 実績 | ⏳ | 合宿実施レポート(未作成) |
 | f 請求 | ✅ 実物 | [invoice.md](invoice.md)(¥2,273,184) |
-| 財務 | **⚠️ freee 未反映** | 計上月2026-05 / 確定。[toB-pipeline](../../../projects/toB-pipeline.md) の「MTI研修 227.3万」 |
+| 財務 | **⚠️ freee 未反映** | 計上月2026-05 / 確定。[toB-pipeline](../../../../projects/toB-pipeline.md) の「MTI研修 227.3万」 |
 
 > **要対応**: freee 未反映。記帳 → 着地予測の実態化(S47 宿題)。

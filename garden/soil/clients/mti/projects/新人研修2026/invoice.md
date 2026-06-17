@@ -37,7 +37,7 @@ line_items:
 | お振込期限 | 令和8年6月30日(2026-06-30) |
 | **合計ご請求額** | **¥2,273,184** |
 
-発行元・振込先: [HARAPPA株式会社(harappa-billing)](../../../finance/harappa-billing.md)
+発行元・振込先: [HARAPPA株式会社(harappa-billing)](../../../../finance/harappa-billing.md)
 
 ## 明細
 
