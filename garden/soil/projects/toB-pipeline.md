@@ -40,7 +40,7 @@ status: draft   # 各案件の個別ファイル化・clientリンクは宿題(R
 ## 上振れ余地(確度未定)
 
 - MTI・一丸ファルコスの追加案件の目
-- AI研修(toB)のアドオン展開
+- AI研修(toB)のアドオン展開 ← **ゴンチャ 店長向けAI研修が具体化(提案中・本命)**。[台帳](../clients/gongcha/projects/店長向けAI研修/README.md)。受注すれば研修売上。社員イベント(2026-06実施・請求済)も売上(金額要確認)
 
 ## クライアント正本化の進捗(S48〜)
 
@@ -51,7 +51,9 @@ status: draft   # 各案件の個別ファイル化・clientリンクは宿題(R
 | **MTI** | ✅ 型の参照実装(第1号) | [soil/clients/mti/](../clients/mti/)(新人研修[請求実物]/経営研修2026[Plaud 3本+台帳]/経営者研修[見積実物]) |
 | **パナソニックホームズ** | ✅ 横展開2号(S49・メールのみで縦通し) | [soil/clients/panasonic-homes/](../clients/panasonic-homes/)(みずき台住民イベント運営=継続・四半期請求。Plaud 無し=ドメイン起点で骨格) |
 | **京急** | ✅ 横展開3号(S50・**共創パートナー型**・最難物で型実証) | [soil/clients/keikyu/](../clients/keikyu/)(みうらの森林共創パートナー事業[商流逆=京急は支払先]+ 桐畑[契約済150万]+ 三浦海岸/品川[芽]。担当10名・苗字確定) |
-| ゴンチャ / boundlesslife / 白井松 / 三井 | ⬜ 未着手 | MTI/パナHM/京急 を参照実装に横展開。ゴンチャは京急の共創パートナー兼 直接案件(社員総会)あり |
+| **ゴンチャ ジャパン** | ✅ 横展開4号(S51・**人事起点・多案件**) | [soil/clients/gongcha/](../clients/gongcha/)(店長向けAI研修[★本命・提案中・FB Messenger 直接]+ 社員イベント[請求済]+ 茶畑水やり委託[月次20万税別・**利益なし**=障がい者雇用]+ みうらの森林共創パートナー[京急経由]。担当=People&Culture 4名・社長=角田淳) |
+| **三井不動産レジデンシャル(MFR)** | ✅ 横展開5号(S51・**継続運営型**・最もクリア) | [soil/clients/mitsui-residential/](../clients/mitsui-residential/)(CACR1 ナカニワ原っぱ=川崎・塚越の中庭コミュニティ。約11万/月・**前受金で全額入金済み**・〜2026-09末。パナHM みずき台と同型。担当4名=事業主MFR 2名+管理MFRS 2名・漢字確定) |
+| boundlesslife / 白井松 | ⬜ 未着手 | MTI/パナHM/京急/ゴンチャ/三井 を参照実装に横展開 |
 
 > 構造仕様 = [soil/clients/README.md](../clients/README.md)。見積/請求様式 = [soil/finance/templates/](../finance/templates/)。
 
