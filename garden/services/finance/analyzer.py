@@ -12,6 +12,7 @@ Garden 化の差分:
     analyzer.py pl [--start-month N --end-month N]   # 月次 PL テーブル + CSV
     analyzer.py cf [--months N]        # 口座残高 + 月次CF推移 + 年度末予測
     analyzer.py summary                # 戦略議論用サマリー(JSON + テキスト)
+    analyzer.py client-recon           # soil クライアント台帳 × Freee 部門売上の突合(S52)
     analyzer.py targets [--set-revenue ... --set-operating-profit ...]  # 目標値の表示/設定
 """
 import os
@@ -300,6 +301,165 @@ def cmd_summary(client, args):
     print(f"SUMMARY_JSON: {json_path}")
 
 
+# ============================================================
+# client-recon — soil クライアント台帳 × Freee 部門売上の突合(S52)
+#   Freee の売上は取引先タグなし → 部門「企業案件 / 共創プロジェクト」で toB を識別。
+#   soil の案件 frontmatter(計上月/amount/payment_status/freee_partner_role/freee反映)を
+#   月別に合算し、Freee 実績と並べて「確認すべき差」を投げかけ用に出す。read-only。
+# ============================================================
+import glob
+import re as _re
+
+TOB_SECTION_NAMES = {"企業案件", "共創プロジェクト"}
+
+
+def _soil_clients_dir():
+    d = os.getenv("SOIL_CLIENTS_DIR")
+    if d:
+        return d
+    # ローカル repo レイアウトのフォールバック(VPS は .env で SOIL_CLIENTS_DIR を指定)
+    return os.path.normpath(os.path.join(_BASE_DIR, "..", "..", "soil", "clients"))
+
+
+def _parse_frontmatter(path):
+    """README.md の YAML frontmatter を最小パース(日本語キー対応・コメント除去)。"""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError:
+        return {}
+    m = _re.match(r"^---\n(.*?)\n---", text, _re.S)
+    if not m:
+        return {}
+    d = {}
+    for line in m.group(1).splitlines():
+        mm = _re.match(r"^([^\s:#][^:]*):\s*(.*?)\s*$", line)
+        if mm:
+            v = _re.sub(r"\s+#.*$", "", mm.group(2)).strip().strip('"')
+            d[mm.group(1).strip()] = v
+    return d
+
+
+def _read_client_projects(soil_dir):
+    rows = []
+    for p in sorted(glob.glob(os.path.join(soil_dir, "*", "projects", "*", "README.md"))):
+        fm = _parse_frontmatter(p)
+        if fm.get("type") != "soil_project":
+            continue
+        rows.append({
+            "client": fm.get("client", ""),
+            "project": os.path.basename(os.path.dirname(p)),
+            "amount": fm.get("amount", ""),
+            "month": fm.get("計上月", ""),
+            "確度": fm.get("確度", ""),
+            "payment_status": fm.get("payment_status", ""),
+            "role": fm.get("freee_partner_role", "請求先"),
+            "freee反映": fm.get("freee反映", ""),
+            "path": p,
+        })
+    return rows
+
+
+def _amount_int(s):
+    s = (s or "").replace(",", "")
+    m = _re.search(r"\d+", s)
+    return int(m.group()) if m else None
+
+
+def _freee_tob_income_by_month(client, fiscal_year, fiscal_start):
+    """企業案件・共創プロジェクト 部門の income を月別に合算。"""
+    secs = client.get_sections() or []
+    tob_ids = {s["id"]: s["name"] for s in secs if s.get("name") in TOB_SECTION_NAMES}
+    fm_list = _fiscal_months(fiscal_year, fiscal_start)
+    start = f"{fm_list[0][0]}-{fm_list[0][1]:02d}-01"
+    import calendar as _cal
+    ly, lm = fm_list[-1][0], fm_list[-1][1]
+    end = f"{ly}-{lm:02d}-{_cal.monthrange(ly, lm)[1]:02d}"
+    deals = client.get_all_deals(start_issue_date=start, end_issue_date=end)
+    by_month = {}
+    for d in deals:
+        if d.get("type") != "income":
+            continue
+        mon = (d.get("issue_date") or "")[:7]
+        for det in d.get("details", []):
+            sid = det.get("section_id")
+            if sid in tob_ids:
+                slot = by_month.setdefault(mon, {"企業案件": 0, "共創プロジェクト": 0})
+                slot[tob_ids[sid]] += det.get("amount", 0)
+    return by_month, tob_ids
+
+
+def cmd_client_recon(client, args):
+    targets = _load_targets()
+    fiscal_year = args.fiscal_year or targets["fiscal_year"]
+    fiscal_start = targets.get("fiscal_start_month", 10)
+    soil_dir = _soil_clients_dir()
+    projects = _read_client_projects(soil_dir)
+    by_month, tob_ids = _freee_tob_income_by_month(client, fiscal_year, fiscal_start)
+
+    print(f"\n{'='*60}")
+    print(f"  クライアント突合 FY{fiscal_year}  (soil × Freee 部門売上)")
+    print(f"{'='*60}")
+    print(f"soil: {soil_dir}  案件 {len(projects)} 件")
+    print(f"Freee toB 部門: {', '.join(tob_ids.values()) or '(該当部門なし)'}")
+
+    # --- Freee 実績(部門別・月次)---
+    print("\n【Freee 売上(toB 部門・月別)】")
+    tot_e = tot_k = 0
+    for mon in sorted(by_month):
+        e = by_month[mon].get("企業案件", 0)
+        k = by_month[mon].get("共創プロジェクト", 0)
+        tot_e += e
+        tot_k += k
+        print(f"  {mon}  企業案件 {_fmt(e):>12}  共創 {_fmt(k):>10}")
+    print(f"  {'計':<7} 企業案件 {_fmt(tot_e):>12}  共創 {_fmt(tot_k):>10}  (合計 {_fmt(tot_e + tot_k)})")
+
+    # --- soil 期待(売上のみ。支払先=外注費は除外)---
+    print("\n【soil 案件ステータス(売上案件)】")
+    flags = []
+    soil_total = 0
+    fy_start = f"{fiscal_year}-{fiscal_start:02d}"  # 例 2025-10。これより前の計上月は期外
+    for r in projects:
+        if r["role"] == "支払先":
+            continue  # 京急外注費=コスト、売上でない
+        amt = _amount_int(r["amount"])
+        rohan = r["freee反映"]
+        ps = r["payment_status"]
+        # confirmed: 反映=true / 確認済 / 計上済 / 前受金(三井=入金済で月次取り崩し)
+        confirmed = (rohan.startswith("true") or "確認済" in rohan or "計上済" in rohan
+                     or "前受金" in rohan or "前受金" in ps)
+        billed = ("請求済" in ps) or ("入金" in ps)
+        waiting = ("未入金" in ps) or ("入金予定" in ps) or ("支払い手配" in ps)
+        # 計上月が当期(fy_start)より前 = 期外 → FY 投げかけの対象外
+        mon_match = _re.search(r"\d{4}-\d{2}", r["month"] or "")
+        out_of_period = bool(mon_match) and mon_match.group() < fy_start
+        if amt:
+            soil_total += amt
+        if out_of_period:
+            continue
+        if waiting:
+            flags.append(f"  ⏳ {r['client']}/{r['project']}: 入金待ち({ps})")
+        elif billed and not confirmed:
+            flags.append(f"  ⚠️ {r['client']}/{r['project']}: 請求済だが freee反映 未確定 → 入金/記帳を確認")
+    # 案件一覧(簡潔)
+    for r in sorted(projects, key=lambda x: (x["client"], x["project"])):
+        if r["role"] == "支払先":
+            print(f"  · {r['client']}/{r['project']}  [支払先=外注費・売上対象外]")
+            continue
+        print(f"  · {r['client']}/{r['project']}  計上月={r['month'] or '—'} 反映={r['freee反映'] or '—'}")
+
+    print("\n【投げかけ候補(要確認の差)】")
+    if flags:
+        for f in flags:
+            print(f)
+    else:
+        print("  (なし)")
+
+    print("\n【ヒント】")
+    print("  ・Freee 売上は取引先タグなし=部門で識別。soil 額は税抜・Freee は税込(×1.1 で概算比較)。")
+    print("  ・前受金(三井)は入金済でも月次計上 / 利益なし(ゴンチャ茶畑)は売上ゼロ扱い。")
+    print(f"CLIENT_RECON_DONE: soil={len(projects)} freee_企業案件={_fmt(tot_e)} freee_共創={_fmt(tot_k)}")
+
+
 def cmd_targets(args):
     targets = _load_targets()
     if args.set_revenue is not None:
@@ -338,6 +498,8 @@ def main():
     cfp.add_argument("--months", type=int, default=6)
     spp = sub.add_parser("summary")
     spp.add_argument("--fiscal-year", type=int)
+    crp = sub.add_parser("client-recon")
+    crp.add_argument("--fiscal-year", type=int)
     tp = sub.add_parser("targets")
     tp.add_argument("--fiscal-year", type=int)
     tp.add_argument("--fiscal-start-month", type=int)
@@ -354,7 +516,8 @@ def main():
     if not client.refresh_token():
         logger.error("freee 認証に失敗しました")
         sys.exit(1)
-    {"check": cmd_check, "pl": cmd_pl, "cf": cmd_cf, "summary": cmd_summary}[args.command](client, args)
+    {"check": cmd_check, "pl": cmd_pl, "cf": cmd_cf, "summary": cmd_summary,
+     "client-recon": cmd_client_recon}[args.command](client, args)
 
 
 if __name__ == "__main__":

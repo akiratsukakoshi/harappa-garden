@@ -60,7 +60,8 @@ soil/clients/{企業slug}/
 
 ```yaml
 type: soil_project
-client: {slug}
+client: {slug}          # 原っぱの契約相手(=入金元・請求先)の slug
+end_client:             # ★実施先 ≠ 契約相手 のとき記入(代理店/紹介商流型)。同一なら省略可
 project: {案件名}
 status:                 # 進行中 / 受注 / 完了 など
 # --- finance linkage(#4: finance Mode A が機械突合)---
@@ -92,6 +93,33 @@ last_updated:
 ## 横展開(型の使い方)
 
 最初に **MTI** で a〜f + finance を縦に1本通して型を確定した([mti/](mti/))。新規クライアントは MTI を参照実装としてコピーする。見積/請求の様式は [soil/finance/templates/](../finance/templates/)、HARAPPA 固定情報は [soil/finance/harappa-billing.md](../finance/harappa-billing.md)。
+
+### 型ライブラリ(2026-06-18 時点・7社で5型)
+
+bootstrap は **Claude 手起こし + SKILL 型ライブラリ**([ADR 2026-06-18](../../../docs/decisions/2026-06-18-client-bootstrap-manual-not-scaffold.md))。診るときは下表の型を参照実装に。
+
+| 型 | 構造 | お金の向き | 代表クライアント |
+|---|---|---|---|
+| **研修連鎖型** | 1社で研修案件が連鎖(新人→経営→AI 等) | 原っぱ→クライアントに請求(請求先) | [MTI](mti/)・[フージャース](hoosiers/)・ゴンチャAI研修 |
+| **継続運営型** | コミュニティ/場の月次運営(チラシ→開催→レポート) | 月額で請求 or 前受取り崩し | [パナHM](panasonic-homes/)・[三井CACR1](mitsui-residential/)・京急桐畑 |
+| **共創パートナー型** | 原っぱが場の主管に参画、派生案件が生まれる | ★**支払先**(原っぱ→主管に外注費=商流が逆) | [京急 みうらの森林](keikyu/) |
+| **人事起点・多案件型** | 1社の人事部窓口から人と組織の案件が多数派生 | 案件ごとに性格が違う(請求/利益なし混在) | [ゴンチャ](gongcha/) |
+| **代理店/紹介商流型** | ★**契約相手(入金元)と実施先が別企業**。委託元が複数エンドクライアントを束ねる | 原っぱ→**委託元に委託費を請求**(実施先には請求しない) | [エイチ・ティー](ht/)(→白井松/一丸) |
+
+> **`end_client` フィールド**: 代理店/紹介商流型では `client`(契約相手=入金元)と実施先が別。案件 frontmatter に `end_client` を立て、企業 README の案件インデックスにも end_client 列を持たせる。
+
+> **schema 凍結の判断**(2026-06-18・7社到達): 5型が出揃い、枠は **`end_client` 1つの追加**で全社収まった。残るは boundlesslife(Gmail 死角・FB Messenger 専用)等の特殊例。型は安定とみてよい段階。
+
+## 資料アーカイブ(Windows/Dropbox・WSL から参照可)
+
+ガクチョの PC（Dropbox）に過去の実体ファイルがある。WSL からは `/mnt/c/...` で読める(2026-06-18 アクセス確認済)。c 資料・d 見積・f 請求の **実物 PDF/Excel/docx** の所在。
+
+| 種別 | パス(WSL) | 中身 |
+|---|---|---|
+| **受託資料**(c 資料・提案・企画) | `/mnt/c/Users/tukap/Dropbox/PC間やり取り/5_受託/` | クライアント別フォルダ(15_MTI / 17_三井 / 18_京急 / 5_フージャーズ / 白井松新薬 / ゴンチャ / パナソニックホームズ / boundlesss life 等)。提案書・オーダーシート・MTG メモ |
+| **請求書**(f 請求・会計) | `/mnt/c/Users/tukap/Dropbox/PC間やり取り/1_経理_HARAPPA/` | 年度別決算フォルダ(201509〜202509決算)。過去の請求書一式。finance 突合の一次資料 |
+
+> 案件台帳の d/f が「⏳ 要再取得」のとき、まずここを当たる。**Dropbox は正本ではなく一次資料置き場**(soil 側に要点を写し、実物は Dropbox 参照)。
 
 ## 関連
 - [soil/people/clients/](../people/clients/) — クライアント担当者(個人)
