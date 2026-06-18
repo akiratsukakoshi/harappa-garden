@@ -292,8 +292,9 @@ def save_watermark(slug, when=None):
 def main():
     ap = argparse.ArgumentParser(description="client_steward Sweep(Gmail 差分 digest)")
     ap.add_argument("--client", help="slug(例 mti)。未指定なら全 active client")
-    ap.add_argument("--domain", help="soil 足場なしで任意ドメインを直接 digest(Bootstrap の初回引き)。"
-                                     "例 panasonic-homes.com / @panasonic-homes.com")
+    ap.add_argument("--domain", help="soil 足場なしで任意ドメインを直接 digest(bootstrap の素材ダンプ)。"
+                                     "例 panasonic-homes.com / @panasonic-homes.com。"
+                                     "横展開はこの digest を Claude が読み、手で soil 台帳を起こす(SKILL Mode B)。")
     ap.add_argument("--since", help="YYYY-MM-DD。未指定なら watermark or 既定日数前")
     ap.add_argument("--days", type=int, default=14, help="watermark 不在時の遡及日数(既定14)")
     ap.add_argument("--dry-run", action="store_true", default=True,
@@ -302,7 +303,7 @@ def main():
                     help="今回時刻を watermark に保存(次回はここから差分)")
     args = ap.parse_args()
 
-    # 対象の決定:--domain(soil 不要の bootstrap)> --client(soil 既存)> 全 active client
+    # 対象の決定:--domain(soil 不要の bootstrap 素材ダンプ)> --client(soil 既存)> 全 active client
     if args.domain:
         dom = args.domain.lstrip("@").strip().lower()
         targets = [(dom, {"company": f"(bootstrap) {dom}", "primary_domain": dom})]

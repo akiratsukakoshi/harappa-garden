@@ -51,16 +51,40 @@ origin: S48 MTI 縦通し(打合せ Plaud + メール Gmail + 見積/請求 + fi
   Plaudの呼び名 = {例 "MTI" / 無し}」
 ```
 
-### 手順
-1. **Gmail を domain で sweep** → 差出人署名から担当者、スレッド群を取得。
-2. **スレッドを案件にクラスタリング**(件名・時期・金額で「どのメールがどの案件か」推定)→ 案件台帳ドラフトを複数生成。
-3. **Plaud を名前で検索**(あれば)→ 打合せを案件に突合。**無くてもメールだけで案件の骨格(誰と・何を・いくら・いつ・入金)は立つ** = 横展開の起点は常にドメイン、Plaud は上乗せレーン。
-4. **ガクチョが剪定**:案件の切り分け・確度・金額を確認/補正(混線クライアントはここで締める)→ soil 反映。
+### 手順(Claude が手で起こす。Python は Gmail 素材ダンプだけ)
 
-### 生成物
-- `soil/clients/{slug}/README.md`(企業正本:`primary_domain` / 担当者 / 案件index / 受注因果)
-- `soil/clients/{slug}/projects/{案件}/`(台帳 + meetings/ + emails/)
-- `soil/people/clients/{氏名}.md`(担当者、署名由来=確実)
+> **設計判断(S50)**:横展開は **10-15社の有限・判断主体**の作業。soil 台帳を機械生成すると、各社の個性(下記 型)を平準化して潰し、抽出ミス(漢字氏名・自動メールのノイズ・案件の表記ゆれ)が手戻りを生む(京急で実証)。**台帳は Claude が手で起こすのが正**。Python の役割は「Claude が Gmail を直接読めない」を埋める**素材ダンプだけ**に限定する。[ADR 2026-06-18](../../../docs/decisions/2026-06-18-client-bootstrap-manual-not-scaffold.md)。
+
+**① Gmail 素材ダンプを出す**(Python の唯一の役割):
+```
+.venv/bin/python3 garden/services/client-steward/sweep_client.py \
+  --domain {例 panasonic-homes.com} --since {例 2025-12-18}
+```
+→ 動いたスレッド一覧(件名・日付・通数)+ 要フォロー + finance/schedule シグナル + **登場担当者(署名/アドレス)** が出る。Claude はこれを読む(Discord でなくターミナル)。
+
+**② Claude が digest を読んで soil 台帳を手で起こす**(MTI/パナHM を参照実装にコピー):
+- digest の**生件名**を読んで **スレッドを案件にクラスタリング**(表記ゆれ・他社混在を判断で束ねる。京急=「みうらの森林共創PJ」が20以上の件名に割れ + ゴンチャ/ヤマハ別件混在 のような会社は丁寧に分ける)。
+- `clients/{slug}/README.md`(企業正本:プロフィール・**担当者表**・案件インデックス・受注因果)を書く。
+- `projects/{案件}/README.md` を書く([案件 frontmatter schema](../../soil/clients/README.md) = finance_links / roles / uncertainties の**枠込み**)。
+- `projects/{案件}/emails/{範囲}_{名}.md` に**読みやすいメールレーン**(運営/請求/打合せ等にまとめる。本文は Gmail に残す)。
+- `people/clients/{氏名}.md`(担当者)。**漢字氏名は digest の表示名で取れない会社がある**(京急=ローマ字 local part)→ **署名/本文で漢字を確認**してから作る。ローマ字のまま作らない。
+- **Plaud を名前で検索**(あれば)→ 打合せを `meetings/` に。**無くてもメールだけで骨格(誰と・何を・いくら・いつ・入金)は立つ** = 起点は常にドメイン、Plaud は上乗せ。
+
+**③ ガクチョが剪定**:案件の切り分け・確度・金額・freee反映・担当者の roles を確認/補正 → 確定。
+
+### 各社の型ライブラリ(横展開のたびに追記 = この区画の資産)
+
+bootstrap は「テンプレに流す」でなく「一社ずつ診る」。診た型をここに足していくと次が速くなる(仕組みでなく**記述**が増える)。
+
+| 型 | 代表 | 特徴・診るときの注意 |
+|---|---|---|
+| **研修連鎖型** | [MTI](../../soil/clients/mti/) | 複数の独立案件(新人研修/経営研修/経営者研修)。前案件の成果が次オーダーを生む=受注因果が濃い。Plaud 会議録あり。担当者は署名で確定 |
+| **継続運営型** | [パナHM](../../soil/clients/panasonic-homes/) | 1つの継続案件(住民イベント運営)を月次で回す。四半期請求。Plaud 無し=メールだけで骨格。担当者表示名は漢字で取れた |
+| **共創パートナー型** | [京急](../../soil/clients/keikyu/)(S50・最難物で実証) | 1つの大型継続案件(みうらの森林共創PJ)が件名表記ゆれで大量に割れる + **他社が混在**(ゴンチャ/ヤマハ/三浦観光バス)+ そこから**派生案件**が複数(桐畑/三浦海岸/品川)。**①PPAP 自動メールがノイズ最多**=数で釣られない。**②表示名がローマ字 local part**=漢字は署名確認必須([本文末尾を取る inline ダンプ](#)で苗字10名確定できた)。**③商流が逆になる案件**=京急は「請求先」でなく「支払先」(パートナー企業→原っぱ入金、原っぱ→京急 外注費)。frontmatter に `freee_partner_role: 支払先` を立てて finance に伝える |
+
+> **診るときの普遍ルール**(京急で確立):①案件の主軸を1つ見極める→件名表記ゆれを束ねる ②他社混在は「連携先(案件内)/別クライアント候補/別NPO等で除外」に三分 ③**お金の向きを必ず確認**(請求先か支払先か。共創・パートナー事業は逆流しうる)④漢字が取れなければ署名本文ダンプ→苗字確定、役割は要確認で保持。
+>
+> 抽出 polish の宿題(Python 側・任意):自動メール(no-reply/PPAP)を digest から除くノイズフィルタ / 署名本文からの漢字氏名抽出を `sweep_client` に正式化。**ただし台帳生成の自動化はしない**([ADR 2026-06-18](../../../docs/decisions/2026-06-18-client-bootstrap-manual-not-scaffold.md))。京急では inline ダンプで足りた=繰り返し必要になったら正式化。
 
 ---
 
@@ -119,7 +143,7 @@ LINE/core_team には開かない(master = Discord 一本、[memory: line-1to1-i
 
 ## MVP(draft → test → active)
 
-- **MVP** = Mode S の週次 sweep 種1本(当面 active = MTI のみ)+ Mode B の bootstrap ツール(`sweep_client`)。
+- **MVP** = Mode S の週次 sweep 種1本(active = MTI + パナHM)+ Mode B(`sweep_client --domain` の Gmail 素材ダンプ → Claude 手起こし)。
 - Brief(Mode R)・finance 自動更新・複数クライアント横展開は次段。
 - 昇格:dry-run(MTI で sweep 差分が出る)→ 初回 cron 通過 + OPERATIONS カード → active。
 

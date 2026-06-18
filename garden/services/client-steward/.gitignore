@@ -1,0 +1,16 @@
+# Secrets (VPS only, 600 perm)
+secrets/
+.env
+
+# ランタイム状態(VPS ローカル):sweep watermark({slug}.json)+ bootstrap pack。
+# クライアント機密(メール件名・担当者)を含む中間生成物 → repo に持ち込まない。
+state/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local
+*.log

@@ -54,10 +54,40 @@ soil/clients/{企業slug}/
 - 本 repo は private([PII 案A ADR](../../../docs/decisions/2026-06-10-pii-in-private-repo.md))。クライアントの経営戦略など機密度はスタッフ PII より高い。
 - 打合せは **サマリ note を正本**とし、生の発言録(transcript)は Plaud 側に残す(file_id 参照)。要機密案件は案件台帳 frontmatter に `confidential: true` を立てる。
 
-## finance との接続
+## 案件台帳の frontmatter schema(機械可読の枠)
 
-- 案件台帳 frontmatter に `amount` / `計上月` / `確度` / `freee反映` を持ち、[soil/projects/toB-pipeline.md](../projects/toB-pipeline.md) と [soil/finance/](../finance/) の着地予測に直結。
-- 見積 d → 請求 f → freee 記帳(finance 区画 Mode I)→ 入金、の鎖が台帳で辿れる。
+案件 `projects/{案件}/README.md` の frontmatter は、人が読む散文とは別に **finance/briefing が機械で拾える枠**を持つ(測量士 2026-06-17 #4#5#2 採用、S50)。空欄でもよい(sweep / 本文確認で順次埋める)。
+
+```yaml
+type: soil_project
+client: {slug}
+project: {案件名}
+status:                 # 進行中 / 受注 / 完了 など
+# --- finance linkage(#4: finance Mode A が機械突合)---
+amount:                 # 税抜・案件総額(粗い見込み)
+計上月:                 # 例 2026-07(複数なら "2026-06 / 2026-09")
+確度:                   # 見込み / 確定
+estimate_amount:        # 見積額(税抜)
+invoice_amount:         # 請求額(税抜)
+freee_deal_id:          # freee 取引ID(記帳後)
+payment_status:         # 未請求 / 請求済 / 入金済
+department:             # freee 部門
+freee反映: false        # bool(記帳済か)
+# --- 担当者の役割(#5: 案件単位の relationship)---
+roles:                  # "氏名 : sponsor/coordinator/finance_contact/decision_maker/day_of_contact"
+  - ""
+# --- 未確定情報(#2: sweep/briefing が回収)---
+uncertainties:
+  - ""
+confidential: true
+plaud_query:            # Plaud 検索キーワード(無ければ空)
+last_synced:            # sweep watermark(thread の最新時刻)
+last_updated:
+```
+
+- **finance linkage**:見積 d → 請求 f → freee 記帳(finance 区画 Mode I)→ 入金、の鎖が台帳で辿れる。finance Mode A が client soil を読み「請求済だが入金未確認」「見込みと Freee 実績の差」を出せる。[soil/projects/toB-pipeline.md](../projects/toB-pipeline.md) と [soil/finance/](../finance/) の着地予測に直結。
+- **roles**:同じ人でも案件ごとに役割が違う(決裁者/実務窓口/finance 窓口/当日担当)。人ページ([people/clients/](../people/clients/))は名簿、案件 README の `roles` が「この案件での役割」。
+- **uncertainties**:「7/2 or 7/3」「freee 未反映かも」のような曖昧を捨てず first-class に。client_steward が次回 sweep / briefing で回収。
 
 ## 横展開(型の使い方)
 

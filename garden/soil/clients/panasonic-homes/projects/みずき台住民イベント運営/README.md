@@ -3,10 +3,30 @@ type: soil_project
 client: panasonic-homes
 project: みずき台住民イベント運営
 status: 進行中(継続)
+# --- finance linkage(測量士 #4)---
 amount: 2300000               # 税抜230万(120+110 の分割計上)
 計上月: 2026-06 / 2026-09     # toB-pipeline ①120万(6月)+ ②110万(9月)
 確度: 確定
-freee反映: false             # ⚠️ 請求発行は Gmail で確認、freee 記帳状況は要確認
+estimate_amount:             # 「【みずき台】トータルのイベントお見積り」2026-04-10 あり(額は本文)
+invoice_amount:              # 「10月-12月」「今年度後半」請求書 発行済(額は本文)
+freee_deal_id:               # 記帳後に付与
+payment_status: 請求済        # 請求発行は Gmail で確認 / 入金・記帳は未確認
+department:                  # freee 部門(記帳時)
+freee反映: false             # ⚠️ payment_status=請求済 だが記帳未確認 → finance Mode A/D で突合
+# --- 担当者の役割(測量士 #5・案件単位)---
+roles:
+  - "大西 美帆 : 要確認(窓口候補)"
+  - "川上 陽平 : 要確認"
+  - "濱本 海志 : 要確認"
+  - "西本 容子 : 要確認"
+  - "佐々木 宏之 : 要確認"
+  - "(リクルート 山口) : coordinator(外部・契約関係なし)"
+# --- 未確定情報(測量士 #2・sweep/briefing が回収)---
+uncertainties:
+  - "担当者5名の個別役割(決裁者/実務窓口の別)= 署名のみ。本文確認で補正"
+  - "請求の freee 計上状況(発行は確認・記帳は未確認)"
+  - "関係開始時期(直近6ヶ月のみ台帳化)"
+  - "年間契約の更新サイクル・次年度継続の有無"
 confidential: true
 plaud_query: ""              # Plaud に会議録なし(メールのみで案件骨格を立てる例)
 last_synced: 2025-12-18      # bootstrap 引きの起点(過去6ヶ月)
