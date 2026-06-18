@@ -161,9 +161,9 @@ def _scan_unregistered(client, start, end):
     samples = []
     for w in targets:
         try:
-            txns = client.get_wallet_txns(
+            txns = client.get_all_wallet_txns(
                 walletable_type=w.get("type"), walletable_id=w.get("id"),
-                start_date=start, end_date=end, limit=100,
+                start_date=start, end_date=end,
             )
         except Exception as e:
             logger.warning(f"wallet_txns 取得失敗({w.get('name')}): {e}")

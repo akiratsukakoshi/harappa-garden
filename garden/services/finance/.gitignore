@@ -10,6 +10,9 @@ applied/
 proceeded/
 reports/
 
+# 冪等性台帳(S49): 登録済み行の hash。VPS ランタイム状態(財務情報を含む)
+state/
+
 # config/targets.json は雛形(0)を repo に置くが、VPS は実数値で diverge する。
 # デプロイ rsync は config/targets.json を --exclude すること(実数値を repo に戻さない)。
 

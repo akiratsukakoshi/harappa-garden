@@ -108,6 +108,17 @@ FINANCE_TOPICS = (
     "未登録明細", "PL", "損益", "キャッシュフロー", "着地予測", "財務分析", "売上CSV",
 )
 
+# S49: client_steward 区画(クライアント soil の世話役、master 窓口)。話題検知時のみ
+# SKILL + sweep 実行手段を追加ロード。sweep は read-only digest(soil 書込なし)。
+CLIENT_SKILL_PATH = os.environ.get(
+    "CLIENT_STEWARD_SKILL",
+    "/home/vps-harappa/garden/plots/client_steward/SKILL.md",
+)
+CLIENT_WORKDIR = "/home/vps-harappa/garden/services/client-steward"
+CLIENT_TOPICS = (
+    "クライアント", "client", "案件", "toB", "MTI", "エムティーアイ",
+)
+
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -267,6 +278,7 @@ _invoice_skill_cache = _FileCache(INVOICE_SKILL_PATH)
 _field_skill_cache = _FileCache(FIELD_SKILL_PATH)
 _sns_skill_cache = _FileCache(SNS_SKILL_PATH)
 _finance_skill_cache = _FileCache(FINANCE_SKILL_PATH)
+_client_skill_cache = _FileCache(CLIENT_SKILL_PATH)
 _memory_wiki_cache = _DirCache(
     MEMORY_WIKI_DIR, label_prefix="wiki/", index_first="index.md"
 )
@@ -486,6 +498,26 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "SKILL の議論フレームに沿って数値+論点で投げかける(read-only)。\n"
             + "・Freee 書込(register / apply)は不可逆。**必ず dry-run の確認を取ってから**本実行。未登録明細の自動登録は当面しない。\n\n"
         )
+    # S49: client_steward(クライアント soil の世話役)— 話題検知時のみ SKILL + sweep 実行手段(master 窓口)
+    client_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in CLIENT_TOPICS):
+        _cspy = f"{CLIENT_WORKDIR}/.venv/bin/python"
+        _cssweep = f"{CLIENT_WORKDIR}/sweep_client.py"
+        client_block = (
+            "──── client_steward SKILL(クライアント区画 — 話題検知でロード)────\n"
+            + _client_skill_cache.get()
+            + "\n──── client_steward SKILL ここまで ────\n\n"
+            + "[クライアントの実行手段 — あなたは Bash で以下だけ実行できます(settings.json で許可済・他は不可)]\n"
+            + "⚠️ 必ず **絶対パス + cd なし** で実行(権限はこの絶対パス形式にのみ付与):\n"
+            + f"  {_cspy} {_cssweep}                                  # 全 active client の差分 digest(read-only)\n"
+            + f"  {_cspy} {_cssweep} --client mti --since YYYY-MM-DD  # 1社・指定日以降の digest\n"
+            + f"  {_cspy} {_cssweep} --commit-watermark               # 週次種が使う差分同期(watermark を進める)\n\n"
+            + "・「クライアント見て」「MTI どうなってる」→ sweep を read-only で叩き、digest(要フォロー / "
+            + "finance シグナル / 動いたスレッド / 登場担当者)を提示。\n"
+            + "・soil への書込・確度変更・新規案件確定・freee反映の断定は **しない**(board → ガクチョ剪定)。\n"
+            + "・手動の対話確認では --commit-watermark を付けない(週次種だけが watermark を進める)。\n"
+            + "・担当者の実名はメール署名のみ採用(Plaud 話者は採用しない)。詳細は SKILL の承認境界を厳守。\n\n"
+        )
     # S40: shift_manager Mode 4 手動ルート(シフト回答集計)— 話題検知時のみ実行手段を追加ロード
     shift_agg_block = ""
     if any(t in f"{convo}\n{user_text}" for t in SHIFT_AGG_TOPICS):
@@ -529,6 +561,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + field_block
         + sns_block
         + finance_block
+        + client_block
         + shift_agg_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"

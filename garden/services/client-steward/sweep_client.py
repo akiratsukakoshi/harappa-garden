@@ -24,12 +24,19 @@ import os
 import re
 import sys
 
+from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
+# サービス相対の .env を明示ロード(cwd 非依存。launcher/cron から起動されるため)
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-CLIENTS_DIR = os.path.join(REPO, "garden", "soil", "clients")
+# soil/clients の実体:ローカル(repo)は service 相対で届く。VPS は services 直下の soil が
+# 空で、実体は garden-mirror 配下のため SOIL_CLIENTS_DIR で明示する(invoice の SOIL_STAFF_DIR と同型)。
+DEFAULT_CLIENTS_DIR = os.path.join(REPO, "garden", "soil", "clients")
+CLIENTS_DIR = os.environ.get("SOIL_CLIENTS_DIR", DEFAULT_CLIENTS_DIR)
 DEFAULT_TOKEN = os.path.join(
     REPO, "garden", "services", "invoice-processor", "secrets", "user_token.json"
 )
@@ -129,12 +136,37 @@ def _parse_date(date_str):
         return None
 
 
-def sweep_domain(svc, domain, since_dt, max_threads=40):
-    """domain に関係する thread を since 以降で集め、要点と要フォロー signal を返す。"""
+def list_thread_ids(svc, q, page_size=100, max_pages=20):
+    """threads().list を nextPageToken で辿り全 thread id を集める(S49 測量士 P2)。
+
+    旧実装は maxResults=40 の1回きりで、41件目以降を取りこぼしたまま watermark を進めて
+    いた。max_pages に達してもまだ続きがある場合は truncated=True を返し、呼び出し側で
+    watermark を進めないようにする(静かな取りこぼし防止)。
+    """
+    ids = []
+    token = None
+    truncated = False
+    for _ in range(max_pages):
+        resp = svc.users().threads().list(
+            userId="me", q=q, maxResults=page_size, pageToken=token
+        ).execute()
+        ids.extend(t["id"] for t in resp.get("threads", []))
+        token = resp.get("nextPageToken")
+        if not token:
+            break
+    else:
+        truncated = bool(token)
+    return ids, truncated
+
+
+def sweep_domain(svc, domain, since_dt, page_size=100, max_pages=20):
+    """domain に関係する thread を since 以降で集め、要点と要フォロー signal を返す。
+
+    戻り値: (threads, contacts, truncated)。truncated=True は取得上限到達=取りこぼしの可能性。
+    """
     after = since_dt.strftime("%Y/%m/%d")
     q = f"(from:{domain} OR to:{domain}) after:{after}"
-    resp = svc.users().threads().list(userId="me", q=q, maxResults=max_threads).execute()
-    thread_ids = [t["id"] for t in resp.get("threads", [])]
+    thread_ids, truncated = list_thread_ids(svc, q, page_size, max_pages)
 
     threads = []
     contacts = {}
@@ -165,9 +197,14 @@ def sweep_domain(svc, domain, since_dt, max_threads=40):
         awaiting_us = (OUR_DOMAIN not in last_from)
         days_since = (dt.datetime.now(dt.timezone.utc) - last_dt).days if last_dt else None
 
+        # finance/schedule シグナルは件名だけでなく本文(snippet)も見る(S49 測量士 P2)。
+        # 「請求書添付しました」「7/23 でお願いします」「支払処理します」は本文側に出やすく、
+        # 件名だけだと大事な変化を見落とす。snippet は metadata 取得でも各メッセージに付くので
+        # 追加 API コール不要。
         subj = first_h["Subject"]
-        finance = any(k in subj for k in FINANCE_KEYWORDS)
-        schedule = any(k in subj for k in SCHEDULE_KEYWORDS)
+        blob = subj + " " + " ".join(m.get("snippet", "") for m in msgs)
+        finance = any(k in blob for k in FINANCE_KEYWORDS)
+        schedule = any(k in blob for k in SCHEDULE_KEYWORDS)
 
         threads.append({
             "thread_id": tid,
@@ -182,7 +219,7 @@ def sweep_domain(svc, domain, since_dt, max_threads=40):
         })
     threads.sort(key=lambda t: t["last_dt"] or dt.datetime.min.replace(tzinfo=dt.timezone.utc),
                  reverse=True)
-    return threads, contacts
+    return threads, contacts, truncated
 
 
 # ---------- digest ----------
@@ -242,11 +279,12 @@ def load_watermark(slug, default_days):
     return dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=default_days)
 
 
-def save_watermark(slug):
+def save_watermark(slug, when=None):
     os.makedirs(STATE_DIR, exist_ok=True)
     path = os.path.join(STATE_DIR, f"{slug}.json")
+    ts = (when or dt.datetime.now(dt.timezone.utc)).isoformat()
     with open(path, "w") as f:
-        json.dump({"last_synced": dt.datetime.now(dt.timezone.utc).isoformat()}, f)
+        json.dump({"last_synced": ts}, f)
 
 
 # ---------- main ----------
@@ -254,6 +292,8 @@ def save_watermark(slug):
 def main():
     ap = argparse.ArgumentParser(description="client_steward Sweep(Gmail 差分 digest)")
     ap.add_argument("--client", help="slug(例 mti)。未指定なら全 active client")
+    ap.add_argument("--domain", help="soil 足場なしで任意ドメインを直接 digest(Bootstrap の初回引き)。"
+                                     "例 panasonic-homes.com / @panasonic-homes.com")
     ap.add_argument("--since", help="YYYY-MM-DD。未指定なら watermark or 既定日数前")
     ap.add_argument("--days", type=int, default=14, help="watermark 不在時の遡及日数(既定14)")
     ap.add_argument("--dry-run", action="store_true", default=True,
@@ -262,9 +302,15 @@ def main():
                     help="今回時刻を watermark に保存(次回はここから差分)")
     args = ap.parse_args()
 
-    targets = ([(args.client, read_frontmatter(
-        os.path.join(CLIENTS_DIR, args.client, "README.md")))]
-        if args.client else list_active_clients())
+    # 対象の決定:--domain(soil 不要の bootstrap)> --client(soil 既存)> 全 active client
+    if args.domain:
+        dom = args.domain.lstrip("@").strip().lower()
+        targets = [(dom, {"company": f"(bootstrap) {dom}", "primary_domain": dom})]
+    elif args.client:
+        targets = [(args.client, read_frontmatter(
+            os.path.join(CLIENTS_DIR, args.client, "README.md")))]
+    else:
+        targets = list_active_clients()
     if not targets or (args.client and not targets[0][1].get("primary_domain")):
         print(f"対象 client なし(primary_domain を持つ soil/clients/ が必要): {args.client}")
         return 1
@@ -275,12 +321,24 @@ def main():
         domain = fm.get("primary_domain")
         since_dt = (dt.datetime.fromisoformat(args.since).replace(tzinfo=dt.timezone.utc)
                     if args.since else load_watermark(slug, args.days))
-        threads, contacts = sweep_domain(svc, domain, since_dt)
+        threads, contacts, truncated = sweep_domain(svc, domain, since_dt)
         print(build_digest(slug, fm, threads, contacts, since_dt))
+        if truncated:
+            print("  ⚠️ 取得上限に達した可能性 → watermark を進めません(次回も同区間を再取得)。")
         print()
         if args.commit_watermark:
-            save_watermark(slug)
-            print(f"  (watermark 更新: {slug})\n")
+            if args.domain:
+                print("  (--domain は bootstrap 用 = watermark 保存なし)\n")
+            elif truncated:
+                print(f"  (watermark 据え置き: {slug} — truncated)\n")
+            else:
+                # now() で先送りせず、実際に処理した最新スレッド時刻まで進める(同日後着の
+                # 取りこぼし防止)。threads は last_dt 降順ソート済 = [0] が最新。新着ゼロなら
+                # 現区間に動きが無かったので now() まで進めてよい。
+                newest = threads[0]["last_dt"] if threads else None
+                save_watermark(slug, newest)
+                shown = newest.date() if newest else "now(新着なし)"
+                print(f"  (watermark 更新: {slug} → {shown})\n")
     return 0
 
 

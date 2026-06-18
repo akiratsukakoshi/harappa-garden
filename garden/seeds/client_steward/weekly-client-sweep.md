@@ -3,7 +3,7 @@ type: seed
 name: weekly-client-sweep
 plot: client_steward
 description: 毎週月曜朝、active クライアントの soil 台帳を Gmail(primary_domain)の差分で世話する種(client_steward Mode S)。新着スレッド・要フォロー(こちらが返す番/放置日数)・finance シグナル(見積/請求/入金)・登場担当者を digest にして Discord master へ。解釈(確度変更・新規案件・freee反映の断定)は board 提案。手動「クライアント見て」でも回る。
-status: draft                    # VPS 未デプロイ。ローカル dry-run GREEN(MTI)。test = VPS + cron 登録
+status: test                     # S49: VPS デプロイ + cron 登録済(月08:20)。dry-run GREEN(MTI、VPS実走)。active = 初回発火 6/22(月)08:20 見届け後
 phase: 1
 execution_host: vps
 hmc_dependency: none

@@ -21,6 +21,11 @@ import time
 from dotenv import load_dotenv
 from .utils import setup_logger
 
+try:
+    import fcntl  # POSIX file lock(VPS/WSL=Linux。非対応環境では None フォールバック)
+except ImportError:  # pragma: no cover
+    fcntl = None
+
 load_dotenv()
 
 # 自動リトライ対象(認証以外の一時障害)
@@ -106,24 +111,51 @@ class FreeeClient:
             self.tokens = disk_tokens
             return True
 
-        token_url = "https://accounts.secure.freee.co.jp/public_api/token"
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        data = {
-            "grant_type": "refresh_token",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "refresh_token": self.tokens['refresh_token'],
-            "redirect_uri": self.redirect_uri
-        }
+        # 同時 refresh 競合の防止(S49 測量士 P1): 上の reload だけでは「複数 service が
+        # ほぼ同時に古い refresh token を読み、同時に refresh へ進む」窓が残る。Freee は
+        # refresh token をローテートするので、競合すると後発の refresh が失効 token を投げて
+        # 全 service が認証切れになり得る。refresh+save の区間を file lock で排他し、lock 取得
+        # 後にもう一度 disk を読む(待っている間に他 service が refresh 済みならそれを採用)。
+        lockf = None
+        if fcntl is not None:
+            try:
+                lockf = open(self.token_file + ".lock", "w")
+                fcntl.flock(lockf, fcntl.LOCK_EX)
+            except OSError as e:
+                self.logger.warning(f"token lock 取得失敗(lock 無しで継続): {e}")
+                if lockf:
+                    lockf.close()
+                lockf = None
+        try:
+            if lockf is not None:
+                disk_tokens = self.load_tokens()
+                if disk_tokens and disk_tokens.get('refresh_token') != self.tokens.get('refresh_token'):
+                    self.logger.info("Token refreshed by another service while waiting for lock; reloading.")
+                    self.tokens = disk_tokens
+                    return True
 
-        response = requests.post(token_url, headers=headers, data=data)
-        if response.status_code == 200:
-            self.save_tokens(response.json())
-            self.logger.info("Token refreshed successfully.")
-            return True
-        else:
-            self.logger.error(f"Token refresh failed: {response.text}")
-            return False
+            token_url = "https://accounts.secure.freee.co.jp/public_api/token"
+            headers = {"Content-Type": "application/x-www-form-urlencoded"}
+            data = {
+                "grant_type": "refresh_token",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "refresh_token": self.tokens['refresh_token'],
+                "redirect_uri": self.redirect_uri
+            }
+
+            response = requests.post(token_url, headers=headers, data=data)
+            if response.status_code == 200:
+                self.save_tokens(response.json())
+                self.logger.info("Token refreshed successfully.")
+                return True
+            else:
+                self.logger.error(f"Token refresh failed: {response.text}")
+                return False
+        finally:
+            if lockf is not None:
+                fcntl.flock(lockf, fcntl.LOCK_UN)
+                lockf.close()
 
     def _get_headers(self):
         if not self.tokens:
@@ -397,6 +429,36 @@ class FreeeClient:
         if response:
             return response.get("wallet_txns", [])
         return []
+
+    def get_all_wallet_txns(self, walletable_type=None, walletable_id=None,
+                            start_date=None, end_date=None, page_size=100, max_pages=50):
+        """get_wallet_txns を offset ページングで全件取得(S49 測量士 P1)。
+
+        単発 get_wallet_txns は 1 ページ(既定 100 件)しか返さないため、口座/カード明細が
+        100 件を超える月は status==1 の未登録明細を静かに過少検出する(analyzer 前の
+        地ならし役なので PL 信頼性に直撃)。ここで全ページを辿る。max_pages は暴走防止の
+        安全弁で、到達時は warning(取りこぼしの可能性を顕在化させる)。
+        """
+        out = []
+        offset = 0
+        for _ in range(max_pages):
+            page = self.get_wallet_txns(
+                walletable_type=walletable_type, walletable_id=walletable_id,
+                start_date=start_date, end_date=end_date,
+                limit=page_size, offset=offset,
+            )
+            if not page:
+                break
+            out.extend(page)
+            if len(page) < page_size:
+                break
+            offset += page_size
+        else:
+            self.logger.warning(
+                f"get_all_wallet_txns: max_pages={max_pages} 到達で打ち切り "
+                f"(walletable_id={walletable_id})。取りこぼしの可能性。"
+            )
+        return out
 
     def request(self, method, url, params=None, json_data=None):
         if not self.tokens:

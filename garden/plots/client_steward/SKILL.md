@@ -2,7 +2,7 @@
 name: client_steward
 description: クライアント(toB)の知識(打合せ・メール・見積・実績・請求・担当・財務)を soil/clients に正本として継続蓄積・更新し、横断把握と先回りを可能にする世話役区画。Gmail(ドメイン)と Plaud(名前)の差分を取り込み、横展開(bootstrap)と動的進化(sweep)を同じ道具で回す。
 plot: client_steward
-status: draft
+status: test
 scope: master
 topics: [クライアント, client, toB, 案件, soil, Gmail, Plaud, 打合せ, メール, 見積, 請求, 担当者, sweep, bootstrap, 横展開, ブリーフィング, client_steward]
 inherits_from:

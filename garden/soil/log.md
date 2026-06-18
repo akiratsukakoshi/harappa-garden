@@ -264,3 +264,10 @@
 - source_date: 2026-06-14
 - pages: [[daily_operation]]
 - summary: 5月分請求書 Freee登録完了(67件・¥799,516・エラー0)を daily_operation wiki に追記。外部スタッフ2名(河村思依蕗・熊澤満穂)の Freee 登録情報は S44 で soil 既記録のため staff メモ追記 skip。グレー廃棄 4 turn。
+
+## [2026-06-18] index-refresh | 検知 23 件
+- by: mycelium (Stage 1)
+- type: index
+- pages: —(大規模変更のため index.md は更新せず)
+- summary: manual full scan needed — clients/(MTI 研修プロジェクト群) 11件・finance/ 8件・people/clients/ 2件・projects/ 2件 を検知。>20件超過ルール適用。index.md の自動更新は skip。庭師による手動 full scan を推奨。
+- detected: clients 11, finance 8, people/clients 2, projects 2 (合計 23件)

@@ -20,6 +20,7 @@ import os
 import sys
 import csv
 import json
+import hashlib
 import calendar
 import argparse
 import datetime
@@ -57,6 +58,49 @@ REVIEW_COLUMNS = [
 def load_config():
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+# ── 冪等性台帳(S49 測量士 P1)──────────────────────────────────────────────
+# register が行ごとに Freee へ post する構造上、部分失敗(例: 79行中78行成功・1行失敗)で
+# input が残り、同じ review CSV を再投入すると成功済み行も再投稿されて二重記帳になる。
+# 登録成功した行の hash を append-only 台帳に残し、再実行時は登録済み行を skip する。
+def _state_dir():
+    # VPS では FINANCE_STATE_DIR を指定可。既定は service 相対(.gitignore 済)。
+    return os.getenv("FINANCE_STATE_DIR") or os.path.join(_BASE_DIR, "state")
+
+
+def _ledger_path():
+    return os.path.join(_state_dir(), "registered_ledger.jsonl")
+
+
+def _row_hash(issue_date, amount, description, section_name, occurrence):
+    """振替伝票1行を一意に識別。同一CSV内の重複行は occurrence(0,1,2…)で区別し、
+    まったく同じ取引が正当に2件あっても2件目を誤 skip しないようにする。"""
+    key = f"{issue_date}|{amount}|{description}|{section_name}|{occurrence}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+
+
+def _load_ledger():
+    path = _ledger_path()
+    seen = set()
+    if not os.path.exists(path):
+        return seen
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                seen.add(json.loads(line)["hash"])
+            except (json.JSONDecodeError, KeyError):
+                continue
+    return seen
+
+
+def _append_ledger(entry):
+    ensure_directory(_state_dir())
+    with open(_ledger_path(), "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def parse_amount(value, params=None):
@@ -314,7 +358,9 @@ def cmd_register(args):
     tax_code_credit = tax_code_credit or 1
     tax_code_debit = tax_code_debit or 2
 
-    registered, failed = 0, []
+    ledger = _load_ledger()
+    seen_counts = {}
+    registered, skipped, failed = 0, 0, []
     for i, row in enumerate(rows):
         rownum = i + 1
         try:
@@ -331,8 +377,21 @@ def cmd_register(args):
                 last_day = calendar.monthrange(d.year, d.month)[1]
                 issue_date = datetime.date(d.year, d.month, last_day).strftime("%Y-%m-%d")
 
+            # 冪等性: 同一CSV内の重複行は occurrence で区別し、登録済み行は台帳で skip
+            occ_key = f"{issue_date}|{amount}|{description}|{section_name}"
+            occurrence = seen_counts.get(occ_key, 0)
+            seen_counts[occ_key] = occurrence + 1
+            rhash = _row_hash(issue_date, amount, description, section_name, occurrence)
+            already = rhash in ledger
+
             if args.dry_run:
-                logger.info(f"[DRY RUN] {issue_date} ¥{amount:,} / {description} / 部門:{section_name or '(なし)'}")
+                tag = " [登録済→skip]" if already else ""
+                logger.info(f"[DRY RUN] {issue_date} ¥{amount:,} / {description} / 部門:{section_name or '(なし)'}{tag}")
+                continue
+
+            if already:
+                skipped += 1
+                logger.info(f"Skip(登録済): {issue_date} ¥{amount:,} / {description}")
                 continue
 
             details = [
@@ -344,6 +403,12 @@ def cmd_register(args):
             resp = client.post_manual_journal(issue_date, details)
             if resp:
                 registered += 1
+                _append_ledger({
+                    "hash": rhash, "issue_date": issue_date, "amount": amount,
+                    "description": description, "section_name": section_name,
+                    "registered_at": dt_cls.now().isoformat(timespec="seconds"),
+                })
+                ledger.add(rhash)
                 logger.info(f"Registered: {issue_date} ¥{amount:,} / {description}")
             else:
                 failed.append((rownum, "post_manual_journal 失敗"))
@@ -355,21 +420,26 @@ def cmd_register(args):
         return 0
 
     print(f"REGISTERED: {registered}")
+    print(f"SKIPPED: {skipped}")
     print(f"FAILED: {len(failed)}")
     if failed:
         for rn, reason in failed:
             logger.error(f"  行{rn}: {reason}")
         print(
             "\n==NOTIFY==\n"
-            f"❌ 売上記帳: {len(rows)}件中 {len(failed)}件 登録失敗(成功 {registered}件)。\n"
-            f"→ review CSV を確認して再登録してください: {args.file}\n"
+            f"❌ 売上記帳: {len(rows)}件中 {len(failed)}件 登録失敗"
+            f"(成功 {registered}件 / skip {skipped}件)。\n"
+            f"→ 原因を直したら **同じ review CSV をそのまま再実行**してください"
+            f"(登録済みの行は冪等性台帳で自動 skip されるので二重記帳しません): {args.file}\n"
             "==END==\n"
         )
         return len(failed)
 
     # 成功したら Drive 原本を processed へ退避 + ローカル input/ を掃除(--no-archive で抑止)
     # ⚠️ ローカル input/ を残すと次回 generate が同じ CSV を再処理 → 二重記帳になる。
-    if registered > 0 and not failed and not args.no_archive:
+    # 全件 skip(registered=0/skipped>0)だけのケースも、過去に登録済みで input が残った
+    # 残骸なので退避してよい(冪等性台帳が二重記帳を防ぐ)。
+    if not failed and (registered > 0 or skipped > 0) and not args.no_archive:
         _archive_drive_inputs()
         _archive_local_inputs()
     return 0
