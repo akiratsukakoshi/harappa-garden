@@ -3,9 +3,9 @@ type: seed
 name: daily-recording-sweep
 plot: scribe
 description: 1日1回、Plaud の新規録音を Google カレンダー × 会議内容 × 過去履歴と照らして主体・会議タイトルを判定し、(1) クライアント関連の会議は soil/clients の該当案件 meetings/ に取り込み(漏れ防止)、(2) 全録音に正規タイトル `MM-DD 【主体】会議タイトル` を提案して Discord master に出す(ガクチョが Plaud アプリで手動リネーム)。リネーム・フォルダ操作は API 不可のため自動化しない(提案のみ)。
-status: test                     # S53。手動スイープが実録音9件で GREEN(判定/べき等/新規炙り出し/実取り込み)。active = 日次自動化「Plaud アクセスのブリッジ」解決後。それまで手動運用
+status: test                     # S53 手動スイープ GREEN → S54 でブリッジ解決(headless claude -p が Plaud に到達)。active = ローカル cron 初回発火の見届け後
 phase: 1
-execution_host: local           # ★Plaud MCP は OAuth 対話前提 → ヘッドレス VPS cron 不可。MVP は MCP が認証済の環境(対話/ローカル)で実行。日次自動化は「Plaud アクセスのブリッジ」解決が前提(SKILL 末尾)
+execution_host: local           # ★Plaud MCP トークン(~/.plaud/tokens-mcp.json)を持つローカル WSL でのみ headless 到達可。VPS には置かない(refresh_token ローテートのため所有ホストを1つに固定)。実行は run-local.sh 経由(launcher → soil/board をローカルに書く → VPS へ push)
 hmc_dependency: none
 version: 1
 created: 2026-06-19
@@ -20,17 +20,28 @@ linked_concepts: []
 # === ① いつ点火するか ===
 trigger:
   type: cron
-  schedule: "30 7 * * *"           # 毎朝 07:30 JST(朝ブリーフィングの後)。★日次自動化はブリッジ解決後に有効化
+  schedule: "30 7 * * *"           # 毎朝 07:30 JST(朝ブリーフィングの後)。★ローカル WSL の crontab に登録(VPS ではない)
   timezone: Asia/Tokyo
-  # 手動起動(MVP の主経路): ガクチョが「会議録まわして」「録音整理して」→ ガクコ/エージェントが Mode D を実行
-  #   (Plaud MCP が認証済のセッションで動く前提)
+  # 手動起動: ガクチョが Discord master で「録音スイープして」「会議録まわして」→ bot が
+  #   リクエストマーカーを置く → ローカル poll cron が run-local.sh を実行(scribe service README 参照)
 
 # === ② 何を実行するか ===
 engine: claude-code
 execute:
+  working_dir: /home/tukapontas/harappa-garden   # ★ローカル WSL の repo(Plaud トークン所有ホスト)。.mcp.json / garden/ 相対パスはここ基準
   timeout_minutes: 15
+  mcp:                              # S54: launcher が claude -p に MCP フラグを渡す(buildMcpArgs)
+    config: ".mcp.json"
+    strict: true
+    permission_mode: "acceptEdits"  # soil/board の Write/Edit を自動承認(Plaud MCP は allowed_tools で明示許可)
+    allowed_tools:
+      - "mcp__plaud__list_files"
+      - "mcp__plaud__get_note"
+      - "mcp__plaud__get_transcript"
+      - "mcp__plaud__get_file"
   computed_inputs:
     today: "$(date +%Y-%m-%d)"
+    board_pending: "garden/board/pending"
   prompt: |
     あなたは scribe 区画の種「daily-recording-sweep」です。Plaud の録音を取りこぼさず
     soil に収め、正しいタイトルを提案する「会議録の番人」です。
@@ -42,10 +53,13 @@ execute:
 
     今回の動的入力:
       - today: {today}
+      - board_pending: {board_pending}
 
     Step 1 新規録音を拾う(watermark 差分・べき等):
-      - state(garden/services/scribe/state/processed.jsonl 等)で処理済み file_id を確認。
-      - mcp__plaud__list_files(date_from = 前回処理日)で新着を取得。処理済みはスキップ。
+      - state ファイル garden/services/scribe/state/processed.jsonl を読み、処理済み plaud_file_id を確認
+        (ファイルが無ければ空=初回)。
+      - mcp__plaud__list_files で録音一覧を取得。processed.jsonl に file_id がある録音はスキップ。
+      - 念のため、取り込み先候補の soil に同じ plaud_file_id の meeting が既にあれば二重取り込みしない。
 
     Step 2 各録音の主体・種別を判定:
       - mcp__plaud__get_note で内容サマリを取得。
@@ -59,12 +73,48 @@ execute:
       - 解釈(新規案件の確定 / 新規クライアントの登録 / confidential 判断)は soil に直接書かず board 提案。
 
     Step 4 リネーム提案 + board + 通知:
-      - 全録音について `{月日} 【主体】会議タイトル` を完成 → Discord master に「リネームチェックリスト」
-        として投稿(ガクチョが Plaud アプリで手動リネーム。自動リネームはしない=API 不可)。
-      - 取り込んだ録音は「📥 取り込み済み(→ soil パス)」を明示(台帳)。
-      - 主体に迷った録音は board(pending)に「{録音} の主体確認」を起草し、通知の先頭に立てる。
+      - 全録音について `{月日} 【主体】会議タイトル` を完成。
+      - digest を board ファイル 1 枚にまとめて {board_pending}/{today}-recording-sweep.md に書く
+        (この board を VPS 側 send_pending が拾い、Discord master に投稿する)。形式:
 
-    べき等性: 同日の processed 記録が既存の録音は再処理しない。soil 既存 meeting は上書きしない。
+        ---
+        type: pruning_request
+        from_seed: scribe/daily-recording-sweep
+        status: pending
+        created: {today}T07:30:00+09:00
+        ---
+
+        # {today} 録音スイープ
+
+        ## 配信本文
+
+        ```
+        🎙️ 録音スイープ {today}
+
+        📥 soil 取り込み(済):
+        - {主体} {会議タイトル} → soil パス
+
+        ✏️ リネーム提案(Plaud アプリで手動リネームしてください):
+        - Before「{原題}」→ After「{月日} 【主体】会議タイトル」
+
+        ❓ 主体に迷い(要確認):
+        - {原題} … {迷った理由}
+
+        (新規録音なし / 全て処理済みなら「新規なし」と一行)
+        ```
+
+      - 主体に迷った録音・新規クライアント候補は、上の「❓」に加えて board 本文(配信本文の外)に
+        「主体確認の根拠」を残す(ガクチョが後で判断できるように)。
+      - 既に当日の {board_pending}/{today}-recording-sweep.md があり notified_at 付き(配信済)なら、
+        上書きせず log に「skipped: already notified」を書いて終える(べき等)。
+
+    Step 5 state 追記:
+      - 今回処理した各録音を garden/services/scribe/state/processed.jsonl に 1 行 JSON で追記:
+        {"plaud_file_id": "...", "date": "MM-DD", "主体": "...", "soil_path": "..."|null, "processed_at": "{today}"}
+      - soil 取り込みしなかった(リネーム提案のみ)録音も記録する(soil_path: null)。
+
+    べき等性: processed.jsonl に file_id がある録音は再処理しない。soil 既存 meeting は上書きしない。
+    soil/board の書き込みはこの claude -p が行い、VPS への push は run-local.sh が後段で行う(ここでは push しない)。
 
     注意: 録音内容はクライアント機密 + 個人を含む。scope=master のみ。core_team/LINE には一切出さない。
 
@@ -72,5 +122,14 @@ execute:
 on_failure:
   notify: discord
   note: |
-    Plaud MCP 到達不可(OAuth 対話前提のためヘッドレスで落ちる/ token 失効)を最も疑う。
+    Plaud MCP 到達不可(token 失効 / ~/.plaud/tokens-mcp.json 無し / 認証ホスト外)を最も疑う。
     カレンダー token 失効時は内容のみで判定し続行(精度低下を通知に添える)。
+---
+
+# daily-recording-sweep(scribe / 会議録の番人)
+
+ローカル WSL の crontab から [run-local.sh](../../services/scribe/run-local.sh) 経由で発火する日次の録音スイープ。
+launcher が MCP フラグ付きで `claude -p` を起動 → Plaud を読み、soil(meetings)+ board(digest)を
+ローカル repo に書く → wrapper が soil/board を VPS へ push → send_pending が Discord master に配信。
+
+詳細な作法は [scribe SKILL](../../plots/scribe/SKILL.md)(Mode D)。

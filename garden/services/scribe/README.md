@@ -18,12 +18,18 @@ scribe 区画([SKILL](../../plots/scribe/SKILL.md))の実装層。**判定の本
   - 差分起動(date_from)とべき等性(再処理防止)の根拠。
   - soil への取り込み有無もここで追える(`soil_path: null` = リネーム提案のみ)。
 
-## ★Plaud アクセスの未確定事項(test/active の前提)
+## Plaud アクセスのブリッジ(S54 解決 = 案 b)
 
-Plaud MCP は OAuth が**対話前提**でヘッドレス cron(VPS)から到達できない(client_steward の「Plaud は対話時に引く」homework と同根)。日次自動化には次のいずれかの解決が要る:
+Plaud MCP の OAuth トークンは `~/.plaud/tokens-mcp.json` に **refresh_token 付きで保存され自動更新される**。これを持つホスト(ガクチョが認証済の**ローカル WSL**)でなら、ヘッドレス `claude -p` が非対話で Plaud に到達できる(S54 実測)。
 
-- **(a)** Plaud MCP の token をローカル/VPS の launcher run に持ち出せるか検証
-- **(b)** ローカル cron(Plaud MCP が認証済の端末でスケジュール)
-- **(c)** read-only の Plaud consumer API クライアントを Python 実装(email+pass の約300日トークンを secret 化。plaud-toolkit 方式)→ MCP に依存せず VPS cron 可
+- refresh_token はローテートし得るので **トークン所有ホストは1つに固定**(VPS にコピーしない)→ scribe はローカル WSL が所有ホスト。
+- 日次自動化 = **ローカル WSL の crontab**(`30 7 * * *` → [run-local.sh](run-local.sh))。
+  - run-local.sh: launcher(MCP フラグ付きで claude -p)→ soil/board をローカル repo に書く → soil-sync push + board rsync で VPS へ。
+- 手動「録音スイープして」= VPS の bot は Plaud に届かないので、**bot がマーカー(`inbox/scribe/requested.flag`)を置く → ローカル poll cron(`*/10` → [scribe-poll.sh](scribe-poll.sh))が atomic に拾って run-local.sh を実行**。
+- launcher の MCP 対応 = 種 frontmatter `execute.mcp`(config/strict/permission_mode/allowed_tools)→ `--mcp-config`/`--strict-mcp-config`/`--permission-mode`/`--allowedTools`。**prompt は -p 直後の positional**(allowedTools 可変長が末尾 prompt を飲む S54 バグ回避)。
 
-MVP は**手動「会議録まわして」**(MCP が生きるセッション)で価値を出し、上記を解いてから日次へ。
+## ファイル
+
+- [run-local.sh](run-local.sh) — ローカル日次/手動実行(launcher → soil/board push)
+- [scribe-poll.sh](scribe-poll.sh) — 手動依頼マーカーの poll(ローカル cron `*/10`)
+- `state/processed.jsonl` — 処理済み録音台帳(べき等の根拠)

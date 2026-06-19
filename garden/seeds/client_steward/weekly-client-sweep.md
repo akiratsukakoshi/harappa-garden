@@ -70,3 +70,10 @@ execute:
 on_failure:
   notify: discord
   note: token 失効(invoice_processor の user OAuth 流用)/ Gmail API quota / soil 読取失敗 を疑う。
+---
+
+# weekly-client-sweep(client_steward / クライアント世話役)
+
+毎週月曜 08:20、VPS の launcher から発火する週次 sweep。詳細は [client_steward SKILL](../../plots/client_steward/SKILL.md)(Mode S)。
+
+> ⚠️ frontmatter は必ず閉じ `---` で終える(launcher の extractFrontmatter が `\n---\n` を必須とするため。S54 で欠落を修正 = 初回発火クラッシュ防止)。

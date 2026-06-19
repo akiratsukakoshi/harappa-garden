@@ -356,6 +356,30 @@ function appendLog(logPath, msg) {
   fs.appendFileSync(logPath, msg);
 }
 
+// ---- MCP フラグ構築 ----
+// 種 frontmatter の execute.mcp ブロックを claude -p の CLI フラグ列に変換する。
+//   mcp:
+//     config: ".mcp.json"            → --mcp-config .mcp.json
+//     strict: true                   → --strict-mcp-config
+//     permission_mode: "acceptEdits" → --permission-mode acceptEdits
+//     allowed_tools: [a, b]          → --allowedTools a,b
+// 未指定(mcp なし)の種は空配列を返し、従来どおりの起動になる。
+function buildMcpArgs(mcp) {
+  if (!mcp || typeof mcp !== 'object') return [];
+  const out = [];
+  if (mcp.config) {
+    out.push('--mcp-config', String(mcp.config));
+    if (mcp.strict) out.push('--strict-mcp-config');
+  }
+  if (mcp.permission_mode) {
+    out.push('--permission-mode', String(mcp.permission_mode));
+  }
+  if (Array.isArray(mcp.allowed_tools) && mcp.allowed_tools.length) {
+    out.push('--allowedTools', mcp.allowed_tools.join(','));
+  }
+  return out;
+}
+
 // ---- メイン処理 ----
 function main() {
   const args = parseArgs(process.argv);
@@ -429,6 +453,12 @@ function main() {
       ? parseInt(seed.execute.timeout_minutes, 10) * 60 * 1000
       : CLAUDE_TIMEOUT_MS;
 
+    // MCP 種(scribe の Plaud 等)。frontmatter `execute.mcp` があれば claude -p に
+    // --mcp-config / --strict-mcp-config / --permission-mode / --allowedTools を渡す。
+    // ★Plaud MCP は OAuth トークンが ~/.plaud/tokens-mcp.json で自動更新されるため、
+    //   認証済みホスト(=トークンを持つローカル WSL)での headless 実行に限り到達できる(S54 実証)。
+    const mcpArgs = buildMcpArgs(seed.execute?.mcp);
+
     const header = [
       '',
       `========================================`,
@@ -440,6 +470,7 @@ function main() {
       `claude_bin: ${CLAUDE_BIN}`,
       `model: ${model || '(default)'}`,
       `timeout_ms: ${timeoutMs}`,
+      `mcp: ${mcpArgs.length ? mcpArgs.join(' ') : '(none)'}`,
       `dry_run: ${args.dryRun}`,
       `---- vars ----`,
       JSON.stringify(vars, null, 2),
@@ -466,11 +497,14 @@ function main() {
     }
 
     // claude -p 起動(model 指定があれば --model で渡す)
-    const cliArgs = ['-p'];
+    // ★prompt は positional として -p の直後に置く。--allowedTools は可変長オプションで、
+    //   末尾に置くと直後の positional prompt を許可ツール名として飲み込み
+    //   「Input must be provided」で落ちる(S54 実証)。prompt 先頭ならフラグに飲まれない。
+    const cliArgs = ['-p', prompt];
     if (model) {
       cliArgs.push('--model', model);
     }
-    cliArgs.push(prompt);
+    cliArgs.push(...mcpArgs);
     const ret = spawnSync(CLAUDE_BIN, cliArgs, {
       cwd,
       encoding: 'utf8',

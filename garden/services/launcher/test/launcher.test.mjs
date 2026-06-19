@@ -132,6 +132,48 @@ test('未解決の {var} はそのまま残す(壊さない)', () => {
   assert.match(log, /missing: \{no_such_var\}/);
 });
 
+test('MCP: execute.mcp ブロックが claude -p フラグに変換されログに出る(scribe/Plaud 型)', () => {
+  const mcpSeed = `---
+type: seed
+name: unit-mcp
+plot: test_plot
+description: MCP 種(Plaud)の launcher 配線 unit test
+status: draft
+trigger:
+  type: cron
+  schedule: "30 7 * * *"
+  timezone: Asia/Tokyo
+engine: claude-code
+execute:
+  working_dir: /tmp
+  mcp:
+    config: ".mcp.json"
+    strict: true
+    permission_mode: "acceptEdits"
+    allowed_tools:
+      - "mcp__plaud__list_files"
+      - "mcp__plaud__get_note"
+  prompt: |
+    あなたは種「unit-mcp」です。
+---
+
+# unit-mcp
+`;
+  writeSeed('unit-mcp', mcpSeed);
+  const ret = runLauncher('test_plot/unit-mcp');
+  assert.equal(ret.status, 0, `stderr: ${ret.stderr}`);
+  const log = fs.readFileSync(todayLog('unit-mcp'), 'utf8');
+  // ヘッダ mcp 行に全フラグが組み立てられている(allowed_tools はカンマ結合)
+  assert.match(log, /mcp: --mcp-config \.mcp\.json --strict-mcp-config --permission-mode acceptEdits --allowedTools mcp__plaud__list_files,mcp__plaud__get_note/);
+});
+
+test('MCP: mcp ブロックの無い種は従来どおり mcp:(none)(後方互換)', () => {
+  writeSeed('unit-valid', VALID_SEED);
+  runLauncher('test_plot/unit-valid');
+  const log = fs.readFileSync(todayLog('unit-valid'), 'utf8');
+  assert.match(log, /mcp: \(none\)/);
+});
+
 test('検証: type が seed でないファイルは exit 2', () => {
   writeSeed('unit-not-seed', VALID_SEED.replace('type: seed', 'type: note'));
   const ret = runLauncher('test_plot/unit-not-seed');

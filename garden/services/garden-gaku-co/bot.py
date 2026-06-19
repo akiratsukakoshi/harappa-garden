@@ -119,6 +119,18 @@ CLIENT_TOPICS = (
     "クライアント", "client", "案件", "toB", "MTI", "エムティーアイ",
 )
 
+# S54: scribe 区画(会議録の番人)。Plaud はローカル WSL の MCP トークンでのみ読めるため、
+# VPS の bot は録音を読めない。「録音スイープして」を検知したら VPS にリクエストマーカーを置き、
+# ローカル WSL の poll cron(scribe-poll.sh)が拾って run-local.sh を実行する(数分レイテンシ)。
+SCRIBE_TOPICS = (
+    "録音スイープ", "会議録まわして", "録音整理", "録音まわして",
+    "会議録スイープ", "録音を整理", "録音をスイープ",
+)
+SCRIBE_REQUEST_MARKER = os.environ.get(
+    "SCRIBE_REQUEST_MARKER",
+    "/home/vps-harappa/garden/inbox/scribe/requested.flag",
+)
+
 PERSONA_PATH = os.path.join(HERE, "persona", "g-gaku-co.md")
 HISTORY_TURNS = 12  # 直近 N 発話を文脈に含める(プロセス内)
 history = collections.defaultdict(lambda: collections.deque(maxlen=HISTORY_TURNS))
@@ -518,6 +530,30 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
             + "・手動の対話確認では --commit-watermark を付けない(週次種だけが watermark を進める)。\n"
             + "・担当者の実名はメール署名のみ採用(Plaud 話者は採用しない)。詳細は SKILL の承認境界を厳守。\n\n"
         )
+    # S54: scribe(会議録の番人)— Plaud はローカル WSL でのみ読める。VPS の bot は読めないので、
+    # 「録音スイープして」を検知したら VPS にリクエストマーカーを置く(ローカル poll cron が拾って実行)。
+    scribe_block = ""
+    if any(t in f"{convo}\n{user_text}" for t in SCRIBE_TOPICS):
+        marker_ok = False
+        try:
+            os.makedirs(os.path.dirname(SCRIBE_REQUEST_MARKER), exist_ok=True)
+            with open(SCRIBE_REQUEST_MARKER, "a"):
+                pass
+            marker_ok = True
+        except Exception as e:
+            print(f"[scribe] request marker write failed: {e}", flush=True)
+        scribe_block = (
+            "[録音スイープ — scribe 区画(S54)。Plaud はローカル WSL の MCP でのみ読めます]\n"
+            + (
+                "✅ 依頼マーカーを VPS に置きました。ローカル WSL の poll cron(〜10分間隔)が拾って "
+                "録音スイープを実行し、digest(soil 取り込み + リネーム提案)を Discord master に届けます。\n"
+                if marker_ok else
+                "⚠️ 依頼マーカーの設置に失敗しました。ローカル WSL で直接 run-local.sh を実行してください。\n"
+            )
+            + "・あなた(VPS)は Plaud に到達できないため、ここで録音を読むことはできません。\n"
+            + "・ガクチョには「録音スイープの依頼を受けた。数分後に結果(soil 取り込み + リネーム提案)が届く」と一言伝えてください。\n"
+            + "・日次は毎朝 07:30 にローカル cron で自動実行されます(この手動依頼は臨時実行用)。\n\n"
+        )
     # S40: shift_manager Mode 4 手動ルート(シフト回答集計)— 話題検知時のみ実行手段を追加ロード
     shift_agg_block = ""
     if any(t in f"{convo}\n{user_text}" for t in SHIFT_AGG_TOPICS):
@@ -562,6 +598,7 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
         + sns_block
         + finance_block
         + client_block
+        + scribe_block
         + shift_agg_block
         + f"[現在] {now:%Y/%m/%d} ({weekday}) {now:%H:%M} JST — これが「今」。日付はこの[現在]を信じる。\n"
         + "  ※ active_tasks は夜のレビュー後だと翌日のテンプレになっていることがある(見出しの日付を今日と誤認しない)。\n\n"

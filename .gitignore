@@ -57,3 +57,8 @@ garden/memory/**/raw/*.md
 
 # field-assistant (S42): 名簿/振替の出力 CSV は PII を含むため repo に載せない
 garden/services/field-assistant/output/
+
+# scribe (S54): ローカル実行のランタイム。べき等 state と、ローカル WSL で生成 →
+# VPS へ push される board/pending(runtime。repo には載せない)
+garden/services/scribe/state/
+garden/board/pending/

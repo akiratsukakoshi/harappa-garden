@@ -403,7 +403,7 @@
 | 項目 | 内容 |
 |---|---|
 | **自動度** | 半自動(soil 取り込み=factual 自動 / リネーム=提案のみ自動化なし / 解釈=board) |
-| **トリガー** | 日次 07:30(★ブリッジ解決後)/ 対話「会議録まわして」「録音整理して」(MVP の主経路) |
+| **トリガー** | **日次 07:30 = ローカル WSL cron**([run-local.sh](services/scribe/run-local.sh))/ 手動「録音スイープして」= bot がマーカー設置 → ローカル poll cron `*/10`([scribe-poll.sh](services/scribe/scribe-poll.sh))が実行 |
 | **承認境界** | 生取り込み(クライアント会議のサマリ)= 自動 soil 追記。**解釈(新規案件・新規クライアント・confidential)= board**。**Plaud リネームは提案のみ(API が書き込み不可)** |
 | **通知先** | **Discord master 一本**(録音内容はクライアント機密 + 個人。core_team/staff/LINE には一切出さない) |
 
@@ -411,13 +411,13 @@
 
 **タイトル表記ルール** = `{月日} 【{主体}】会議タイトル`(年なし / 社外社内ラベルなし / 主体=クライアント名 or 社内会議体 or メンタリング相手 or イベント名、個人は主体省略)。
 
-**★技術的制約**: Plaud MCP/API は **read-only**(rename・フォルダ操作不可)+ **OAuth 対話前提でヘッドレス cron 不可**。→ 自動リネームなし(ガクチョ判断 S53)。MVP は手動起動。日次自動化は「Plaud アクセスのブリッジ」(MCP token 持ち出し / ローカル cron / read-only Plaud API クライアント)解決が前提。
+**★技術的制約 + ブリッジ(S54 解決)**: Plaud MCP/API は **read-only**(rename・フォルダ操作不可)→ 自動リネームなし(提案のみ)。OAuth トークンは `~/.plaud/tokens-mcp.json` で自動更新 → **そのトークンを持つローカル WSL でなら headless `claude -p` が非対話到達できる**(S54 実証)。refresh_token がローテートし得るため**所有ホストは1つ(ローカル WSL)に固定**(VPS にコピーしない)→ 日次/手動とも**ローカル実行 → VPS へ push**。
 
-**MVP 範囲(S53)**: 種1本(daily-recording-sweep)+ SKILL + 薄い state ヘルパ。soil 取り込みはクライアント会議のみ(社内/個人/イベントは提案のみ・soil 化は後フェーズ)。状態 **draft**。
+**範囲**: 種1本(daily-recording-sweep)+ SKILL + run-local.sh / scribe-poll.sh + launcher MCP 対応。soil 取り込みはクライアント会議のみ(社内/個人/イベントは提案のみ・soil 化は後フェーズ)。状態 **test**(S54 自律化配備・明朝 07:30 初回発火の見届けで active)。
 
-**宿題**: ★Plaud アクセスのブリッジ(test/active の前提)/ 社内・イベント会議の soil home 設計 / minute_maker(議事録 PDF 生成)を下流に Garden 化。
+**宿題**: ローカル cron 初回発火の見届け(test→active)/ 社内・イベント会議の soil home 設計 / minute_maker(議事録 PDF 生成)を下流に Garden 化。
 
-**失敗時に見るところ**: Plaud MCP 到達不可(OAuth ヘッドレス制約・token 失効)を最も疑う / カレンダー token 失効 = 主体判定の精度低下。
+**失敗時に見るところ**: Plaud MCP 到達不可(`~/.plaud/tokens-mcp.json` 失効・WSL 停止)を最も疑う(`/tmp/scribe-sweep.log` / `/tmp/scribe-poll.log`)/ カレンダー token 失効 = 主体判定の精度低下。
 
 **関連ファイル**: SKILL [`garden/plots/scribe/SKILL.md`](plots/scribe/SKILL.md) / 種 [`garden/seeds/scribe/daily-recording-sweep.md`](seeds/scribe/daily-recording-sweep.md) / サービス [`garden/services/scribe/`](services/scribe/) / soil 構造 [`garden/soil/clients/README.md`](soil/clients/README.md)
 
@@ -441,7 +441,7 @@
 | **請求書処理** | `apps/invoice_processor` | invoice_processor plot + service + 種 1 本(S41、hybrid: スタッフ照合 + 稼働突合を新設) | 🚧 test(VPS デプロイ・スモーク済。初回発火 7/12 見届け待ち) | 12 日通知の Sheet 確認 → 「承認」/ 請求漏れの人へ催促 |
 | **フィールド運営アシスト** | (HMC 期は無し。storesyoyaku 単機能ツールのみ) | field_assistant plot + service + 種 3 本 + core_team tool `get_event_roster`(S42、**seedling 初適用**) | 🆕 🚧 test(スモーク済。LINE グループ投入 + 初回発火見届け待ち) | LINE グループにガクコ投入 → グループ ID 連携 / 名簿 WB 作成(⭐)/ 月末振替発行は管理画面 |
 | **メール整理** | `apps/email_organizer` | 未移植 | ⬜ | HMC で従来通り |
-| **会議録の取り込み・タイトリング** | (HMC 期は無し) | scribe plot + service + 種 1 本(S53、seedling: Plaud 録音 → 主体判定 → soil 取り込み + リネーム提案) | 🆕 🚧 draft(repo 起草。手動 dry-run → test、日次は Plaud アクセスのブリッジ待ち) | 「会議録まわして」起動 / リネーム提案を Plaud アプリで手動反映 |
+| **会議録の取り込み・タイトリング** | (HMC 期は無し) | scribe plot + service + 種 1 本(S53 seedling → S54 ブリッジ解決・自律化): Plaud 録音 → 主体判定 → soil 取り込み + リネーム提案 | 🆕 ✅ **test**(S54: ローカル WSL cron 日次07:30 + 手動 poll。明朝発火見届けで active) | 「録音スイープして」で臨時実行 / リネーム提案を Plaud アプリで手動反映 |
 | **議事録 PDF 生成(Plaud等)** | `apps/minute_maker` | 未移植(scribe の下流候補) | ⬜ | HMC で従来通り |
 | **SNS 投稿** | `apps/sns_pilot`(meta_client / schedule_posts / weekly_report)| sns_manager plot + service + 種 3 本(S45、transplant: 画像セレクト + 文案 + 週次レポート)| 🚧 draft(repo 実装・コンパイル済。VPS デプロイ + secret + Drive フォルダ待ち)| 金: 画像を Drive 設置 / 土: セレクト承認 + 一言コメント / 月: 文案承認 |
 | **部門振り分け監査 + データ整合性** | `apps/freee_auditor` | **finance plot Mode D** + service `auditor.py` + 種 monthly-data-audit(S47、transplant + 役割拡張: 未登録明細検出を追加) | 🆕 🚧 draft(repo 実装・コンパイル済。VPS デプロイ待ち) | 9日 監査の board で部門を埋めて「承認」 |
