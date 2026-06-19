@@ -53,6 +53,7 @@ soil/clients/{企業slug}/
 
 - 本 repo は private([PII 案A ADR](../../../docs/decisions/2026-06-10-pii-in-private-repo.md))。クライアントの経営戦略など機密度はスタッフ PII より高い。
 - 打合せは **サマリ note を正本**とし、生の発言録(transcript)は Plaud 側に残す(file_id 参照)。要機密案件は案件台帳 frontmatter に `confidential: true` を立てる。
+- **書き込み粒度(S53 確定)**:`get_note` の生出力を貼らず**要約し直して**書く(生 dump 禁止)。**具体数字(金額等)は含めてよい** — 可読性 + finance 突合のため。機密対策は「生 transcript を外す + private repo + `confidential`」で担保し、数字削除では担保しない。詳細は [scribe SKILL](../../plots/scribe/SKILL.md) Step 3 の3層モデル。
 
 ## 案件台帳の frontmatter schema(機械可読の枠)
 
