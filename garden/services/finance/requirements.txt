@@ -4,3 +4,6 @@ google-api-python-client>=2.90.0
 python-dotenv>=1.0.0
 requests>=2.31.0
 gspread>=6.0.0
+
+openpyxl
+Pillow

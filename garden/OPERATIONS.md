@@ -350,7 +350,7 @@
 | 項目 | 内容 |
 |---|---|
 | **自動度** | 半自動(記帳・部門修正は Garden が候補起草 → ガクチョ承認 → Freee 書込。分析は read-only 投げかけ) |
-| **トリガー** | 6日 08:00(売上記帳)/ 9日 08:00(データ監査)/ 10日 08:00(財務分析の投げかけ)/ 対話「売上記帳まわして」「部門監査まわして」「財務見せて」 |
+| **トリガー** | 6日 08:00(売上記帳)/ 9日 08:00(データ監査)/ 10日 08:00(財務分析の投げかけ)/ 対話「売上記帳まわして」「部門監査まわして」「財務見せて」/ **対話「{案件}の請求書/見積つくって」(発行・G)** |
 | **承認境界** | 記帳(manual_journal)・部門一括修正(PUT)は **board + dry-run 必須**(外部書込・不可逆)。分析は承認なし(read-only) |
 | **通知先** | **Discord master**(財務は機微 + 書込。core_team/staff には一切出さない = 構造遮断) |
 
@@ -361,7 +361,12 @@
 3. **9日 08:00 監査(D)**: `auditor.py scan` で **部門漏れ + 未登録明細(口座同期済だが取引化されていない = PL未反映)**を検出 → 部門漏れは Sheets レビュー → 承認 → PUT 修正。**analyzer 前のデータ地ならし役**
 4. **10日 08:00 分析(A)**: `analyzer.py summary` → 整地済みデータで PL/CF/着地予測 → Discord に**数値+論点で対話の投げかけ**(board は作らない、read-only)
 
-**MVP 範囲**: 記帳 + 部門漏れ修正 + 財務分析の対話。**未登録明細は当面「検出・報告」まで**(自動登録アシストは初回実データで `wallet_txns` の未登録 status を確定 → expense と被る分の境界を決めてから)。
+**発行(Mode G・S55 新植)= 見積/請求の generative**:
+- 対話「{案件}の請求書/見積つくって」(Claude Code セッション=Opus。Discord bot[Sonnet]ではなく対話で起こす)→ 案件台帳(soil)から **構造正本 md** を起草 → ガクチョ確認(★OK まで .xlsx を出さない)→ `issue_document.py` で**雛形 .xlsx に差し込み発行** → ガクチョが Excel で社印確認・捺印 → **PDF 化は手作業** → 送付。
+- 雛形は社印・書式・数式を保持(openpyxl のみ・LLM 非依存=**ベンダーロックインなし**)。プロセス md が `clients/{社}/projects/{案件}/d見積|f請求/` に残る(cowork の弱点=ナレッジ非蓄積を解消)。
+- 請求の着金後は **Mode I で freee 記帳にバトン**。
+
+**MVP 範囲**: 記帳 + 部門漏れ修正 + 財務分析の対話 + 発行(見積/請求)。**未登録明細は当面「検出・報告」まで**(自動登録アシストは初回実データで `wallet_txns` の未登録 status を確定 → expense と被る分の境界を決めてから)。
 
 **失敗時に見るところ**:
 
@@ -370,9 +375,10 @@
 
 **関連ファイル**:
 
-- SKILL: [`garden/plots/finance/SKILL.md`](plots/finance/SKILL.md)(Mode I 記帳 / D 監査 / A 分析)
-- 種: [`garden/seeds/finance/`](seeds/finance/)(monthly-sales-import / monthly-data-audit / monthly-finance-review)
-- スクリプト: [`garden/services/finance/`](services/finance/)(importer.py / auditor.py / analyzer.py)
+- SKILL: [`garden/plots/finance/SKILL.md`](plots/finance/SKILL.md)(Mode I 記帳 / D 監査 / A 分析 / **G 発行**)
+- 種: [`garden/seeds/finance/`](seeds/finance/)(monthly-sales-import / monthly-data-audit / monthly-finance-review。**発行 G は種なし=対話起動**)
+- スクリプト: [`garden/services/finance/`](services/finance/)(importer.py / auditor.py / analyzer.py / **issue_document.py** + `templates/{invoice,estimate}-template.xlsx`[社印入り雛形])
+- 発行の型: [`garden/soil/finance/templates/`](soil/finance/templates/)(見積書/請求書テンプレート + **明細パターン.md** + harappa-billing.md)
 - Freee 連携: 正本 [`garden/lib/freee_client.py`](lib/freee_client.py)(S47 で読み取りメソッド追記)を expense/invoice/shift と共有(新トークン作らず)
 
 ---
