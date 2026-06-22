@@ -39,9 +39,10 @@ execute:
     # カレンダーは launcher が事前取得して注入(claude には credential/MCP を渡さない)。
     # 失敗時も calendar_cli が `- ⚠️ カレンダー取得失敗（…）` を1行返す(常に exit 0)。
     calendar_block: "$(/home/vps-harappa/garden/services/garden-gaku-co/venv/bin/python3 /home/vps-harappa/garden/services/calendar/calendar_cli.py briefing 2>/dev/null)"
-    # 承認待ち board の一覧(S24 追加): pending/ 直下の board を frontmatter 抜粋で列挙
-    # blocked: true は「保留中」として末尾に分けて出す。0 件なら空文字。
-    board_pending_block: "$(for f in /home/vps-harappa/garden/board/pending/*.md; do [ -e \"$f\" ] || continue; name=$(basename \"$f\"); [ \"$name\" = \"placeholder.md\" ] && continue; seed=$(grep '^from_seed:' \"$f\" | head -1 | sed 's/from_seed: *//'); status=$(grep '^status:' \"$f\" | head -1 | sed 's/status: *//'); blocked=$(grep '^blocked:' \"$f\" | head -1 | sed 's/blocked: *//'); sched=$(grep '^scheduled_send:' \"$f\" | head -1 | sed 's/scheduled_send: *//'); created=$(grep '^created:' \"$f\" | head -1 | sed 's/created: *//'); echo \"- [$name] seed=$seed | status=$status | blocked=${blocked:-false} | scheduled=${sched:-none} | created=$created\"; done)"
+    # 承認待ち board の一覧(S24 追加 → S56 改修): send_pending.py list-pending が
+    # status=pending のみを 種別+日本語タイトル付きで列挙(処理済みは除外・唯一の窓口に統一)。
+    # 0 件なら「(承認待ちの board はありません)」を返す。
+    board_pending_block: "$(/usr/bin/python3 /home/vps-harappa/garden/services/garden-gaku-co/send_pending.py list-pending 2>/dev/null)"
     # 番人サマリ(S40 追加): 昨夜の監視結果 + 番人自身の生存(相互監視)。常に exit 0。
     watcher_block: "$(python3 /home/vps-harappa/garden/services/watcher/log_watcher.py summary 2>/dev/null)"
   prompt: |
@@ -95,10 +96,11 @@ execute:
       - 「全コピー」「backlog をそのまま転写」はしない。締切日でフィルタすること
 
     承認待ち board の取り扱い(SKILL Mode 1 Step 1.5 参照):
-      - `board_pending_block` が空でなければ、Triage(triage 系 board)末尾に
-        「## 📋 承認待ち board(剪定依頼)」セクションを必ず追加する
-      - 各 board に対し: 種名 / status / scheduled_send / 一行サマリ / Obsidian で開く動線を明示
-      - `blocked: true` の board は「⏳ 前段待ち」として分け、本日対応不要であることをガクチョに伝える
+      - `board_pending_block` が「(承認待ちの board はありません)」でなければ、Triage 末尾に
+        「## 📋 承認待ち board(剪定依頼)」セクションを必ず追加し、list-pending の各行
+        (種別 + 日本語タイトル + ファイル名 + 作成日 + ⛔blocked/⏰予定)をそのまま転記する
+      - `⛔blocked` 付きの board は「⏳ 前段待ち」として分け、本日対応不要であることをガクチョに伝える
+      - `==NOTIFY==` 本文の冒頭にも「📋 承認待ち N 件」を立てて、ガクチョが朝に気づけるようにする
 
     モード判定:
       - {today}-morning-briefing.md が存在し status: awaiting_triage または回答反映済

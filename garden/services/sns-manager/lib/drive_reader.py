@@ -78,6 +78,16 @@ class DriveReader:
         self.logger.info(f"used フォルダ作成: {name} (id={created['id']})")
         return created["id"]
 
+    def find_used_folder_id(self, parent_id, name=USED_FOLDER_NAME):
+        """parent 直下の used フォルダ id を返す(無ければ None。作成はしない)。"""
+        resp = self.service.files().list(
+            q=(f"'{parent_id}' in parents and name = '{_escape(name)}' "
+               f"and mimeType = '{FOLDER_MIME}' and trashed = false"),
+            fields="files(id, name)",
+        ).execute()
+        files = resp.get("files", [])
+        return files[0]["id"] if files else None
+
     def move_to_used(self, file_id, parent_id, used_folder_id):
         """file を parent 直下から used フォルダへ移動する。"""
         self.service.files().update(
@@ -86,6 +96,30 @@ class DriveReader:
             removeParents=parent_id,
             fields="id, parents",
         ).execute()
+
+    def make_public(self, file_id):
+        """file を「リンクを知る全員が閲覧可」にする(冪等)。
+
+        Instagram(ig_scheduler 経由)が投稿時刻に Drive の公開 URL を取得できるように
+        するため。既に anyone 権限があれば何もしない。SA は編集者共有のため権限付与可。
+        投稿画像は最終的に IG で公開されるので、リンク公開は実質的な情報露出増にならない。
+        """
+        perms = self.service.permissions().list(
+            fileId=file_id, fields="permissions(id, type, role)"
+        ).execute().get("permissions", [])
+        if any(p.get("type") == "anyone" for p in perms):
+            return
+        self.service.permissions().create(
+            fileId=file_id,
+            body={"type": "anyone", "role": "reader"},
+            fields="id",
+        ).execute()
+        self.logger.info(f"公開権限を付与: file_id={file_id}")
+
+    @staticmethod
+    def public_download_url(file_id):
+        """IG が取得可能な Drive 直リンク(失効しない)。jobs 7/8/10 で実績あり。"""
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
 
     def download(self, file_id, local_path):
         request = self.service.files().get_media(fileId=file_id)

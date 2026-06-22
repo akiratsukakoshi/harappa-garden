@@ -18,8 +18,8 @@
 #   bash run-local.sh --dry-run      # launcher dry-run(claude -p を呼ばない)
 #   bash run-local.sh --no-push      # ローカル実行のみ(soil/board を VPS に送らない=検証用)
 #
-# cron(ローカル WSL の crontab):
-#   30 7 * * * /home/tukapontas/harappa-garden/garden/services/scribe/run-local.sh >> /tmp/scribe-sweep.log 2>&1
+# 日次起動(S56〜): 固定時刻 cron は WSL 不在で空振りするため廃止。日次は scribe-poll.sh の
+# キャッチアップ(07:30 以降・WSL が起きていれば 1 日 1 回)が回す。本スクリプトは poll / 手動から呼ばれる。
 
 set -uo pipefail
 
@@ -40,9 +40,22 @@ done
 
 mkdir -p "$LOCAL_BOARD" "$LOG_DIR" "$STATE_DIR"
 
+# cron の PATH は最小で、nvm 配下の node / claude を見つけられない(S56 で実害確認)。
+# nvm を読み込んで node+claude を PATH に載せる(対話シェルと同じ状態にする)。
+if ! command -v claude >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1; then
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  # shellcheck disable=SC1091
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1 || true
+fi
+# nvm.sh でも不足する場合の最終手段: nvm の最新 node bin を直接 PATH 前置
+if ! command -v claude >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1; then
+  NODE_BIN="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1 || true)"
+  [ -n "$NODE_BIN" ] && export PATH="$NODE_BIN:$PATH"
+fi
+
 CLAUDE_PATH="$(command -v claude || true)"
-if [ -z "$CLAUDE_PATH" ]; then
-  echo "[scribe] ERROR: claude CLI が PATH に見つかりません" >&2
+if [ -z "$CLAUDE_PATH" ] || ! command -v node >/dev/null 2>&1; then
+  echo "[scribe] ERROR: claude / node CLI が見つかりません(nvm 解決に失敗)" >&2
   exit 127
 fi
 

@@ -100,22 +100,21 @@ class MetaClient:
             )
         return api_url, api_key
 
-    def _post_schedule_with_images(self, platform: str, image_paths: list[str],
-                                   caption: str, publish_at: datetime) -> str:
+    def _post_schedule_with_urls(self, platform: str, urls: list[str],
+                                 caption: str, publish_at: datetime) -> str:
         """
         スケジューラーサーバー(ig_scheduler)へ JSON で投稿ジョブを登録する。
 
         サーバーの契約は「画像の**公開URL**を受け取り、投稿時刻に Meta がその URL を
         取得して即時投稿する」方式(JobIn: platform / image_url|image_urls / caption /
-        publish_at[tz付き])。ローカル画像を直接 multipart で送る方式ではない。
+        publish_at[tz付き])。
 
-        公開URLは upload_photo_for_url() で取得する(画像を FB ページに非公開アップロード
-        → Meta が取得可能な CDN URL を得る)。Drive 公開URL方式はコンテナ400で失敗したため、
-        FB CDN を経由する。
+        ⚠️ urls には**失効しない公開URL**(Drive `uc?export=download` 等)を渡すこと。
+        FB CDN URL は数日で失効し、数日先の予約は投稿時刻に 400(/media)で失敗する
+        (S46 で job12 が実際にこれで落ちた)。FB CDN は Drive 原本を引けない
+        アドホック画像の最終手段としてのみ _post_schedule_with_images 経由で使う。
         """
         api_url, api_key = self._scheduler_env()
-
-        urls = [self.upload_photo_for_url(p) for p in image_paths]
 
         body = {
             "platform": platform,
@@ -143,12 +142,27 @@ class MetaClient:
         )
         return str(result["job_id"])
 
+    def _post_schedule_with_images(self, platform: str, image_paths: list[str],
+                                   caption: str, publish_at: datetime) -> str:
+        """【アドホック専用フォールバック】ローカル画像を FB CDN に上げて URL を得て予約する。
+
+        ⚠️ FB CDN URL は数日で失効するため、当日〜翌日の予約に限る。通常の週次フロー
+        (Drive 原本あり)では processor が Drive 公開URL を解決して
+        schedule_ig_*_via_server_url() を使うこと。
+        """
+        urls = [self.upload_photo_for_url(p) for p in image_paths]
+        return self._post_schedule_with_urls(platform, urls, caption, publish_at)
+
+    def schedule_ig_photo_via_server_url(self, image_url: str, caption: str, publish_at: datetime) -> str:
+        """IG 写真投稿を ig_scheduler に登録(失効しない公開URL=Drive 直リンクを渡す)。"""
+        return self._post_schedule_with_urls("ig_photo", [image_url], caption, publish_at)
+
+    def schedule_ig_carousel_via_server_url(self, image_urls: list[str], caption: str, publish_at: datetime) -> str:
+        """IG カルーセル投稿を ig_scheduler に登録(失効しない公開URLのリストを渡す)。"""
+        return self._post_schedule_with_urls("ig_carousel", image_urls, caption, publish_at)
+
     def schedule_ig_photo_via_server(self, image_path: str, caption: str, publish_at: datetime) -> str:
-        """
-        ig_scheduler のキューにIG写真投稿を登録する（公開URLは FB CDN 経由で取得）。
-        Meta Graph APIのスケジュール機能（Tech Provider限定）の代替。
-        image_path: ローカル画像ファイルパス
-        """
+        """【アドホック専用】ローカル画像→FB CDN で IG 予約。通常は *_url 版を使う。"""
         return self._post_schedule_with_images("ig_photo", [image_path], caption, publish_at)
 
     def schedule_ig_photo(self, image_url: str, caption: str, publish_at: datetime) -> str:

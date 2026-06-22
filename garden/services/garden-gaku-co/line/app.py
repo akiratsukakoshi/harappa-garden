@@ -21,11 +21,15 @@ gaku-co5.0 app/line/webhook.py + app/main.py を、中立基盤(brain/tools/capa
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
+import secrets
+from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import HTMLResponse
 
 import capabilities  # noqa: F401  (registry の echo 登録副作用 + scope 検証で使用)
 import memory_logger
@@ -59,6 +63,58 @@ def get_provider() -> Provider:
     if _provider is None:
         _provider = AnthropicProvider(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     return _provider
+
+
+# ── 承認待ち board の閲覧専用ダッシュボード(案1, S56)──────────────
+# 同ドメイン(core.harappa.monster)に1経路追加。承認は Discord のまま=閲覧専用。
+# Basic 認証。パスワードは env BOARD_DASH_PASSWORD か秘密ファイル(.board-dash-secret)。
+BOARD_DASH_USER = os.environ.get("BOARD_DASH_USER", "gaku")
+_BOARD_DASH_SECRET_FILE = Path(
+    os.environ.get("BOARD_DASH_SECRET_FILE",
+                   "/home/vps-harappa/garden/services/garden-gaku-co/.board-dash-secret")
+)
+
+
+def _board_dash_password() -> str:
+    v = os.environ.get("BOARD_DASH_PASSWORD")
+    if v:
+        return v.strip()
+    try:
+        return _BOARD_DASH_SECRET_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+@app.get("/board")
+async def board_dashboard(request: Request) -> Response:
+    password = _board_dash_password()
+    if not password:
+        return Response(
+            "board ダッシュボード未設定です(BOARD_DASH_PASSWORD / .board-dash-secret)。",
+            status_code=503,
+        )
+    # (1) モバイル向け: ?key=<secret> の1タップアクセス(Basic 認証ダイアログ不要)
+    key = request.query_params.get("key", "")
+    if key and secrets.compare_digest(key, password):
+        import board_dashboard as bd
+        return HTMLResponse(bd.render_dashboard_html())
+
+    # (2) Basic 認証(デスクトップ等)
+    auth = request.headers.get("authorization", "")
+    ok = False
+    if auth.startswith("Basic "):
+        try:
+            user, _, pw = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
+            ok = secrets.compare_digest(user, BOARD_DASH_USER) and secrets.compare_digest(pw, password)
+        except Exception:
+            ok = False
+    if not ok:
+        return Response(
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="HARAPPA Garden board"'},
+        )
+    import board_dashboard as bd
+    return HTMLResponse(bd.render_dashboard_html())
 
 
 @app.get("/health")

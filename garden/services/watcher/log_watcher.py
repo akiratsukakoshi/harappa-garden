@@ -64,6 +64,15 @@ HEARTBEAT_REALERT_HOURS = 6  # 同一警報の再通知間隔
 MAX_LINES_PER_FILE = 8    # 1 ファイルあたり通知に載せる最大エラー行数
 MAX_LINE_LEN = 180
 
+# ig_scheduler の失敗ジョブ監視(S56)。投稿失敗はログでなくコンテナ内 DB に残るため、
+# ログ走査では拾えない。API を直接照会して未通知の failed を 1 回ずつ通知する。
+IG_SCHED_ENV = Path(os.environ.get("IG_SCHEDULER_ENV_FILE", "/home/vps-harappa/ig_scheduler/.env"))
+IG_SCHED_URL = os.environ.get("IG_SCHEDULER_LOCAL_URL", "http://127.0.0.1:8100")
+IG_FAIL_TRACK_MAX = 200  # state に保持する alerted job id の上限
+
+# board 規約 lint(S56 一元管理 enforcement)。board_lint は garden-gaku-co 配下にあるため path 注入。
+GAKU_CO_DIR = os.environ.get("GAKU_CO_DIR", "/home/vps-harappa/garden/services/garden-gaku-co")
+
 
 def now_jst() -> datetime:
     return datetime.now(JST)
@@ -179,6 +188,92 @@ def check_heartbeats(state: dict) -> list:
     return alerts
 
 
+def _ig_api_key():
+    """ig_scheduler の .env から SCHEDULER_API_KEY を読む(無ければ None)。"""
+    try:
+        for raw in IG_SCHED_ENV.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if line.startswith("SCHEDULER_API_KEY="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        return None
+    return None
+
+
+def check_ig_scheduler_failures(state: dict) -> list:
+    """ig_scheduler の失敗ジョブ(status=failed)を検出して通知メッセージの list を返す。
+
+    投稿失敗はログでなく ig_scheduler の DB に残る(コンテナ内)。ログ走査では拾えないため
+    API を直接照会する。未通知の failed だけを 1 回ずつ通知(state["ig_failed_alerted"] で
+    id を追跡)。初回実行は既存 failed を基準記録のみ(過去の失敗で洪水にしない)。
+    """
+    alerts: list = []
+    first_run = "ig_failed_alerted" not in state
+    alerted = state.setdefault("ig_failed_alerted", [])
+    alerted_set = set(alerted)
+
+    key = _ig_api_key()
+    if not key:
+        return alerts  # ig_scheduler 不在/鍵読めず = 静かにスキップ
+    try:
+        req = urllib.request.Request(f"{IG_SCHED_URL}/jobs", headers={"x-api-key": key})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            jobs = json.load(resp)
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError) as e:
+        log(f"WARN: ig_scheduler 照会失敗: {e}")
+        return alerts
+
+    for j in jobs:
+        if j.get("status") != "failed":
+            continue
+        jid = j.get("id")
+        if jid in alerted_set:
+            continue
+        alerted_set.add(jid)
+        alerted.append(jid)
+        if first_run:
+            continue  # 基準記録のみ(通知しない)
+        cap = (j.get("caption") or "").replace("\n", " ")[:40]
+        alerts.append(
+            f"📵 IG 投稿失敗(ig_scheduler job {jid} / {j.get('platform')})\n"
+            f"  予定: {j.get('publish_at')}\n"
+            f"  error: {(j.get('error_msg') or '')[:140]}\n"
+            f"  caption: {cap}…\n"
+            f"  → 画像URL失効(FB CDN)等が原因。`schedule` で再予約を"
+        )
+    if len(alerted) > IG_FAIL_TRACK_MAX:
+        del alerted[: len(alerted) - IG_FAIL_TRACK_MAX]
+    if first_run:
+        log(f"ig_scheduler: 初回 = 既存 failed {len(alerted)} 件を基準記録(通知なし)")
+    return alerts
+
+
+def check_board_lint(state: dict) -> list:
+    """board 規約違反(ERROR)を board_lint で検出し、新規違反のみ通知する。
+
+    違反は修正されるまで残るため、毎回通知せず「前回見えていなかった違反」だけ通知する
+    (解消されたら集合から落ちる=再発時に再通知)。WARN は静かに(ノイズ回避)。
+    """
+    alerts: list = []
+    try:
+        if GAKU_CO_DIR not in sys.path:
+            sys.path.insert(0, GAKU_CO_DIR)
+        import board_lint
+        viol = board_lint.collect_violations()
+    except Exception as e:
+        log(f"WARN: board_lint 実行失敗: {e}")
+        return alerts
+    errors = sorted({m for sev, m in viol if sev == "ERROR"})
+    prev = set(state.get("board_lint_seen", []))
+    for m in errors:
+        if m not in prev:
+            alerts.append(
+                f"🧹 board 規約違反(ERROR): {m}\n"
+                f"→ board_registry.py 登録 or board 修正を(`board_lint.py` 参照)")
+    state["board_lint_seen"] = errors  # 解消された違反は落とす(再発時に再通知)
+    return alerts
+
+
 def summary() -> int:
     """朝ブリーフィング用サマリ(S40)。watcher.log を読むだけ。常に exit 0。
 
@@ -241,6 +336,16 @@ def main() -> int:
 
     findings = scan_new_errors(state)
     heartbeat_alerts = check_heartbeats(state)
+    try:
+        ig_alerts = check_ig_scheduler_failures(state)
+    except Exception as e:  # 監視が本体を巻き込んで落ちないように保険
+        log(f"WARN: ig_scheduler チェックで例外: {e}")
+        ig_alerts = []
+    try:
+        lint_alerts = check_board_lint(state)
+    except Exception as e:
+        log(f"WARN: board_lint チェックで例外: {e}")
+        lint_alerts = []
 
     if findings:
         parts = [f"🚨 番人: cron ログにエラー検出({now_jst().strftime('%m/%d %H:%M')})"]
@@ -256,7 +361,15 @@ def main() -> int:
         notify_master(f"🚨 番人: {alert}")
         log("ALERT: " + alert.splitlines()[0])
 
-    if not findings and not heartbeat_alerts:
+    for alert in ig_alerts:
+        notify_master(alert)
+        log("ALERT: " + alert.splitlines()[0])
+
+    for alert in lint_alerts:
+        notify_master(alert)
+        log("ALERT: " + alert.splitlines()[0])
+
+    if not findings and not heartbeat_alerts and not ig_alerts and not lint_alerts:
         log("OK: 異常なし")
 
     save_state(state)

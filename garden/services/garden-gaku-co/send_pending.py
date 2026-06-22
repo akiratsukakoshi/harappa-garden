@@ -81,13 +81,18 @@ except ValueError:
 _SUPPRESS_FAIL_NOTIFY: bool = False
 _LAST_FAIL_REASON: Optional[str] = None
 
-DISPATCH_LINE_SEND = {
-    "shift_manager/monthly-shift-survey",
-    "shift_manager/monthly-working-hours-confirmation",
-}
-DISPATCH_SHELL = {
-    "shift_manager/month-end-working-hours-prep",
-}
+# board 運用ルールは単一レジストリ board_registry に集約(S56 一元管理)。
+# 配信ルーティングの集合もレジストリから導出する(ここで個別管理しない)。
+import board_registry as breg  # noqa: E402
+
+DISPATCH_LINE_SEND = breg.line_send_seeds()
+DISPATCH_SHELL = breg.shell_seeds()
+
+
+def classify_board(seed: str, fm: dict, body: str) -> tuple[str, str]:
+    """board の (種別ラベル, 日本語タイトル) を返す(レジストリ委譲)。"""
+    return breg.classify(seed, fm, body)
+
 
 # S22: dummy 化(garden-gaku-co 統合完了までの暫定運用)
 DEFAULT_DISPATCH_MODE = os.environ.get("SEND_PENDING_DEFAULT_MODE", "production").strip().lower()
@@ -432,18 +437,13 @@ def build_pending_notice(board_path: Path, fm: dict, body: str) -> str:
     is_shell = seed in DISPATCH_SHELL
     is_line_send = seed in DISPATCH_LINE_SEND
 
-    if is_line_send:
-        kind = "📨 配信(承認後 staff グループへ・dummy モードでは Discord master へ)"
-    elif is_shell:
-        kind = "⚙️ 集計実行(承認で発火)"
-    else:
-        kind = "❓ unknown"
+    kind, title = classify_board(seed, fm, body)
 
     lines: list[str] = [
-        "📋 **承認依頼が届いています**",
+        f"📋 **承認依頼: {title}**",
+        f"📋 種別: {kind}",
         f"🌱 種: `{seed}`",
         f"📄 board: `{board_path.name}`",
-        f"📋 種別: {kind}",
     ]
     if target_month:
         lines.append(f"📅 対象月: `{target_month}`")
@@ -747,10 +747,20 @@ def process_one(board_path: Path) -> None:
             # S24: 月末稼働表生成成功時、対応する confirmation の blocked を外す
             if ok and from_seed == "shift_manager/month-end-working-hours-prep":
                 unblock_confirmation(fm.get("target_month", "").strip())
+        elif breg.is_registered(from_seed):
+            # 登録済みだが自動配信なし(CONVERSATIONAL=会話承認 / FYI=通知のみ)。
+            # status:approved に達しても send_pending は配信しない。誤って approved に
+            # された board をエラーループさせず、静かに processed/ へ片付ける(罠の解消)。
+            model = breg.approval_model(from_seed)
+            log(f"[{board_path.name}] {model} 種(自動配信なし)→ archive。"
+                f"承認は会話/別経路。SNS 等の予約は『〜予約して』で実行")
+            ok = True
         else:
-            log(f"[{board_path.name}] FAIL: unknown from_seed: {from_seed}")
-            # notify_master 内で reason がキャプチャされ、必要に応じて Discord に投げられる
-            notify_master(f"❌ 未知の from_seed: {board_path.name}\n→ {from_seed}")
+            # 真の未登録 = board_registry に無い。lint で事前検知すべき構成ミス。
+            log(f"[{board_path.name}] FAIL: 未登録の from_seed(board_registry に無い): {from_seed}")
+            notify_master(
+                f"❌ 未登録の board 種: {board_path.name}\n→ {from_seed}\n"
+                f"→ board_registry.py に登録してください(board lint 参照)")
             ok = False
     finally:
         _SUPPRESS_FAIL_NOTIFY = False
@@ -824,6 +834,78 @@ def release_lock() -> None:
         pass
 
 
+def iter_pending_boards():
+    """pending/ の status=pending board を (path, fm, body) で古い順に yield。
+
+    pending/ には処理済み(status=processed/registered 等)の board が混ざり得るため、
+    「本当に承認待ち」だけを返す唯一の窓口にする(朝ブリーフィング・ダッシュボード共用)。
+    """
+    if not BOARD_PENDING.exists():
+        return
+    for path in sorted(BOARD_PENDING.glob("*.md")):
+        if path.name == "placeholder.md":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        fm, body = parse_frontmatter(text)
+        if (fm.get("status") or "").strip() != "pending":
+            continue
+        yield path, fm, body
+
+
+def cmd_list_pending() -> None:
+    """status=pending の board を markdown 一覧で stdout に出す(朝ブリーフィング/ダッシュボード共用)。"""
+    rows = list(iter_pending_boards())
+    if not rows:
+        print("(承認待ちの board はありません)")
+        return
+    for path, fm, body in rows:
+        seed = (fm.get("from_seed") or "?").strip()
+        kind, title = classify_board(seed, fm, body)
+        created = (fm.get("created") or "").strip()[:10]
+        sched = (fm.get("scheduled_send") or "").strip()
+        blocked = (fm.get("blocked") or "").strip().lower() == "true"
+        extra = []
+        if blocked:
+            extra.append("⛔blocked")
+        if sched:
+            extra.append(f"⏰{sched}")
+        suffix = (" / " + " ".join(extra)) if extra else ""
+        cmark = f" / 作成 {created}" if created else ""
+        print(f"- **{title}**({kind}) — `{path.name}`{cmark}{suffix}")
+
+
+# 終端ステータス: pending/ に居座らせず processed/ へ片付ける(承認や配信を伴わない種も含む)
+TERMINAL_STATUSES = {"processed", "registered", "done", "completed", "sent", "skipped"}
+
+
+def relocate_terminal_boards() -> None:
+    """pending/ の終端ステータス board を processed/ へ移し、pending/=承認待ち を保つ。
+
+    pending/ に status=processed/registered が混ざると「未承認はどれか」が分からなくなる
+    (実害あり)。毎分の send-pending で軽く掃除する。移動は終端 status のみ・冪等。
+    """
+    if not BOARD_PENDING.exists():
+        return
+    BOARD_PROCESSED.mkdir(parents=True, exist_ok=True)
+    for path in sorted(BOARD_PENDING.glob("*.md")):
+        if path.name == "placeholder.md":
+            continue
+        try:
+            fm, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        status = (fm.get("status") or "").strip().lower()
+        if status in TERMINAL_STATUSES:
+            try:
+                path.replace(BOARD_PROCESSED / path.name)
+                log(f"[{path.name}] 終端 status={status} → processed/ へ片付け")
+            except OSError as e:
+                log(f"[{path.name}] WARN: processed/ への片付け失敗: {e}")
+
+
 def main() -> None:
     load_env()
 
@@ -833,6 +915,7 @@ def main() -> None:
     try:
         if not BOARD_PENDING.exists():
             return
+        relocate_terminal_boards()
         for path in sorted(BOARD_PENDING.glob("*.md")):
             process_one(path)
     finally:
@@ -840,4 +923,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "list-pending":
+        try:
+            load_env()
+        except Exception:
+            pass
+        cmd_list_pending()
+    else:
+        main()

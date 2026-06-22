@@ -55,11 +55,18 @@ execute:
       PY=/home/vps-harappa/garden/services/sns-manager/.venv/bin/python
       PROC=/home/vps-harappa/garden/services/sns-manager/processor.py
 
-    Step 1 候補画像を DL:
+    Step 1 候補画像を DL(★安全弁: 古い画像に絶対フォールバックしない):
       {PY} {PROC} fetch-images --week {next_monday}
-      → 出力が "no candidate images" の場合は board を作らず、log に `==NOTIFY==` で
-        「📸 来週の SNS 候補画像がまだ Drive にありません。金曜までに設置をお願いします。」を append → exit 0
-      → "downloaded" なら各画像のローカルパスを控える
+      → 出力の最終行が "downloaded" のときだけ続行。fetch-images が出力した
+        "  {name}  (id=...)  -> {path}" 行のローカルパス**だけ**を候補として使う。
+      → それ以外(出力が "no candidate images" / コマンドが失敗・エラー・権限ブロックで
+        "downloaded" を確認できない)は **board を作らず**、log に `==NOTIFY==` で
+        「📸 来週({next_monday}週)の SNS 候補画像が Drive にまだありません(または取得に失敗)。
+         金曜までに設置をお願いします。今週は画像なしのままで良ければスルーで OK です。」
+        を append → exit 0
+      🚫 禁止(重要): fetch-images が "downloaded" を返さないとき、過去の
+        temp/candidates-* や手元に残る画像を流用して board を作ってはならない。
+        「古い画像で投稿が再作成される」事故を防ぐため、取得できない時は**通知だけして終わる**。
 
     Step 2 画像を見て選定:
       - DL した各画像ファイルを Read で実際に見る
@@ -72,6 +79,7 @@ execute:
         ---
         type: pruning_request
         from_seed: sns_manager/saturday-image-select
+        title: 来週({next_monday}週)の SNS 画像セレクト(火{next_tuesday}・土{next_saturday})
         week: {next_monday}
         saturday_purpose: A   # この週の土曜が A か C か(交互判定の結果)
         status: pending
