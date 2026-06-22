@@ -9,9 +9,15 @@
 #
 # 流れ:
 #   1) launcher で scribe/daily-recording-sweep を実行
-#      → claude -p が Plaud MCP に到達し、soil(meetings)+ board(digest)をローカル repo に書く
+#      → claude -p が Plaud MCP に到達し、soil(meetings)はローカル repo に、
+#        board(digest)は scribe/outbox/ に書く(新規録音がある時のみ)
 #   2) soil を VPS garden-mirror へ push(push-to-vps.sh)
-#   3) board/pending を VPS へ push(send_pending〔VPS cron〕が Discord master に配信)
+#   3) outbox の board を VPS board/pending/ へ push(上書き可)→ push 成功後 outbox を空にする
+#      (send_pending〔VPS cron〕が Discord master に配信)
+#
+# board の住所は VPS 一箇所(/home/vps-harappa/garden/board/pending/)。repo に board の
+# コンテンツ用ディレクトリは持たない。ローカルの outbox は push までの一時置き場で、push 後は空。
+# (S57: 旧設計は board/pending にローカルが溜まり VPS と食い違う --ignore-existing バグがあった)
 #
 # 使い方:
 #   bash run-local.sh                # 日次本実行(cron 用)
@@ -27,7 +33,7 @@ REPO=/home/tukapontas/harappa-garden
 SEED=scribe/daily-recording-sweep
 SSH_HOST="${SOIL_SYNC_SSH_HOST:-harappa}"
 VPS_BOARD="/home/vps-harappa/garden/board/pending/"
-LOCAL_BOARD="${REPO}/garden/board/pending/"
+OUTBOX="${REPO}/garden/services/scribe/outbox/"
 LOG_DIR="${REPO}/garden/services/scribe/log"
 STATE_DIR="${REPO}/garden/services/scribe/state"
 
@@ -38,7 +44,7 @@ for a in "$@"; do
   if [ "$a" = "--no-push" ]; then PUSH=0; else LAUNCHER_ARGS+=("$a"); fi
 done
 
-mkdir -p "$LOCAL_BOARD" "$LOG_DIR" "$STATE_DIR"
+mkdir -p "$OUTBOX" "$LOG_DIR" "$STATE_DIR"
 
 # cron の PATH は最小で、nvm 配下の node / claude を見つけられない(S56 で実害確認)。
 # nvm を読み込んで node+claude を PATH に載せる(対話シェルと同じ状態にする)。
@@ -74,13 +80,20 @@ if [ "$PUSH" -eq 1 ] && [ "$rc" -eq 0 ]; then
   echo "[scribe] soil を VPS へ push"
   bash "${REPO}/garden/services/soil-sync/push-to-vps.sh" || echo "[scribe] WARN: soil push 失敗"
 
-  if compgen -G "${LOCAL_BOARD}*.md" > /dev/null; then
-    echo "[scribe] board/pending を VPS へ push(additive)"
-    # --ignore-existing: VPS に既にある board(send_pending が notified_at を追記済み)は上書きしない
-    rsync -avh --ignore-existing -e ssh "${LOCAL_BOARD}" "${SSH_HOST}:${VPS_BOARD}" \
-      || echo "[scribe] WARN: board push 失敗"
+  if compgen -G "${OUTBOX}*.md" > /dev/null; then
+    echo "[scribe] outbox の board を VPS board/pending/ へ push(上書き可)"
+    # --ignore-existing は使わない: scribe が当日内に board を書き直したら VPS に反映させる
+    #   (旧バグ: ignore-existing で更新が VPS に届かず食い違っていた)。notified_at を消すと
+    #   send_pending が更新版で再通知する=新情報なので妥当。
+    if rsync -avh -e ssh "${OUTBOX}"*.md "${SSH_HOST}:${VPS_BOARD}"; then
+      # push 成功 → outbox を空にする(ローカルに board を溜めない=墓場を作らない)
+      rm -f "${OUTBOX}"*.md
+      echo "[scribe] outbox を空にした(push 済)"
+    else
+      echo "[scribe] WARN: board push 失敗(outbox は残す=次回再送)"
+    fi
   else
-    echo "[scribe] board/pending に新規なし(push 省略)"
+    echo "[scribe] outbox に board なし(新規録音なし=push 省略)"
   fi
 else
   echo "[scribe] push スキップ(--no-push もしくは launcher 失敗)"

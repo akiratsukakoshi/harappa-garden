@@ -58,7 +58,9 @@ garden/memory/**/raw/*.md
 # field-assistant (S42): 名簿/振替の出力 CSV は PII を含むため repo に載せない
 garden/services/field-assistant/output/
 
-# scribe (S54): ローカル実行のランタイム。べき等 state と、ローカル WSL で生成 →
-# VPS へ push される board/pending(runtime。repo には載せない)
+# scribe (S54): ローカル実行のランタイム。repo に載せない。
+#   state = べき等 watermark / outbox = board を VPS へ push するまでの一時置き場(push 後は空)。
+#   ★board の住所は VPS /home/vps-harappa/garden/board/pending/ 一箇所。repo に board の
+#     コンテンツ用ディレクトリは持たない(S57: 旧 board/pending ローカル溜まりの混乱を撤去)。
 garden/services/scribe/state/
-garden/board/pending/
+garden/services/scribe/outbox/

@@ -26,6 +26,7 @@ SEEDS_DIR = Path(os.environ.get("GARDEN_SEEDS_DIR", "/home/vps-harappa/garden/se
 VALID_STATUSES = {
     "pending", "approved", "test",
     "processed", "registered", "done", "completed", "sent", "skipped", "failed",
+    "scheduled",  # SNS 予約完了(processor.py schedule が job_id 記録 → 終端。processed/ へ片付く)
 }
 
 # 種が board を作る印(本文 raw を走査。簡易 frontmatter parser は nested を見ないため)

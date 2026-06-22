@@ -878,7 +878,7 @@ def cmd_list_pending() -> None:
 
 
 # 終端ステータス: pending/ に居座らせず processed/ へ片付ける(承認や配信を伴わない種も含む)
-TERMINAL_STATUSES = {"processed", "registered", "done", "completed", "sent", "skipped"}
+TERMINAL_STATUSES = {"processed", "registered", "done", "completed", "sent", "skipped", "scheduled"}
 
 
 def relocate_terminal_boards() -> None:

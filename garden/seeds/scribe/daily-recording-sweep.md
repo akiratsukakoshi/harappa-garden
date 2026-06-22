@@ -41,7 +41,10 @@ execute:
       - "mcp__plaud__get_file"
   computed_inputs:
     today: "$(date +%Y-%m-%d)"
-    board_pending: "garden/board/pending"
+    # board の住所は VPS 一箇所(/home/vps-harappa/garden/board/pending/)。
+    # ローカルでは board を「scribe 内部の一時 outbox」に書き、run-local.sh が VPS へ
+    # push したのち outbox を空にする。repo に board コンテンツのディレクトリは持たない。
+    outbox: "garden/services/scribe/outbox"
   prompt: |
     あなたは scribe 区画の種「daily-recording-sweep」です。Plaud の録音を取りこぼさず
     soil に収め、正しいタイトルを提案する「会議録の番人」です。
@@ -53,7 +56,7 @@ execute:
 
     今回の動的入力:
       - today: {today}
-      - board_pending: {board_pending}
+      - outbox: {outbox}
 
     Step 1 新規録音を拾う(watermark 差分・べき等):
       - state ファイル garden/services/scribe/state/processed.jsonl を読み、処理済み plaud_file_id を確認
@@ -74,8 +77,11 @@ execute:
 
     Step 4 リネーム提案 + board + 通知:
       - 全録音について `{月日} 【主体】会議タイトル` を完成。
-      - digest を board ファイル 1 枚にまとめて {board_pending}/{today}-recording-sweep.md に書く
-        (この board を VPS 側 send_pending が拾い、Discord master に投稿する)。形式:
+      - ★今回のスイープで新規録音が 1 件も無い(全て processed.jsonl 済)なら board を書かない。
+        log に「新規なし: board 書かない」と残して Step 5 へ(空振り通知を出さないため)。
+      - 新規録音がある時のみ、digest を board ファイル 1 枚にまとめて
+        {outbox}/{today}-recording-sweep.md に書く(run-local.sh が VPS の
+        board/pending/ へ push → send_pending が Discord master に投稿)。形式:
 
         ---
         type: pruning_request
@@ -105,8 +111,10 @@ execute:
 
       - 主体に迷った録音・新規クライアント候補は、上の「❓」に加えて board 本文(配信本文の外)に
         「主体確認の根拠」を残す(ガクチョが後で判断できるように)。
-      - 既に当日の {board_pending}/{today}-recording-sweep.md があり notified_at 付き(配信済)なら、
-        上書きせず log に「skipped: already notified」を書いて終える(べき等)。
+      - べき等性は processed.jsonl(file_id)で担保する。当日同一録音の再処理はしない。
+        当日内に後から新規録音が見つかった場合は、その新規分の digest で board を
+        書き直してよい(VPS で上書き → send_pending が更新版で再通知。新情報なので再通知は妥当)。
+        ローカルに notified_at は存在しない(VPS 側のフラグ)。ここでローカルの notified_at は見ない。
 
     Step 5 state 追記:
       - 今回処理した各録音を garden/services/scribe/state/processed.jsonl に 1 行 JSON で追記:
@@ -129,7 +137,11 @@ on_failure:
 # daily-recording-sweep(scribe / 会議録の番人)
 
 ローカル WSL の crontab から [run-local.sh](../../services/scribe/run-local.sh) 経由で発火する日次の録音スイープ。
-launcher が MCP フラグ付きで `claude -p` を起動 → Plaud を読み、soil(meetings)+ board(digest)を
-ローカル repo に書く → wrapper が soil/board を VPS へ push → send_pending が Discord master に配信。
+launcher が MCP フラグ付きで `claude -p` を起動 → Plaud を読み、soil(meetings)はローカル repo に、
+board(digest)は `garden/services/scribe/outbox/` に書く → wrapper(run-local.sh)が soil を VPS へ、
+board を VPS `board/pending/` へ push し outbox を空にする → send_pending が Discord master に配信。
+
+> board の住所は VPS 一箇所。repo に board コンテンツのディレクトリは無い(混乱防止)。
+> 詳細: [garden/board/README.md](../../board/README.md) 「board の実体はどこにあるか(ホスト)」。
 
 詳細な作法は [scribe SKILL](../../plots/scribe/SKILL.md)(Mode D)。

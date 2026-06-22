@@ -23,7 +23,8 @@
 | `triage/` | 朝ブリーフィング等の Triage 出力(承認対象でない) |
 
 **鉄則: `pending/` に終端ステータスを残さない。** `send_pending.relocate_terminal_boards()` が
-毎分、終端(processed/registered/done/completed/sent/skipped)を `processed/` へ自動で片付ける。
+毎分、終端(processed/registered/done/completed/sent/skipped/**scheduled**)を `processed/` へ自動で片付ける。
+（`scheduled` = SNS の予約完了。`processor.py schedule` が job_id を board に記録し終端化 → 片付く。）
 表示側(朝ブリーフィング・ダッシュボード・`list-pending`)も status=pending で絞る。
 
 ## frontmatter スキーマ
@@ -33,13 +34,13 @@
 type: pruning_request        # 必須
 from_seed: {plot}/{seed}     # 必須・board_registry に登録済みであること
 title: 日本語の用件          # 推奨(無い時は registry のタイトル → 本文H1 → 種名)
-status: pending              # pending|approved|test|processed|registered|done|...
+status: pending              # pending|approved|test|scheduled|processed|registered|done|...
 created: 2026-06-22T09:00:00+09:00
 # 任意: target_month / week / scheduled_send / blocked / execute_command
 ---
 ```
 
-許容 status: `pending` `approved` `test` `processed` `registered` `done` `completed` `sent` `skipped` `failed`。
+許容 status: `pending` `approved` `test` `scheduled` `processed` `registered` `done` `completed` `sent` `skipped` `failed`。
 
 ## 承認モデル(3 種・registry の `approval` で宣言)
 
@@ -66,6 +67,28 @@ created: 2026-06-22T09:00:00+09:00
 2. 種 frontmatter の `name`/`plot` を registry のキー(`{plot}/{name}`)と一致させる。
 3. `python board_lint.py` が **違反なし** になることを確認。
 4. AUTO の場合のみ `dispatcher`(line_send/shell)を設定。CONVERSATIONAL/FYI は `None`。
+
+## board の実体はどこにあるか(ホスト)★必読
+
+> **board の住所は VPS 一箇所。repo に board のコンテンツ用ディレクトリは無い。**
+> repo には `garden/board/pending/` を**置かない**(S57 で撤去)。board の状態を
+> ローカルで `ls` して断定しないこと。
+
+- **唯一の住所 = VPS `/home/vps-harappa/garden/board/pending/`**。すべての pending board は
+  ここに集まる(= board content の単一の真実)。`send_pending.py`・ダッシュボード・
+  朝ブリーフィングはすべてここを読む。
+- **VPS で動く種(`execution_host: vps`: SNS / finance / expense …)は VPS に直接書く。**
+- **ローカルで動く種(`execution_host: local`: scribe / Plaud 系)** は、board を一旦
+  `garden/services/scribe/outbox/`(scribe 内部の一時置き場・`.gitignore` 対象)に書き、
+  `run-local.sh` が VPS の `board/pending/` へ push したのち **outbox を空にする**。
+  → ローカルに board は溜まらない。repo の `garden/board/` にあるのは本 README とルールだけ。
+- **状態を確認する正しい手段**: ダッシュボード(`core.harappa.monster/board`)/ 朝ブリーフィング /
+  直接見るなら `ssh harappa 'ls /home/vps-harappa/garden/board/pending/'`。
+
+> なぜこうしたか(S57): 旧設計は scribe が repo の `board/pending/` に board を書いて溜め、
+> `rsync --ignore-existing` で VPS へ push していた。これが ①ローカルに古い board が墓場化
+> ②更新が VPS に届かず食い違う、の2つの実害を生み「board が repo にあるのか VPS にあるのか」を
+> 不明にした。住所を VPS 一箇所に統一して撤去。
 
 ## どこで見るか
 
