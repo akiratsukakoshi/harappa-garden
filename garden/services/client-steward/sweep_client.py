@@ -265,14 +265,104 @@ def build_digest(slug, fm, threads, contacts, since_dt):
     return "\n".join(lines)
 
 
-# ---------- state(watermark) ----------
+# ---------- 生取り込みレーン(_inbox.md への append-only) ----------
+#
+# 承認境界(SKILL)で「生取り込み = 自動でよい」とされたレーンの実装。emails/ は案件単位
+# (projects/{案件}/emails/)で、スレッドを正しい案件に振り分ける = クラスタリング判断が要る
+# (= 機械に渡せないと ADR 2026-06-18 で線引き)。そこで機械は **client 直下の整理前バッファ**
+# `clients/{slug}/_inbox.md` に新着スレッドの要点だけ append し、案件への filing は人が行う。
+#   - append-only(履歴を汚さない。S57 で痛感した上書き事故と無縁)
+#   - thread_id で dedup(state["inbox_thread_ids"])= 一度載せた行は人が消しても再 append しない
+#   - 本文は載せない(要点 + thread_id のみ。SKILL の機密作法)
 
-def load_watermark(slug, default_days):
-    path = os.path.join(STATE_DIR, f"{slug}.json")
+INBOX_FILE = "_inbox.md"
+
+
+def _inbox_header(slug, fm):
+    company = fm.get("company", slug)
+    return (
+        "---\n"
+        "type: client_inbox\n"
+        f"client: {slug}\n"
+        "note: machine-written(sweep が新着スレッドの要点だけ自動 append する整理前バッファ)。\n"
+        "  各行を該当 projects/{案件}/emails/ に filing したら、この行は削除してよい\n"
+        "  (state で dedup 済 = 再 append されない)。案件への振り分け(クラスタリング)は人。\n"
+        "---\n\n"
+        f"# {company} — 受信トレイ(整理前 / 自動生成)\n\n"
+        "> sweep_client が `--write-inbox` で新着スレッドの要点を append。"
+        "案件 README / emails/ への filing は人(クラスタリング判断のため)。\n"
+    )
+
+
+def append_inbox(slug, fm, threads, run_date):
+    """新着スレッド(state 未記録)の要点を clients/{slug}/_inbox.md に append。
+
+    戻り値: append した件数。soil 足場(clients/{slug}/)が無ければ 0(bootstrap 等)。
+    """
+    client_dir = os.path.join(CLIENTS_DIR, slug)
+    if not os.path.isdir(client_dir):
+        return 0  # soil 足場なし(--domain bootstrap 等)= 書かない
+
+    state = _read_state(slug)
+    seen = set(state.get("inbox_thread_ids", []))
+    fresh = [t for t in threads if t["thread_id"] not in seen]
+    if not fresh:
+        return 0
+
+    path = os.path.join(client_dir, INBOX_FILE)
+    new_file = not os.path.exists(path)
+    block = [f"\n## {run_date} sweep 着信(要 filing)\n"]
+    for t in fresh:
+        flags = []
+        if t["awaiting_us"]:
+            flags.append("要返信")
+        if t["finance"]:
+            flags.append("💰")
+        if t["schedule"]:
+            flags.append("📅")
+        fl = (" [" + "/".join(flags) + "]") if flags else ""
+        block.append(
+            f"- [{t['last_date']}] {t['subject'][:60]}({t['msgs']}通){fl} "
+            f"<!-- thread:{t['thread_id']} -->"
+        )
+    with open(path, "a", encoding="utf-8") as f:
+        if new_file:
+            f.write(_inbox_header(slug, fm))
+        f.write("\n".join(block) + "\n")
+
+    state["inbox_thread_ids"] = sorted(seen | {t["thread_id"] for t in fresh})
+    _write_state(slug, state)
+    return len(fresh)
+
+
+# ---------- state(watermark + inbox dedup) ----------
+
+def _state_path(slug):
+    return os.path.join(STATE_DIR, f"{slug}.json")
+
+
+def _read_state(slug):
+    """slug の state を dict で返す(last_synced / inbox_thread_ids 等を相乗り保持)。"""
+    path = _state_path(slug)
     if os.path.exists(path):
         try:
             with open(path) as f:
-                s = json.load(f)
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _write_state(slug, state):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(_state_path(slug), "w") as f:
+        json.dump(state, f, ensure_ascii=False)
+
+
+def load_watermark(slug, default_days):
+    s = _read_state(slug)
+    if s.get("last_synced"):
+        try:
             return dt.datetime.fromisoformat(s["last_synced"])
         except Exception:
             pass
@@ -280,11 +370,10 @@ def load_watermark(slug, default_days):
 
 
 def save_watermark(slug, when=None):
-    os.makedirs(STATE_DIR, exist_ok=True)
-    path = os.path.join(STATE_DIR, f"{slug}.json")
-    ts = (when or dt.datetime.now(dt.timezone.utc)).isoformat()
-    with open(path, "w") as f:
-        json.dump({"last_synced": ts}, f)
+    """last_synced だけ更新(inbox_thread_ids 等の他キーは保持)。"""
+    s = _read_state(slug)
+    s["last_synced"] = (when or dt.datetime.now(dt.timezone.utc)).isoformat()
+    _write_state(slug, s)
 
 
 # ---------- main ----------
@@ -298,7 +387,11 @@ def main():
     ap.add_argument("--since", help="YYYY-MM-DD。未指定なら watermark or 既定日数前")
     ap.add_argument("--days", type=int, default=14, help="watermark 不在時の遡及日数(既定14)")
     ap.add_argument("--dry-run", action="store_true", default=True,
-                    help="digest を出すだけ(MVP は常に dry-run。soil 書込なし)")
+                    help="digest を出すだけ(soil の解釈書込はしない)")
+    ap.add_argument("--write-inbox", action="store_true",
+                    help="新着スレッドの要点を clients/{slug}/_inbox.md に append(生取り込みレーン・"
+                         "append-only・thread_id dedup)。解釈(確度/案件確定/freee)は書かない。"
+                         "--domain(bootstrap)では無効。")
     ap.add_argument("--commit-watermark", action="store_true",
                     help="今回時刻を watermark に保存(次回はここから差分)")
     args = ap.parse_args()
@@ -326,6 +419,12 @@ def main():
         print(build_digest(slug, fm, threads, contacts, since_dt))
         if truncated:
             print("  ⚠️ 取得上限に達した可能性 → watermark を進めません(次回も同区間を再取得)。")
+        # 生取り込みレーン:新着スレッドの要点を _inbox.md に append(--domain は対象外)
+        if args.write_inbox and not args.domain:
+            today = args.since and dt.datetime.fromisoformat(args.since).date()
+            n = append_inbox(slug, fm, threads, str(today or dt.date.today()))
+            if n:
+                print(f"  📥 _inbox.md に {n} 件 append(要 filing → 案件 emails/)")
         print()
         if args.commit_watermark:
             if args.domain:

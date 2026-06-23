@@ -46,12 +46,16 @@ execute:
       PY=/home/vps-harappa/garden/services/client-steward/.venv/bin/python
       SWEEP=/home/vps-harappa/garden/services/client-steward/sweep_client.py
 
-    Step 1 sweep(全 active client の差分 digest):
-      {PY} {SWEEP} --commit-watermark
+    Step 1 sweep(全 active client の差分 digest + 生取り込み):
+      {PY} {SWEEP} --write-inbox --commit-watermark
       → 各クライアントの digest(要フォロー / finance シグナル / 動いたスレッド / 登場担当者)を得る。
+      → 同時に、新着スレッドの要点が各 clients/{slug}/_inbox.md に append-only で自動記録される
+        (生取り込みレーン・thread_id dedup。"📥 _inbox.md に N 件 append" が出る)。
 
     Step 2 剪定の振り分け(承認境界 = SKILL):
-      - 生取り込み(新メールの要点)= そのまま digest に載せてよい。
+      - 生取り込み(新メールの要点)= --write-inbox が _inbox.md に自動記録済(append-only)。
+        emails/ は案件単位 = スレッドを正しい案件に振り分ける filing は人の仕事(クラスタリング判断)。
+        この種は filing まではしない(digest と _inbox の自動記録まで)。filing は対話時にエージェント/ガクチョが行う。
       - 解釈(確度の変更・新規案件の確定・freee反映の断定・案件の統合)= soil に勝手に書かず、
         board(pending)に「{client} 案件更新の提案」として起草する。
       - 担当者の実名はメール署名のみ採用(Plaud 話者は採用しない)。新規担当者を見つけたら soil/people/clients の追加を board 提案。

@@ -68,7 +68,7 @@ status: draft   # 各案件の個別ファイル化・clientリンクは宿題(R
 | **三井不動産レジデンシャル(MFR)** | ✅ 横展開5号(S51・**継続運営型**・最もクリア) | [soil/clients/mitsui-residential/](../clients/mitsui-residential/)(CACR1 ナカニワ原っぱ=川崎・塚越の中庭コミュニティ。約11万/月・**前受金で全額入金済み**・〜2026-09末。パナHM みずき台と同型。担当4名=事業主MFR 2名+管理MFRS 2名・漢字確定) |
 | **フージャース** | ✅ 横展開6号(S52・**研修連鎖型**・ビッグ) | [soil/clients/hoosiers/](../clients/hoosiers/)(内定者研修2025[完了]/ 若手研修[内製化で見送り]/ メンター導入[★本命・概算976万/年]。担当3名=人材戦略部・漢字確定) |
 | **エイチ・ティー(HT)** | ✅ 横展開7号(S52・**代理店/紹介商流型**・新型) | [soil/clients/ht/](../clients/ht/)(★契約相手=入金元と実施先が別。白井松チームビルディング研修[完了・95.6万実額・委託費6月末入金]+ 一丸ファルコス研修[提案中・親会社]。`end_client` フィールド新設) |
-| **boundlesslife** | ✅ 薄い正本(S52・**Gmail 死角型**) | [soil/clients/boundlesslife/](../clients/boundlesslife/)。**インバウンド向けイベントが約3ヶ月に1度・Messenger ベース**で Gmail/Plaud に痕跡なし → 薄い正本のみ手起こし、更新は口頭/添付。finance=①24.7万確定/②30万見込み |
+| **boundlesslife** | ✅ 薄い正本(S52・**Gmail 死角型**) | [soil/clients/boundlesslife/](../clients/boundlesslife/)。**インバウンド向けイベントが約3ヶ月に1度・Messenger ベース**で Gmail/Plaud に痕跡なし → 薄い正本のみ手起こし、更新は口頭/添付。finance=①33万[2026-01]/②24.75万[2026-06] **2件とも着金済**(S52突合・S57整合) |
 | 白井松新薬 | → [エイチ・ティー](../clients/ht/) 配下 | 実施先として ht/ の案件に格納(直接の家は作らない) |
 | **フォーシーカンパニー** | ✅ S52(突合で発見・**紹介商流型**) | [soil/clients/foursee-company/](../clients/foursee-company/)(forc-c.co.jp・提携契約・複数物件イベント紹介・1回~14.85万。担当3名) |
 | **トノコーポレーション** | ✅ S52 薄い正本(少額リピート) | [soil/clients/tono-corporation/](../clients/tono-corporation/)(イベント講師・5.5万・Messenger 中心) |
@@ -78,9 +78,19 @@ status: draft   # 各案件の個別ファイル化・clientリンクは宿題(R
 
 > 構造仕様 = [soil/clients/README.md](../clients/README.md)。見積/請求様式 = [soil/finance/templates/](../finance/templates/)。
 
+## 議論ログ(着地の根拠 — どの数字がどの議論で決まったか)
+
+> このパイプラインの各数字は finance の月次議論で更新される。**着地予測の根拠を辿る索引**(③ S57)。
+> 逆向き(議論 → 案件台帳)は、各議論が挙げた案件をこの表の行(→ [台帳] リンク付き)で引ける = pipeline がハブ。
+
+| 議論ログ | 何が決まったか | 主に動いた案件 |
+|---|---|---|
+| [2026-04-18 FY2025目標設定](../finance/discussions/20260418_FY2025目標設定.md) | 目標=売上3,000万/営業利益500万([targets.md](../finance/targets.md) 正本) | (全体) |
+| [2026-05-19 5月経営分析・売上見込み](../finance/discussions/20260519_5月経営分析・売上見込みアップデート.md) | 5/19 時点の見込み 3,286万・営利+662万 | MTI・パナHM・京急 等 11案件を初転記 |
+| [2026-06-17 経営分析・見込み修正](../finance/discussions/20260617_経営分析・見込み修正.md) | **3,176万・営利+552万に修正**(フージャース300万落ち → MTI経営研修120万+デジハラ70万+京急継続で吸収) | [MTI経営研修](../clients/mti/)(+120万)/ デジハラ(+70万・新規)/ [フージャース](../clients/hoosiers/)(若手・メンター除外)/ [京急共創](../clients/keikyu/)(10月以降も継続=来期土台) |
+
 ## 関連
 
 - 着地予測・目標: [soil/finance/targets.md](../finance/targets.md)
-- 議論の経緯: [soil/finance/discussions/](../finance/discussions/)
-- クライアント正本: [soil/clients/](../clients/)
+- クライアント正本: [soil/clients/](../clients/)(各案件の a〜f + finance を一望)
 - AI関連(toC)・toC基盤は finance discussions 参照(本ファイルは toB のみ)
