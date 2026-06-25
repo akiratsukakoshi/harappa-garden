@@ -80,7 +80,9 @@ trigger:
   condition: "値が空 → 値が入った時"
 
 # === ② 何を実行するか(execute) ===
-engine: claude-code              # claude-code / codex / gemini-cli(将来切替)
+engine: claude-code              # launcher が解決する runner。現状の実装は claude-code のみ。
+                                 # codex / gemini-cli は未実装で、指定すると launcher が exit 2 で明示エラー
+                                 # (S60: launcher.mjs が engine を本当に読む構造に。RUNNERS に追加で対応 engine が増える)
 execute:
   skill: {SKILL名} (HMC|HMG)     # 既存 HMC SKILL or 将来 HMG plot
   prompt: |                       # Claude Code に渡す自然言語指示

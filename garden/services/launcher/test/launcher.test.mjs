@@ -190,6 +190,25 @@ test('検証: trigger.type が cron 以外(event)は exit 2', () => {
   assert.match(ret.stderr, /only cron triggers/);
 });
 
+test('engine: 未対応 engine(codex 等)は exit 2 で明示エラー(黙って claude にフォールバックしない)', () => {
+  writeSeed('unit-codex', VALID_SEED
+    .replaceAll('unit-valid', 'unit-codex')
+    .replace('engine: claude-code', 'engine: codex'));
+  const ret = runLauncher('test_plot/unit-codex');
+  assert.equal(ret.status, 2);
+  assert.match(ret.stderr, /engine 'codex' is not supported/);
+});
+
+test('engine: 省略時は claude-code にフォールバックして完走(後方互換)', () => {
+  writeSeed('unit-no-engine', VALID_SEED
+    .replaceAll('unit-valid', 'unit-no-engine')
+    .replace('engine: claude-code\n', ''));
+  const ret = runLauncher('test_plot/unit-no-engine');
+  assert.equal(ret.status, 0);
+  const log = fs.readFileSync(todayLog('unit-no-engine'), 'utf8');
+  assert.match(log, /engine: claude-code/);
+});
+
 test('検証: status: paused は exit 0 で skip(cron を汚さない)', () => {
   writeSeed('unit-paused', VALID_SEED
     .replaceAll('unit-valid', 'unit-paused')

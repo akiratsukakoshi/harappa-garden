@@ -14,9 +14,9 @@ morning-briefing(06:30)が組んだ active_tasks.md を読み、Discord master c
 import datetime
 import os
 import re
-import subprocess
 
 import send as sender
+from brain.runner import resolve_runner
 
 JST = datetime.timezone(datetime.timedelta(hours=9))
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
@@ -87,22 +87,19 @@ def build_greet_prompt(d: datetime.date, active_text: str, board_text: str) -> s
 
 
 def run_claude(prompt: str) -> str:
-    cmd = [
-        CLAUDE_BIN, "-p", prompt,
-        "--system-prompt", PERSONA,
-        "--strict-mcp-config",
-        # 口火は read-only。Edit/Write 等の書き戻しは bot 側 Mode 2 の責務。
-        "--disallowedTools",
-        "Bash Glob Grep WebFetch WebSearch NotebookEdit TodoWrite Task Edit Write",
-        "--model", "sonnet",
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=200, cwd=HERE)
-    except subprocess.TimeoutExpired:
-        return ""
-    if proc.returncode != 0:
-        return ""
-    return proc.stdout.strip()
+    # S60: AgentRunner 抽象へ退避(測量士 2026-06-24 提案2)。engine 切替は
+    # GARDEN_GAKU_CO_ENGINE。口火は read-only(Edit/Write 等の書き戻しは bot 側 Mode 2 の責務)。
+    runner = resolve_runner()
+    res = runner.run(
+        prompt,
+        system=PERSONA,
+        model="sonnet",
+        disallowed_tools="Bash Glob Grep WebFetch WebSearch NotebookEdit TodoWrite Task Edit Write",
+        strict_mcp=True,
+        cwd=HERE,
+        timeout=200,
+    )
+    return res.text if res.ok else ""
 
 
 def main() -> None:

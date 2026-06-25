@@ -17,12 +17,12 @@ import asyncio
 import collections
 import datetime
 import os
-import subprocess
 import traceback
 
 import discord
 
 import memory_logger
+from brain.runner import resolve_runner
 
 JST = datetime.timezone(datetime.timedelta(hours=9))
 WEEKDAY_JA = "月火水木金土日"
@@ -624,25 +624,28 @@ def build_dialogue_prompt(convo: str, user_text: str, now: datetime.datetime) ->
 
 
 def run_claude(prompt: str, extra_args=None) -> str:
-    cmd = [
-        CLAUDE_BIN, "-p", prompt,
-        "--system-prompt", _persona_cache.get(),
-        "--strict-mcp-config",
-        # Read/Edit/Write は settings.json で garden-mirror/{hmc_tasks,garden} + board/log に path-scoped allow。
-        # S38: Bash は settings.json で expense-processor / shift-manager の python entrypoint のみ
-        # scoped allow(他は default-deny)。探索系・外部アクセス系は引き続き明示禁止。
-        "--disallowedTools", "Glob Grep WebFetch WebSearch NotebookEdit TodoWrite Task",
-        "--model", "sonnet",
-    ] + (extra_args or [])
-    try:
-        # S38: 経費の extract(Gemini OCR + 分類)が走ると 1 turn が長くなるため 300s に拡大。
-        # 通常会話はすぐ返るので実害なし。gateway は asyncio.to_thread 経由なので他メッセージは生きる。
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=HERE)
-    except subprocess.TimeoutExpired:
+    # S60: 直接 spawn から AgentRunner 抽象へ退避(測量士 2026-06-24 提案2)。
+    # engine は GARDEN_GAKU_CO_ENGINE(既定 claude-code)。claude 固有フラグの組み立ては
+    # ClaudeSubprocessRunner.build_cmd に隔離。Read/Edit/Write/Bash の OS 権限は
+    # .claude/settings.json で path/entrypoint scoped(探索系・外部系は disallowed)。
+    runner = resolve_runner()
+    # S38: 経費の extract(Gemini OCR + 分類)が走ると 1 turn が長くなるため 300s に拡大。
+    # 通常会話はすぐ返るので実害なし。gateway は asyncio.to_thread 経由なので他メッセージは生きる。
+    res = runner.run(
+        prompt,
+        system=_persona_cache.get(),
+        model="sonnet",
+        disallowed_tools=["Glob", "Grep", "WebFetch", "WebSearch", "NotebookEdit", "TodoWrite", "Task"],
+        strict_mcp=True,
+        cwd=HERE,
+        timeout=300,
+        extra_args=extra_args,
+    )
+    if res.error == "timeout":
         return "(考えるのに時間がかかりすぎました。もう一度送ってください)"
-    if proc.returncode != 0:
-        return f"(内部エラー: claude rc={proc.returncode})"
-    return proc.stdout.strip() or "(返答が空でした)"
+    if not res.ok:
+        return f"(内部エラー: claude rc={res.returncode})"
+    return res.text or "(返答が空でした)"
 
 
 def ask_claude(channel_id: int, user_text: str) -> str:

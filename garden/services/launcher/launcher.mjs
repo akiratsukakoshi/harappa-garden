@@ -393,6 +393,48 @@ function buildMcpArgs(mcp) {
   return out;
 }
 
+// ---- runner(engine)抽象 ----
+// 種 frontmatter の `engine` を読み、対応する LLM runner を解決する。
+// 目的: seeds/README.md が掲げる engine 切替(claude-code / codex / gemini-cli)を
+//       launcher が「本当に読む」構造にする。従来は engine を無視して常に
+//       claude -p を起動していた(= schema が嘘をついていた / 測量士 2026-06-24 P1)。
+//
+// 各 runner は { engine, bin, buildArgs({prompt, model, mcp}) } を返す。
+// codex / gemini runner を足すときは buildCodexArgs() 等を書いて RUNNERS に登録する。
+// 未対応 engine は resolveRunner() が明示エラーで落とす(黙って claude にフォールバックしない)。
+function buildClaudeArgs({ prompt, model, mcp }) {
+  // ★prompt は positional として -p の直後に置く。--allowedTools は可変長オプションで、
+  //   末尾に置くと直後の positional prompt を許可ツール名として飲み込み落ちる(S54 実証)。
+  const a = ['-p', prompt];
+  if (model) a.push('--model', model);
+  a.push(...buildMcpArgs(mcp));
+  return a;
+}
+
+const RUNNERS = {
+  'claude-code': {
+    engine: 'claude-code',
+    bin: CLAUDE_BIN,
+    buildArgs: buildClaudeArgs,
+  },
+  // 'codex': 未実装。CODEX_BIN + buildCodexArgs() を用意したらここに登録する。
+  //   その際 execute.mcp(claude CLI 固有)を execute.tools / execute.permissions へ
+  //   一段抽象化する検討が要る(測量士 2026-06-24 提案1 後半)。
+};
+
+function resolveRunner(engine) {
+  const key = engine || 'claude-code';
+  const runner = RUNNERS[key];
+  if (!runner) {
+    const supported = Object.keys(RUNNERS).join(', ');
+    throw new Error(
+      `engine '${key}' is not supported by launcher yet (supported: ${supported}). ` +
+      `seeds/README.md は将来切替を掲げるが codex/gemini runner は未実装。`
+    );
+  }
+  return runner;
+}
+
 // ---- メイン処理 ----
 function main() {
   const args = parseArgs(process.argv);
@@ -426,6 +468,15 @@ function main() {
   if (seed.status === 'paused' || seed.status === 'deprecated') {
     console.error(`seed status is ${seed.status} — skipping`);
     process.exit(0);
+  }
+
+  // engine → runner 解決(未対応 engine は明示エラーで落とす)
+  let runner;
+  try {
+    runner = resolveRunner(seed.engine);
+  } catch (e) {
+    console.error(e.message);
+    process.exit(2);
   }
 
   const seedKey = `${seed.plot}/${seed.name}`;
@@ -480,7 +531,8 @@ function main() {
       `host: ${execSync('hostname', { encoding: 'utf8' }).trim()}`,
       `launcher_version: 1.0.1 (session30)`,
       `working_dir: ${seed.execute?.working_dir || process.cwd()}`,
-      `claude_bin: ${CLAUDE_BIN}`,
+      `engine: ${runner.engine}`,
+      `runner_bin: ${runner.bin}`,
       `model: ${model || '(default)'}`,
       `timeout_ms: ${timeoutMs}`,
       `mcp: ${mcpArgs.length ? mcpArgs.join(' ') : '(none)'}`,
@@ -495,9 +547,9 @@ function main() {
     appendLog(logPath, header);
 
     if (args.dryRun) {
-      appendLog(logPath, '\n[dry-run: claude -p not invoked]\n');
+      appendLog(logPath, `\n[dry-run: runner '${runner.engine}' (${runner.bin}) not invoked]\n`);
       updateAudit(state, seedKey, 'dry_run', { last_log: logPath });
-      console.log(`[dry-run] ${seedKey} → ${logPath}`);
+      console.log(`[dry-run] ${seedKey} via ${runner.engine} → ${logPath}`);
       return;
     }
 
@@ -509,16 +561,10 @@ function main() {
       process.exit(4);
     }
 
-    // claude -p 起動(model 指定があれば --model で渡す)
-    // ★prompt は positional として -p の直後に置く。--allowedTools は可変長オプションで、
-    //   末尾に置くと直後の positional prompt を許可ツール名として飲み込み
-    //   「Input must be provided」で落ちる(S54 実証)。prompt 先頭ならフラグに飲まれない。
-    const cliArgs = ['-p', prompt];
-    if (model) {
-      cliArgs.push('--model', model);
-    }
-    cliArgs.push(...mcpArgs);
-    const ret = spawnSync(CLAUDE_BIN, cliArgs, {
+    // runner 起動。引数組み立ては runner.buildArgs() に委譲する(engine ごとに分離)。
+    // claude-code の場合の prompt/位置引数の注意は buildClaudeArgs() を参照(S54)。
+    const cliArgs = runner.buildArgs({ prompt, model, mcp: seed.execute?.mcp });
+    const ret = spawnSync(runner.bin, cliArgs, {
       cwd,
       encoding: 'utf8',
       timeout: timeoutMs,
