@@ -49,6 +49,7 @@ HISTCONTROL=ignorespace:ignoredups
 | `echo "$VAR"` | 値が画面に出る |
 | `echo "${VAR:-x}"` | VAR が set ならその値が出る |
 | `cat ~/.config/foo/secret` | ファイル内容が全部出る |
+| `bash -x ./script.sh`（.env を source する script）| `set -x` トレースが `. ./.env` の全変数を値ごと展開する（2026-06-25 インシデント） |
 
 | ✅ 使ってよい | 何を出すか |
 |---|---|
@@ -58,6 +59,8 @@ HISTCONTROL=ignorespace:ignoredups
 | `head -1 ~/.config/foo/env` | env ファイルなら先頭の `# Generated ...` コメント行のみ確認 |
 
 **理由**: 2026-05-23 のインシデント（[詳細](./incidents/2026-05-23_gog_keyring_rotation.md)）で、`echo "${VAR:+SET (length=${#VAR})}${VAR:-UNSET}"` という確認コマンドにより新パスフレーズを 2 回連続で AI チャットログに漏洩させる事故が発生。確認コマンドのテンプレは上記2形式に限定する。
+
+**追記(2026-06-25)**: スクリプトの不具合切り分けで **`bash -x` を使うとき、その script が `. ./.env` 等で secret を source していると全変数が値ごとトレース展開される**([詳細](./incidents/2026-06-25_env_secret_exposure_bashx.md))。切り分けは `pgrep`/`tail` でプロセス起動とログを見るに留め、起動スクリプト自体を `bash -x` でトレースしない(source 行を含む script は特に)。
 
 #### 補足: env の読み込み確認は interactive シェルで実施
 
