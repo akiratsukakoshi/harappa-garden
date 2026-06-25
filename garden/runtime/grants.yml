@@ -1,0 +1,53 @@
+# Garden runtime 権限正本(測量士 2026-06-24 提案3 / S57 SNS temp 権限漏れの根治)
+#
+# VPS `.claude/settings.json` の permissions.allow は「このファイルから生成される」。
+# 権限を変えたいときは settings.json を手で触らず、ここを編集して render し直す:
+#   python3 garden/runtime/render-claude-settings.py            # 生成して stdout に表示
+#   python3 garden/runtime/render-claude-settings.py --check P  # P(live settings)との差分検査
+#   python3 garden/runtime/render-claude-settings.py -o P       # P に書き出し
+#
+# 軸の注意: これは「サブプロセス全権エージェント(claude -p / launcher seed / bot)の
+#   OS 権限(Bash/Read/Write/Edit allowlist)」の正本。LLM tool の scope 認可
+#   (garden-gaku-co/capabilities.py)とは別軸 — 混ぜない。
+#
+# path 表記(claude settings 仕様):
+#   - Read/Write/Edit … `//` + 絶対パス(例 //home/vps-harappa/garden/**)
+#   - Bash           … 絶対パスの実行ファイル + `:*`(例 /home/.../python:*)
+#   write: に挙げたパスは Write と Edit の両方を生成する。
+
+host: vps-harappa
+home: /home/vps-harappa
+
+# 全体読み取り(母屋と mirror)
+read:
+  - garden/**
+  - garden-mirror/**
+
+# 全体書き込み(Write+Edit を生成。board/log と mirror の作業領域)
+write:
+  - garden-mirror/hmc_tasks/**
+  - garden-mirror/garden/**
+  - garden/board/**
+  - garden/log/**
+
+# サービス別の許可。各サービスは default-deny。
+#   bash:  許可する実行ファイル(svc ルート相対)。`:*` が自動付与される
+#   write: 書込可パス(svc ルート相対)。Write+Edit を生成
+services:
+  expense-processor:
+    bash: [.venv/bin/python]
+    write: [working/**]
+  invoice-processor:
+    bash: [.venv/bin/python]
+    write: [working/**]
+  sns-manager:
+    bash: [.venv/bin/python]
+    write: [temp/**]
+  shift-manager:
+    bash: [.venv/bin/python]
+  finance:
+    bash: [.venv/bin/python]
+  field-assistant:
+    bash: [.venv/bin/python]
+  client-steward:
+    bash: [.venv/bin/python]
