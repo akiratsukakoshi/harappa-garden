@@ -1,0 +1,76 @@
+# Garden Runtime engine catalog.
+#
+# これは実行設定そのものではなく「Garden が把握している engine 台帳」。
+# 実際の切替点は launcher.mjs / brain/runner.py / provider.py / grants renderer。
+
+active:
+  seed_runner: claude-code
+  master_runner: claude-code
+  line_provider: anthropic
+
+engines:
+  claude-code:
+    type: agent-cli
+    status: active
+    runner_surfaces:
+      seed_runner: garden/services/launcher/launcher.mjs
+      master_runner: garden/services/garden-gaku-co/brain/runner.py
+    grants_renderer: garden/runtime/render-claude-settings.py
+    mcp:
+      status: supported
+      notes: "launcher translates execute.mcp to Claude CLI flags"
+    auth:
+      mode: subscription_cli_token
+      secret_location: "runtime host only; never in repo"
+    smoke:
+      - "cd garden/services/launcher && npm test"
+      - "cd garden/services/garden-gaku-co && python3 -m brain.test_runner"
+      - "cd garden/runtime && python3 test_render.py"
+
+  codex:
+    type: agent-cli
+    status: candidate
+    runner_surfaces:
+      seed_runner: pending
+      master_runner: pending
+    grants_renderer: pending
+    mcp:
+      status: verify
+      notes: "verify CLI flags, allowed tool semantics, and config loading with scratch-only runs"
+    auth:
+      mode: cli_subscription_or_api_dependent
+      secret_location: "runtime host only; never in repo"
+    checklist: garden/runtime/checklists/switch-to-codex.md
+
+  gemini-cli:
+    type: agent-cli
+    status: candidate
+    runner_surfaces:
+      seed_runner: pending
+      master_runner: pending
+    grants_renderer: pending
+    mcp:
+      status: verify
+    auth:
+      mode: cli_subscription_or_api_dependent
+      secret_location: "runtime host only; never in repo"
+
+  anthropic:
+    type: api-provider
+    status: active
+    provider_surface: garden/services/garden-gaku-co/brain/provider.py
+    tools:
+      status: provider_adapter
+    auth:
+      mode: api_key
+      secret_location: "runtime host only; never in repo"
+
+  openai-api:
+    type: api-provider
+    status: candidate
+    provider_surface: pending
+    tools:
+      status: function_calling_or_responses_tools
+    auth:
+      mode: api_key
+      secret_location: "runtime host only; never in repo"
