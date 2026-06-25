@@ -58,6 +58,18 @@ def test_read_double_slash_prefix():
     assert "Read(//home/vps-harappa/garden/**)" in allow
 
 
+def test_default_host_profile_selected():
+    selected = rcs.select_grants(_grants())
+    assert selected["host"] == "vps-harappa"
+    assert selected["profile"] == "claude-code"
+    assert selected["home"] == "/home/vps-harappa"
+
+
+def test_explicit_local_codex_read_only_profile():
+    allow = rcs.render_allow(_grants(), host="local-wsl", profile="codex-read-only")
+    assert allow == ["Read(//home/tukapontas/harappa-garden/**)"]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

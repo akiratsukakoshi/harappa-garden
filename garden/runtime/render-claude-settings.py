@@ -27,8 +27,40 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_GRANTS = os.path.join(HERE, "grants.yml")
 
 
-def render_allow(grants: dict) -> list[str]:
+def select_grants(grants: dict, host: str | None = None, profile: str | None = None) -> dict:
+    """host/profile 対応 grants から renderer 入力を取り出す。
+
+    S60 初版の単一 host 形式も読めるように残す。
+    """
+    if "hosts" not in grants:
+        return grants
+
+    host_name = host or grants.get("default_host")
+    profile_name = profile or grants.get("default_profile")
+    if not host_name:
+        raise KeyError("default_host is not set")
+    host_cfg = (grants.get("hosts") or {}).get(host_name)
+    if not host_cfg:
+        raise KeyError(f"host not found: {host_name}")
+    profiles = host_cfg.get("profiles") or {}
+    if not profile_name:
+        if len(profiles) == 1:
+            profile_name = next(iter(profiles))
+        else:
+            raise KeyError("default_profile is not set")
+    profile_cfg = profiles.get(profile_name)
+    if not profile_cfg:
+        raise KeyError(f"profile not found for host {host_name}: {profile_name}")
+    selected = dict(profile_cfg)
+    selected["host"] = host_name
+    selected["profile"] = profile_name
+    selected["home"] = host_cfg["home"]
+    return selected
+
+
+def render_allow(grants: dict, host: str | None = None, profile: str | None = None) -> list[str]:
     """grants から permissions.allow のエントリ列を決定的順序で生成する。"""
+    grants = select_grants(grants, host=host, profile=profile)
     home = grants["home"]              # 例 /home/vps-harappa
     fp = "/" + home                    # file-perm 接頭辞 → //home/vps-harappa
     allow: list[str] = []
@@ -52,8 +84,8 @@ def render_allow(grants: dict) -> list[str]:
     return allow
 
 
-def render_settings(grants: dict) -> dict:
-    return {"permissions": {"allow": render_allow(grants)}}
+def render_settings(grants: dict, host: str | None = None, profile: str | None = None) -> dict:
+    return {"permissions": {"allow": render_allow(grants, host=host, profile=profile)}}
 
 
 def load_grants(path: str) -> dict:
@@ -64,13 +96,15 @@ def load_grants(path: str) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--grants", default=DEFAULT_GRANTS, help="grants.yml のパス")
+    ap.add_argument("--host", help="生成対象 host。未指定なら grants.yml の default_host")
+    ap.add_argument("--profile", help="生成対象 profile。未指定なら grants.yml の default_profile")
     ap.add_argument("-o", "--out", help="生成した settings.json の書き出し先")
     ap.add_argument("--check", metavar="LIVE",
                     help="LIVE(既存 settings.json)の allow と集合比較し差分を表示")
     args = ap.parse_args()
 
     grants = load_grants(args.grants)
-    settings = render_settings(grants)
+    settings = render_settings(grants, host=args.host, profile=args.profile)
     rendered = json.dumps(settings, indent=2, ensure_ascii=False) + "\n"
 
     if args.check:

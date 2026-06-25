@@ -9,7 +9,7 @@
 //   2. trigger 検証(本ランチャーは cron 種専用)
 //   3. computed_inputs の評価(シェル展開)
 //   4. prompt 変数置換({key} → 値)
-//   5. claude -p 起動 + ログ書き込み
+//   5. seed runner(engine) 起動 + ログ書き込み
 //   6. 並行制御(flock 相当の lockfile)
 //   7. 状態永続化(state.json: last_fired / last_outcome)
 //
@@ -34,6 +34,7 @@ const LOG_ROOT = process.env.GARDEN_LOG_ROOT || '/home/vps-harappa/garden/log';
 const STATE_FILE = process.env.GARDEN_STATE_FILE || path.resolve(__dirname, 'state.json');
 const LOCK_DIR = process.env.GARDEN_LOCK_DIR || '/tmp';
 const CLAUDE_BIN = process.env.CLAUDE_BIN || `${process.env.HOME}/.npm-global/bin/claude`;
+const CODEX_BIN = process.env.CODEX_BIN || 'codex';
 const CLAUDE_TIMEOUT_MS = parseInt(process.env.CLAUDE_TIMEOUT_MS || '600000', 10); // 10 分
 
 // ---- cron secrets の読み込み(S59: claude -p 認証トークン)----
@@ -369,26 +370,72 @@ function appendLog(logPath, msg) {
   fs.appendFileSync(logPath, msg);
 }
 
-// ---- MCP フラグ構築 ----
-// 種 frontmatter の execute.mcp ブロックを claude -p の CLI フラグ列に変換する。
-//   mcp:
-//     config: ".mcp.json"            → --mcp-config .mcp.json
-//     strict: true                   → --strict-mcp-config
-//     permission_mode: "acceptEdits" → --permission-mode acceptEdits
-//     allowed_tools: [a, b]          → --allowedTools a,b
-// 未指定(mcp なし)の種は空配列を返し、従来どおりの起動になる。
-function buildMcpArgs(mcp) {
-  if (!mcp || typeof mcp !== 'object') return [];
+// ---- AgentRunSpec 正規化 ----
+// seed frontmatter の provider/CLI 固有になりがちな指定を、runner 入力の中立形へ寄せる。
+// 既存 seed 互換のため frontmatter 名は当面 `execute.mcp.permission_mode` 等を受けるが、
+// Claude CLI フラグへの変換は runner 側(buildClaude*Args)に閉じる。
+function buildMcpSpec(mcp) {
+  if (!mcp || typeof mcp !== 'object') {
+    return { config: null, strict: false, permissionMode: null, allowedTools: [] };
+  }
+  return {
+    config: mcp.config ? String(mcp.config) : null,
+    strict: Boolean(mcp.strict),
+    permissionMode: mcp.permission_mode ? String(mcp.permission_mode) : null,
+    allowedTools: Array.isArray(mcp.allowed_tools) ? mcp.allowed_tools.map(String) : [],
+  };
+}
+
+function buildToolPolicy(policy) {
+  if (!policy || typeof policy !== 'object') {
+    return { allow: [], deny: [], mode: null };
+  }
+  const toList = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map(String);
+    return String(value).split(/\s+/).filter(Boolean);
+  };
+  return {
+    allow: toList(policy.allow),
+    deny: toList(policy.deny),
+    mode: policy.mode ? String(policy.mode) : null,
+  };
+}
+
+function buildAgentRunSpec({ seed, prompt, model, timeoutMs, cwd }) {
+  return {
+    prompt,
+    model,
+    profile: seed.execute?.profile || null,
+    cwd,
+    timeoutMs,
+    mcp: buildMcpSpec(seed.execute?.mcp),
+    toolPolicy: buildToolPolicy(seed.execute?.tool_policy),
+    extraArgs: [],
+  };
+}
+
+function buildClaudeMcpArgs(mcpSpec) {
+  if (!mcpSpec || typeof mcpSpec !== 'object') return [];
   const out = [];
-  if (mcp.config) {
-    out.push('--mcp-config', String(mcp.config));
-    if (mcp.strict) out.push('--strict-mcp-config');
+  if (mcpSpec.config) {
+    out.push('--mcp-config', String(mcpSpec.config));
+    if (mcpSpec.strict) out.push('--strict-mcp-config');
   }
-  if (mcp.permission_mode) {
-    out.push('--permission-mode', String(mcp.permission_mode));
+  if (mcpSpec.permissionMode) {
+    out.push('--permission-mode', String(mcpSpec.permissionMode));
   }
-  if (Array.isArray(mcp.allowed_tools) && mcp.allowed_tools.length) {
-    out.push('--allowedTools', mcp.allowed_tools.join(','));
+  if (Array.isArray(mcpSpec.allowedTools) && mcpSpec.allowedTools.length) {
+    out.push('--allowedTools', mcpSpec.allowedTools.join(','));
+  }
+  return out;
+}
+
+function buildClaudeToolArgs(toolPolicy) {
+  if (!toolPolicy || typeof toolPolicy !== 'object') return [];
+  const out = [];
+  if (Array.isArray(toolPolicy.deny) && toolPolicy.deny.length) {
+    out.push('--disallowedTools', toolPolicy.deny.join(' '));
   }
   return out;
 }
@@ -399,15 +446,36 @@ function buildMcpArgs(mcp) {
 //       launcher が「本当に読む」構造にする。従来は engine を無視して常に
 //       claude -p を起動していた(= schema が嘘をついていた / 測量士 2026-06-24 P1)。
 //
-// 各 runner は { engine, bin, buildArgs({prompt, model, mcp}) } を返す。
+// 各 runner は { engine, bin, buildArgs(spec), buildMcpArgs(mcpSpec) } を返す。
 // codex / gemini runner を足すときは buildCodexArgs() 等を書いて RUNNERS に登録する。
 // 未対応 engine は resolveRunner() が明示エラーで落とす(黙って claude にフォールバックしない)。
-function buildClaudeArgs({ prompt, model, mcp }) {
+function buildClaudeArgs(spec) {
   // ★prompt は positional として -p の直後に置く。--allowedTools は可変長オプションで、
   //   末尾に置くと直後の positional prompt を許可ツール名として飲み込み落ちる(S54 実証)。
-  const a = ['-p', prompt];
-  if (model) a.push('--model', model);
-  a.push(...buildMcpArgs(mcp));
+  const a = ['-p', spec.prompt];
+  if (spec.model) a.push('--model', spec.model);
+  a.push(...buildClaudeMcpArgs(spec.mcp));
+  a.push(...buildClaudeToolArgs(spec.toolPolicy));
+  if (Array.isArray(spec.extraArgs) && spec.extraArgs.length) a.push(...spec.extraArgs);
+  return a;
+}
+
+function buildCodexArgs(spec) {
+  if (spec.mcp?.config || spec.mcp?.allowedTools?.length || spec.mcp?.permissionMode) {
+    throw new Error('codex runner does not support execute.mcp translation yet');
+  }
+  const sandbox = spec.toolPolicy?.mode === 'scratch-write' ? 'workspace-write' : 'read-only';
+  const a = [
+    'exec',
+    '--sandbox', sandbox,
+    '--color', 'never',
+    '--skip-git-repo-check',
+    '--ephemeral',
+    '-C', spec.cwd,
+  ];
+  if (spec.model) a.push('--model', spec.model);
+  if (spec.profile) a.push('--profile', spec.profile);
+  a.push(spec.prompt);
   return a;
 }
 
@@ -416,10 +484,14 @@ const RUNNERS = {
     engine: 'claude-code',
     bin: CLAUDE_BIN,
     buildArgs: buildClaudeArgs,
+    buildMcpArgs: buildClaudeMcpArgs,
   },
-  // 'codex': 未実装。CODEX_BIN + buildCodexArgs() を用意したらここに登録する。
-  //   その際 execute.mcp(claude CLI 固有)を execute.tools / execute.permissions へ
-  //   一段抽象化する検討が要る(測量士 2026-06-24 提案1 後半)。
+  codex: {
+    engine: 'codex',
+    bin: CODEX_BIN,
+    buildArgs: buildCodexArgs,
+    buildMcpArgs: () => [],
+  },
 };
 
 function resolveRunner(engine) {
@@ -429,7 +501,7 @@ function resolveRunner(engine) {
     const supported = Object.keys(RUNNERS).join(', ');
     throw new Error(
       `engine '${key}' is not supported by launcher yet (supported: ${supported}). ` +
-      `seeds/README.md は将来切替を掲げるが codex/gemini runner は未実装。`
+      `gemini runner は未実装。`
     );
   }
   return runner;
@@ -516,12 +588,14 @@ function main() {
     const timeoutMs = seed.execute?.timeout_minutes
       ? parseInt(seed.execute.timeout_minutes, 10) * 60 * 1000
       : CLAUDE_TIMEOUT_MS;
+    const cwd = seed.execute?.working_dir || process.cwd();
 
-    // MCP 種(scribe の Plaud 等)。frontmatter `execute.mcp` があれば claude -p に
-    // --mcp-config / --strict-mcp-config / --permission-mode / --allowedTools を渡す。
+    // MCP 種(scribe の Plaud 等)。frontmatter `execute.mcp` は AgentRunSpec.mcp に正規化し、
+    // runner が自分の CLI/API 表現へ翻訳する。
     // ★Plaud MCP は OAuth トークンが ~/.plaud/tokens-mcp.json で自動更新されるため、
     //   認証済みホスト(=トークンを持つローカル WSL)での headless 実行に限り到達できる(S54 実証)。
-    const mcpArgs = buildMcpArgs(seed.execute?.mcp);
+    const runSpec = buildAgentRunSpec({ seed, prompt, model, timeoutMs, cwd });
+    const mcpArgs = runner.buildMcpArgs ? runner.buildMcpArgs(runSpec.mcp) : [];
 
     const header = [
       '',
@@ -530,18 +604,18 @@ function main() {
       `started_at: ${new Date().toISOString()}`,
       `host: ${execSync('hostname', { encoding: 'utf8' }).trim()}`,
       `launcher_version: 1.0.1 (session30)`,
-      `working_dir: ${seed.execute?.working_dir || process.cwd()}`,
+      `working_dir: ${runSpec.cwd}`,
       `engine: ${runner.engine}`,
       `runner_bin: ${runner.bin}`,
-      `model: ${model || '(default)'}`,
-      `timeout_ms: ${timeoutMs}`,
+      `model: ${runSpec.model || '(default)'}`,
+      `timeout_ms: ${runSpec.timeoutMs}`,
       `mcp: ${mcpArgs.length ? mcpArgs.join(' ') : '(none)'}`,
       `dry_run: ${args.dryRun}`,
       `---- vars ----`,
       JSON.stringify(vars, null, 2),
       `---- prompt ----`,
       prompt,
-      `---- claude -p output ----`,
+      `---- runner output ----`,
       ''
     ].join('\n');
     appendLog(logPath, header);
@@ -554,7 +628,6 @@ function main() {
     }
 
     // working_dir
-    const cwd = seed.execute?.working_dir || process.cwd();
     if (!fs.existsSync(cwd)) {
       appendLog(logPath, `\n[error] working_dir does not exist: ${cwd}\n`);
       updateAudit(state, seedKey, 'failed', { reason: 'working_dir missing' });
@@ -563,11 +636,11 @@ function main() {
 
     // runner 起動。引数組み立ては runner.buildArgs() に委譲する(engine ごとに分離)。
     // claude-code の場合の prompt/位置引数の注意は buildClaudeArgs() を参照(S54)。
-    const cliArgs = runner.buildArgs({ prompt, model, mcp: seed.execute?.mcp });
+    const cliArgs = runner.buildArgs(runSpec);
     const ret = spawnSync(runner.bin, cliArgs, {
-      cwd,
+      cwd: runSpec.cwd,
       encoding: 'utf8',
-      timeout: timeoutMs,
+      timeout: runSpec.timeoutMs,
       maxBuffer: 50 * 1024 * 1024, // 50MB
       env: { ...process.env },
     });

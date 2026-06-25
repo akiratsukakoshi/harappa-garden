@@ -16,7 +16,7 @@ import os
 import re
 
 import send as sender
-from brain.runner import resolve_runner
+from brain.runner import UnsupportedEngineError, resolve_runner, unsupported_engine_message
 
 JST = datetime.timezone(datetime.timedelta(hours=9))
 MIRROR_DIR = os.environ.get("MIRROR_DIR", "/home/vps-harappa/garden-mirror")
@@ -89,7 +89,11 @@ def build_greet_prompt(d: datetime.date, active_text: str, board_text: str) -> s
 def run_claude(prompt: str) -> str:
     # S60: AgentRunner 抽象へ退避(測量士 2026-06-24 提案2)。engine 切替は
     # GARDEN_GAKU_CO_ENGINE。口火は read-only(Edit/Write 等の書き戻しは bot 側 Mode 2 の責務)。
-    runner = resolve_runner()
+    try:
+        runner = resolve_runner()
+    except UnsupportedEngineError as exc:
+        print(f"[morning-greet] unsupported engine: {exc}", flush=True)
+        return unsupported_engine_message(exc)
     res = runner.run(
         prompt,
         system=PERSONA,

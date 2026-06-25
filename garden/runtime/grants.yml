@@ -15,39 +15,53 @@
 #   - Bash           … 絶対パスの実行ファイル + `:*`(例 /home/.../python:*)
 #   write: に挙げたパスは Write と Edit の両方を生成する。
 
-host: vps-harappa
-home: /home/vps-harappa
+default_host: vps-harappa
+default_profile: claude-code
 
-# 全体読み取り(母屋と mirror)
-read:
-  - garden/**
-  - garden-mirror/**
+hosts:
+  vps-harappa:
+    home: /home/vps-harappa
+    profiles:
+      claude-code:
+        # 全体読み取り(母屋と mirror)
+        read:
+          - garden/**
+          - garden-mirror/**
 
-# 全体書き込み(Write+Edit を生成。board/log と mirror の作業領域)
-write:
-  - garden-mirror/hmc_tasks/**
-  - garden-mirror/garden/**
-  - garden/board/**
-  - garden/log/**
+        # 全体書き込み(Write+Edit を生成。board/log と mirror の作業領域)
+        write:
+          - garden-mirror/hmc_tasks/**
+          - garden-mirror/garden/**
+          - garden/board/**
+          - garden/log/**
 
-# サービス別の許可。各サービスは default-deny。
-#   bash:  許可する実行ファイル(svc ルート相対)。`:*` が自動付与される
-#   write: 書込可パス(svc ルート相対)。Write+Edit を生成
-services:
-  expense-processor:
-    bash: [.venv/bin/python]
-    write: [working/**]
-  invoice-processor:
-    bash: [.venv/bin/python]
-    write: [working/**]
-  sns-manager:
-    bash: [.venv/bin/python]
-    write: [temp/**]
-  shift-manager:
-    bash: [.venv/bin/python]
-  finance:
-    bash: [.venv/bin/python]
-  field-assistant:
-    bash: [.venv/bin/python]
-  client-steward:
-    bash: [.venv/bin/python]
+        # サービス別の許可。各サービスは default-deny。
+        #   bash:  許可する実行ファイル(svc ルート相対)。`:*` が自動付与される
+        #   write: 書込可パス(svc ルート相対)。Write+Edit を生成
+        services:
+          expense-processor:
+            bash: [.venv/bin/python]
+            write: [working/**]
+          invoice-processor:
+            bash: [.venv/bin/python]
+            write: [working/**]
+          sns-manager:
+            bash: [.venv/bin/python]
+            write: [temp/**]
+          shift-manager:
+            bash: [.venv/bin/python]
+          finance:
+            bash: [.venv/bin/python]
+          field-assistant:
+            bash: [.venv/bin/python]
+          client-steward:
+            bash: [.venv/bin/python]
+
+  local-wsl:
+    home: /home/tukapontas
+    profiles:
+      codex-read-only:
+        read:
+          - harappa-garden/**
+        write: []
+        services: {}

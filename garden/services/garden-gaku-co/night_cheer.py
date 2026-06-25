@@ -17,7 +17,7 @@ import os
 import re
 
 import send as sender
-from brain.runner import resolve_runner
+from brain.runner import UnsupportedEngineError, resolve_runner, unsupported_engine_message
 
 JST = datetime.timezone(datetime.timedelta(hours=9))
 WEEKDAY_JA = "月火水木金土日"
@@ -106,7 +106,12 @@ def compose_comment(completed_block: str, d: datetime.date) -> str:
     )
     # S60: AgentRunner 抽象へ退避(測量士 2026-06-24 提案2)。engine 切替は
     # GARDEN_GAKU_CO_ENGINE。ねぎらい一言は完全 read-only(NO_TOOLS)。
-    res = resolve_runner().run(
+    try:
+        runner = resolve_runner()
+    except UnsupportedEngineError as exc:
+        print(f"[night-cheer] unsupported engine: {exc}", flush=True)
+        return unsupported_engine_message(exc)
+    res = runner.run(
         prompt,
         system=PERSONA,
         model="sonnet",

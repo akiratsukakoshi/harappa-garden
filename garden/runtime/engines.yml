@@ -23,24 +23,34 @@ engines:
       mode: subscription_cli_token
       secret_location: "runtime host only; never in repo"
     smoke:
+      - "python3 garden/runtime/smoke/run-smoke.py"
       - "cd garden/services/launcher && npm test"
       - "cd garden/services/garden-gaku-co && python3 -m brain.test_runner"
       - "cd garden/runtime && python3 test_render.py"
 
   codex:
     type: agent-cli
-    status: candidate
+    status: candidate-read-only
     runner_surfaces:
-      seed_runner: pending
-      master_runner: pending
+      seed_runner: garden/services/launcher/launcher.mjs
+      master_runner: garden/services/garden-gaku-co/brain/runner.py
+    execution_policy:
+      default_sandbox: read-only
+      persistence: ephemeral
+      scratch_write: pending
     grants_renderer: pending
     mcp:
-      status: verify
-      notes: "verify CLI flags, allowed tool semantics, and config loading with scratch-only runs"
+      status: pending
+      notes: "MCP flag/config translation is not implemented for codex runner yet"
     auth:
       mode: cli_subscription_or_api_dependent
       secret_location: "runtime host only; never in repo"
     checklist: garden/runtime/checklists/switch-to-codex.md
+    smoke:
+      - "python3 garden/runtime/smoke/run-smoke.py --engine codex"
+      - "python3 garden/runtime/smoke/run-smoke.py --engine codex --real-runner"
+      - "python3 garden/runtime/smoke/run-smoke.py --engine codex --mode scratch-write"
+      - "python3 garden/runtime/smoke/run-smoke.py --engine codex --mode scratch-write --real-runner"
 
   gemini-cli:
     type: agent-cli

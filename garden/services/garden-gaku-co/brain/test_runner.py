@@ -15,9 +15,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from brain.runner import (  # noqa: E402
     AgentResult,
+    AgentRunSpec,
     ClaudeSubprocessRunner,
+    CodexSubprocessRunner,
+    McpSpec,
+    ToolPolicy,
+    UnsupportedEngineError,
     _normalize_tools,
     resolve_runner,
+    unsupported_engine_message,
 )
 
 
@@ -31,26 +37,41 @@ def test_resolve_explicit_claude():
     assert resolve_runner("claude-code").engine == "claude-code"
 
 
+def test_resolve_explicit_codex():
+    assert resolve_runner("codex").engine == "codex"
+
+
 def test_resolve_unknown_engine_raises():
     # 未対応 engine は黙ってフォールバックせず ValueError(launcher と同方針)
     try:
-        resolve_runner("codex")
-    except ValueError as e:
-        assert "codex" in str(e) and "not supported" in str(e)
+        resolve_runner("gemini")
+    except UnsupportedEngineError as e:
+        assert e.engine == "gemini"
+        assert e.supported == ["claude-code", "codex"]
+        assert "gemini" in str(e) and "not supported" in str(e)
     else:
-        raise AssertionError("codex は ValueError を投げるべき")
+        raise AssertionError("gemini は ValueError を投げるべき")
 
 
 def test_resolve_respects_env():
     os.environ["GARDEN_GAKU_CO_ENGINE"] = "gemini"
     try:
         resolve_runner()
-    except ValueError as e:
+    except UnsupportedEngineError as e:
         assert "gemini" in str(e)
     else:
         raise AssertionError("env の未対応 engine も ValueError")
     finally:
         del os.environ["GARDEN_GAKU_CO_ENGINE"]
+
+
+def test_unsupported_engine_message_is_user_facing():
+    err = UnsupportedEngineError("gemini", ["claude-code", "codex"])
+    msg = unsupported_engine_message(err)
+    assert "gemini" in msg
+    assert "claude-code" in msg
+    assert "codex" in msg
+    assert "実行していません" in msg
 
 
 def test_normalize_tools():
@@ -81,6 +102,61 @@ def test_build_cmd_minimal():
     r = ClaudeSubprocessRunner(bin_path="claude")
     cmd = r.build_cmd("P")
     assert cmd == ["claude", "-p", "P"]  # 任意フラグ無しは素の -p のみ
+
+
+def test_run_spec_translates_neutral_spec_to_claude_flags():
+    r = ClaudeSubprocessRunner(bin_path="/bin/echo")
+    spec = AgentRunSpec(
+        prompt="hello-spec",
+        system="SYS",
+        model="sonnet",
+        tool_policy=ToolPolicy(deny=["Glob", "Grep"]),
+        mcp=McpSpec(strict=True),
+    )
+    res = r.run_spec(spec)
+    assert res.ok
+    assert "hello-spec" in res.text
+    assert "--system-prompt SYS" in res.text
+    assert "--strict-mcp-config" in res.text
+    assert "--disallowedTools Glob Grep" in res.text
+    assert "--model sonnet" in res.text
+
+
+def test_codex_build_cmd_is_read_only_ephemeral():
+    r = CodexSubprocessRunner(bin_path="codex")
+    spec = AgentRunSpec(
+        prompt="hello-codex",
+        system="SYS",
+        model="gpt-5-codex",
+        cwd="/tmp",
+    )
+    cmd = r.build_cmd(spec)
+    assert cmd[:2] == ["codex", "exec"]
+    assert "--sandbox" in cmd and cmd[cmd.index("--sandbox") + 1] == "read-only"
+    assert "--ephemeral" in cmd
+    assert "-C" in cmd and cmd[cmd.index("-C") + 1] == "/tmp"
+    assert "--model" in cmd and cmd[cmd.index("--model") + 1] == "gpt-5-codex"
+    assert cmd[-1] == "SYS\n\nhello-codex"
+
+
+def test_codex_build_cmd_scratch_write_uses_workspace_write():
+    r = CodexSubprocessRunner(bin_path="codex")
+    spec = AgentRunSpec(
+        prompt="write scratch",
+        cwd="/tmp/garden-smoke",
+        tool_policy=ToolPolicy(mode="scratch-write"),
+    )
+    cmd = r.build_cmd(spec)
+    assert "--sandbox" in cmd and cmd[cmd.index("--sandbox") + 1] == "workspace-write"
+    assert "-C" in cmd and cmd[cmd.index("-C") + 1] == "/tmp/garden-smoke"
+
+
+def test_codex_run_success_via_echo():
+    r = CodexSubprocessRunner(bin_path="/bin/echo")
+    res = r.run_spec(AgentRunSpec(prompt="hello-codex", cwd="/tmp"))
+    assert res.ok and res.returncode == 0
+    assert "exec --sandbox read-only" in res.text
+    assert "hello-codex" in res.text
 
 
 def test_run_success_via_echo():

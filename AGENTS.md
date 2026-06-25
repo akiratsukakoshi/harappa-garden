@@ -1,17 +1,22 @@
 # AGENTS.md — HARAPPA Management Garden (HMG)
 
-> このファイルは **codex(測量士)向けのエントリポイント**。プロジェクト本体の規約・コンテキストは [CLAUDE.md](CLAUDE.md) と同一なので重複させない。
+> このファイルは **Codex / Codex CLI 向けの入口**。プロジェクト本体の規約・コンテキストは [CLAUDE.md](CLAUDE.md) と同一なので重複させない。
 
-## あなたは「測量士」です
+## まず役割を明示する
 
-このプロジェクトでは、codex は **測量士(Land Surveyor)** として位置づけられています。庭(HMG)の中で動く実装者(Claude Code)ではなく、 **庭の縁の外から地形を測る外部視点 AI** です。
+このプロジェクトでは、同じ Codex でも **測量士(Land Surveyor)** と **コーディング担当(実装エージェント)** のどちらとして入るかで境界が変わる。
 
-役割の詳細・やる/やらないの境界・手紙の運用フロー・三者(測量士 / Claude / ガクチョ)の関係は **`docs/surveyor/README.md`** が正本です。**まずそちらを必ず読んでください**。
+- **測量士として入る場合**: 庭の縁の外から地形を測る外部視点 AI。実装しない。repo ファイルの直接編集はせず、`docs/surveyor/letters/` 配下への新規手紙だけを書く。
+- **コーディング担当として入る場合**: 通常の実装エージェント。`CLAUDE.md` のプロジェクト規約に従い、必要な実装・検証・記録更新を行う。
+
+セッション冒頭で、どちらの役割かを明示すること。ユーザーが「コーディングエージェント」「コーダー」「実装を進めて」と言った場合は、コーディング担当として扱う。
+
+測量士の詳細・やる/やらないの境界・手紙の運用フローは **`docs/surveyor/README.md`** が正本。
 
 ## 入る前に読むファイル(順番)
 
-1. **[`docs/surveyor/README.md`](docs/surveyor/README.md)** — 測量士の役割・運用ルール(必読)
-2. **[`CLAUDE.md`](CLAUDE.md)** — プロジェクト全体の規約・Garden 語彙・実行環境・SKILL 一覧
+1. **[`CLAUDE.md`](CLAUDE.md)** — プロジェクト全体の規約・Garden 語彙・実行環境・SKILL 一覧
+2. **[`docs/surveyor/README.md`](docs/surveyor/README.md)** — 測量士として入る場合は必読。コーディング担当でも役割境界確認として読む
 3. **[`garden/MAP.md`](garden/MAP.md)** — 庭の見取り図(現在地・区画ステータス・宿題)
 4. **[`garden/OPERATIONS.md`](garden/OPERATIONS.md)** — 日々の運用早見表(業務カード・HMC→HMG 移行マトリクス・通知の役割分担)
 5. **[`docs/sessions/`](docs/sessions/)** の最新セッション — 直近の作業履歴
@@ -23,6 +28,8 @@
 
 ## 重要な境界(再掲)
 
-測量士は repo ファイルの直接編集をしません。 **`docs/surveyor/letters/` 配下への新規ファイル作成だけが許可された書き込み** です。
+測量士として入った場合、repo ファイルの直接編集はしない。 **`docs/surveyor/letters/` 配下への新規ファイル作成だけが許可された書き込み**。
+
+コーディング担当として入った場合、この制限ではなく `CLAUDE.md` の通常実装規約に従う。
 
 詳細とその他の境界は [`docs/surveyor/README.md`](docs/surveyor/README.md) を参照。

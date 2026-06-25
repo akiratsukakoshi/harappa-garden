@@ -22,7 +22,7 @@ import traceback
 import discord
 
 import memory_logger
-from brain.runner import resolve_runner
+from brain.runner import UnsupportedEngineError, resolve_runner, unsupported_engine_message
 
 JST = datetime.timezone(datetime.timedelta(hours=9))
 WEEKDAY_JA = "月火水木金土日"
@@ -628,7 +628,11 @@ def run_claude(prompt: str, extra_args=None) -> str:
     # engine は GARDEN_GAKU_CO_ENGINE(既定 claude-code)。claude 固有フラグの組み立ては
     # ClaudeSubprocessRunner.build_cmd に隔離。Read/Edit/Write/Bash の OS 権限は
     # .claude/settings.json で path/entrypoint scoped(探索系・外部系は disallowed)。
-    runner = resolve_runner()
+    try:
+        runner = resolve_runner()
+    except UnsupportedEngineError as exc:
+        print(f"[bot] unsupported engine: {exc}", flush=True)
+        return unsupported_engine_message(exc)
     # S38: 経費の extract(Gemini OCR + 分類)が走ると 1 turn が長くなるため 300s に拡大。
     # 通常会話はすぐ返るので実害なし。gateway は asyncio.to_thread 経由なので他メッセージは生きる。
     res = runner.run(

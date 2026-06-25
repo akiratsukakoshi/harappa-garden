@@ -21,29 +21,29 @@
 
 ## 2. Dry-run
 
-- [ ] launcher dry-run で `engine: codex` が未対応エラーになることを確認した
-- [ ] Codex runner 実装後、dry-run で runner 解決とログだけ確認した
-- [ ] prompt / cwd / timeout / model/profile がログで読める
-- [ ] secret 値がログに出ていない
+- [x] launcher dry-run で `engine: codex` が解決されることを確認した
+- [x] Codex runner 実装後、dry-run で runner 解決とログだけ確認した
+- [x] prompt / cwd / timeout がログで読める
+- [x] secret 値がログに出ていない
 
 ## 3. Read-only run
 
-- [ ] repo 読み取りだけの prompt で起動した
-- [ ] exit code / stdout / stderr が runner 層で捕捉される
-- [ ] 未対応 tool は明示エラーになる
-- [ ] timeout が効く
+- [x] temp seed + `codex exec --sandbox read-only --ephemeral` で起動した
+- [x] exit code / stdout / stderr が runner 層で捕捉される
+- [x] MCP 未対応は runner 層で明示エラーになる
+- [x] timeout が効く(launcher smoke は 60s / runner tests は timeout path あり)
 
 ## 4. Scratch write
 
-- [ ] 書き込み先を `/tmp` または専用 scratch に限定した
-- [ ] board / soil / hmc_tasks には触っていない
-- [ ] 書き込み結果を確認後、不要なら破棄した
+- [x] 書き込み先を temp scratch に限定した
+- [x] board / soil / hmc_tasks には触っていない
+- [x] 書き込み結果を確認後、temp directory ごと破棄した
 
 ## 5. Seed smoke
 
-- [ ] 低リスク seed を 1 本だけ選んだ
-- [ ] その seed の実行結果が scratch/log に限定されることを確認した
-- [ ] MCP なし seed で先に通した
+- [x] 低リスク smoke seed を 1 本だけ選んだ
+- [x] その seed の実行結果が scratch/log に限定されることを確認した
+- [x] MCP なし seed で先に通した
 - [ ] MCP あり seed は別手順で確認した
 
 ## 6. Master bot smoke

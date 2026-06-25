@@ -16,6 +16,7 @@
 | [`test_render.py`](test_render.py) | 生成器の退行ガード(件数・形式・代表エントリ) |
 | [`audit-vendor-lock.py`](audit-vendor-lock.py) | Claude / Anthropic 固有語の分布を分類する監査 |
 | [`test_audit_vendor_lock.py`](test_audit_vendor_lock.py) | vendor lock 監査の最小テスト |
+| [`smoke/`](smoke/) | runner 切替時の低リスク smoke。temp/log のみで seed runner と master runner 配線を確認 |
 
 ## なぜ
 
@@ -36,7 +37,7 @@ settings.json を手で触らない:
 # 2. 意図差分を確認(live settings と集合比較)
 python3 garden/runtime/render-claude-settings.py --check /path/to/live/settings.json
 # 3. 生成して VPS へ反映
-python3 garden/runtime/render-claude-settings.py -o settings.json
+python3 garden/runtime/render-claude-settings.py --host vps-harappa --profile claude-code -o settings.json
 rsync settings.json harappa:/home/vps-harappa/.claude/settings.json
 ```
 
@@ -56,3 +57,17 @@ python3 garden/runtime/audit-vendor-lock.py --include-history
 この監査は vendor 固有語を即エラー扱いしない。`intended` / `runtime-kit` /
 `live-doc` / `config-surface` / `history` / `unclassified` に分類し、
 切替時に読むべき場所を見える化する。
+
+## Runtime smoke
+
+```bash
+python3 garden/runtime/smoke/run-smoke.py
+python3 garden/runtime/smoke/run-smoke.py --engine codex
+python3 garden/runtime/smoke/run-smoke.py --engine codex --mode scratch-write
+python3 garden/runtime/smoke/run-smoke.py --engine codex --real-runner
+python3 garden/runtime/smoke/run-smoke.py --engine codex --mode scratch-write --real-runner
+```
+
+実 LLM / secret / production board には触れず、temp directory と `/bin/echo` runner で
+seed runner の dry-run / 実行パス、master runner の単体テスト、grants renderer の単体テストを確認する。
+`--real-runner` は temp directory のまま実 Codex CLI 経路だけを確認する。

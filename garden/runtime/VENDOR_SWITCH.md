@@ -50,6 +50,23 @@ Garden は Claude Code / Codex / Gemini CLI / API provider のどれか一つに
 9. master bot runner を短時間だけ切り替え、未対応 engine エラーや応答を確認する。
 10. 問題があれば checklist の rollback に従って active engine を戻す。
 
+## 現在の移行準備ライン
+
+2026-06-25 時点では、Codex runner は **read-only + temp scratch write** まで確認済み。
+これは「移行したいタイミングでの初動負荷を下げる」ための準備ラインであり、本番移行ではない。
+
+今すぐ移行判断が必要になった場合、次に見る場所は以下。
+
+| 次に見る場所 | 目的 |
+|---|---|
+| [`smoke/`](smoke/) | `codex` runner の read-only / scratch-write smoke を再実行 |
+| [`checklists/switch-to-codex.md`](checklists/switch-to-codex.md) | 済み/未済の境界確認 |
+| `garden/services/launcher/launcher.mjs` | seed runner の Codex CLI 引数翻訳 |
+| `garden/services/garden-gaku-co/brain/runner.py` | master runner の Codex CLI 引数翻訳 |
+| [`grants.yml`](grants.yml) | host/profile 別の権限正本 |
+
+残る本番移行前タスクは、Codex MCP 翻訳、Codex 用 grants renderer、VPS 反映判断。
+
 ## 監査の読み方
 
 `audit-vendor-lock.py` は Claude / Anthropic 固有語を見つけても、即エラーにはしない。
