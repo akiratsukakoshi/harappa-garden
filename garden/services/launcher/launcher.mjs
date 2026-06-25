@@ -36,6 +36,19 @@ const LOCK_DIR = process.env.GARDEN_LOCK_DIR || '/tmp';
 const CLAUDE_BIN = process.env.CLAUDE_BIN || `${process.env.HOME}/.npm-global/bin/claude`;
 const CLAUDE_TIMEOUT_MS = parseInt(process.env.CLAUDE_TIMEOUT_MS || '600000', 10); // 10 分
 
+// ---- cron secrets の読み込み(S59: claude -p 認証トークン)----
+// cron は最小 env で起動するため、`claude -p` の認証情報(CLAUDE_CODE_OAUTH_TOKEN)を
+// ここで env ファイルから読み込んで process.env に注入する。spawn 時に {...process.env}
+// で claude へ継承される。ファイルは chmod 600 / gitignore、値は repo に置かない(secret)。
+// 既に env にある変数は上書きしない(手動実行時の優先)。
+const CRON_SECRETS_FILE = process.env.GARDEN_CRON_SECRETS || `${process.env.HOME}/.claude/cron-secrets.env`;
+try {
+  for (const line of fs.readFileSync(CRON_SECRETS_FILE, 'utf8').split('\n')) {
+    const m = /^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+} catch { /* ファイル不在ならスキップ(既存 env のまま) */ }
+
 // ---- CLI 引数 ----
 function parseArgs(argv) {
   const args = { seed: null, dryRun: false };
