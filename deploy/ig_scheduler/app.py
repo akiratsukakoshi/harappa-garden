@@ -4,17 +4,19 @@ Xserverクラウド (Docker) で稼働。HMCからPOSTで投稿データを受�
 指定時刻にMeta Graph APIで即時投稿する。
 Meta Graph APIのスケジュール機能（Tech Provider限定）の代替実装。
 """
+import json
 import os
 import sqlite3
 import requests
 import smtplib
 import logging
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 
 from fastapi import FastAPI, HTTPException, Depends, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 
@@ -71,22 +73,90 @@ def init_db():
 
 
 # ── Meta API ──────────────────────────────────────────────────────────
+def _raise_for_status_with_body(resp: requests.Response):
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError as e:
+        body = resp.text[:500]
+        raise requests.HTTPError(f"{e}; body={body}", response=resp) from e
+
+
+def _publish_container(container_id: str, attempts: int = 6, wait_sec: int = 10) -> str:
+    """Publish an IG media container, retrying while Meta finishes processing.
+
+    Carousel parent containers can be created before they are immediately
+    publishable. A short retry prevents false failures like job 15.
+    """
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        resp = requests.post(
+            f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media_publish",
+            data={"creation_id": container_id, "access_token": META_ACCESS_TOKEN},
+            timeout=30,
+        )
+        if resp.ok:
+            return resp.json()["id"]
+
+        last_error = resp
+        logger.warning(
+            "media_publish retryable failure: container_id=%s attempt=%s/%s status=%s body=%s",
+            container_id,
+            attempt,
+            attempts,
+            resp.status_code,
+            resp.text[:300],
+        )
+        if attempt < attempts:
+            time.sleep(wait_sec)
+
+    _raise_for_status_with_body(last_error)
+
+
 def _publish_ig_photo(image_url: str, caption: str) -> str:
     resp = requests.post(
         f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media",
         data={"image_url": image_url, "caption": caption, "access_token": META_ACCESS_TOKEN},
         timeout=30,
     )
-    resp.raise_for_status()
+    _raise_for_status_with_body(resp)
     container_id = resp.json()["id"]
+    return _publish_container(container_id)
 
-    resp2 = requests.post(
-        f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media_publish",
-        data={"creation_id": container_id, "access_token": META_ACCESS_TOKEN},
+
+def _publish_ig_carousel(image_urls: list, caption: str) -> str:
+    # Step1: 各画像のカルーセルアイテムコンテナを作成
+    children = []
+    for url in image_urls:
+        resp = requests.post(
+            f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media",
+            data={
+                "image_url": url,
+                "is_carousel_item": "true",
+                "access_token": META_ACCESS_TOKEN,
+            },
+            timeout=30,
+        )
+        _raise_for_status_with_body(resp)
+        children.append(resp.json()["id"])
+        logger.info(f"カルーセルアイテム作成: {resp.json()['id']}")
+
+    # Step2: カルーセルコンテナを作成
+    resp = requests.post(
+        f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media",
+        data={
+            "media_type": "CAROUSEL",
+            "children": ",".join(children),
+            "caption": caption,
+            "access_token": META_ACCESS_TOKEN,
+        },
         timeout=30,
     )
-    resp2.raise_for_status()
-    return resp2.json()["id"]
+    _raise_for_status_with_body(resp)
+    container_id = resp.json()["id"]
+    logger.info(f"カルーセルコンテナ作成: {container_id}")
+
+    # Step3: 公開
+    return _publish_container(container_id)
 
 
 # ── メール通知 ────────────────────────────────────────────────────────
@@ -135,6 +205,9 @@ def run_worker():
         try:
             if job["platform"] == "ig_photo":
                 post_id = _publish_ig_photo(job["image_url"], job["caption"])
+            elif job["platform"] == "ig_carousel":
+                image_urls = json.loads(job["image_url"])
+                post_id = _publish_ig_carousel(image_urls, job["caption"])
             else:
                 raise NotImplementedError(f"未対応platform: {job['platform']}")
 
@@ -183,10 +256,19 @@ def verify_key(x_api_key: str = Header()):
 
 
 class JobIn(BaseModel):
-    platform: str    # 'ig_photo'
-    image_url: str
+    platform: str       # 'ig_photo' or 'ig_carousel'
+    image_url: str = ""  # ig_photo 用
+    image_urls: list = []  # ig_carousel 用
     caption: str
     publish_at: str  # ISO 8601 with timezone e.g. "2026-04-29T20:00:00+09:00"
+
+    @model_validator(mode="after")
+    def check_images(self):
+        if self.platform == "ig_photo" and not self.image_url:
+            raise ValueError("ig_photo には image_url が必要です")
+        if self.platform == "ig_carousel" and not self.image_urls:
+            raise ValueError("ig_carousel には image_urls が必要です")
+        return self
 
 
 @app.get("/health")
@@ -200,8 +282,8 @@ def health():
 
 @app.post("/schedule", dependencies=[Depends(verify_key)])
 def create_job(body: JobIn):
-    if body.platform not in ("ig_photo",):
-        raise HTTPException(400, f"platform '{body.platform}' は未対応です（ig_photo のみ対応）")
+    if body.platform not in ("ig_photo", "ig_carousel"):
+        raise HTTPException(400, f"platform '{body.platform}' は未対応です（ig_photo / ig_carousel のみ対応）")
 
     try:
         dt = datetime.fromisoformat(body.publish_at)
@@ -216,10 +298,17 @@ def create_job(body: JobIn):
         raise HTTPException(400, "publish_at が過去の時刻です")
 
     publish_at_str = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # image_url カラムに格納する値を決定
+    if body.platform == "ig_carousel":
+        image_url_stored = json.dumps(body.image_urls)
+    else:
+        image_url_stored = body.image_url
+
     conn = get_conn()
     cur = conn.execute(
         "INSERT INTO jobs (platform, image_url, caption, publish_at) VALUES (?,?,?,?)",
-        (body.platform, body.image_url, body.caption, publish_at_str),
+        (body.platform, image_url_stored, body.caption, publish_at_str),
     )
     job_id = cur.lastrowid
     conn.commit()

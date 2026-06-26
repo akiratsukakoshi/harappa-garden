@@ -10,6 +10,7 @@ import sqlite3
 import requests
 import smtplib
 import logging
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
@@ -72,22 +73,54 @@ def init_db():
 
 
 # ── Meta API ──────────────────────────────────────────────────────────
+def _raise_for_status_with_body(resp: requests.Response):
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError as e:
+        body = resp.text[:500]
+        raise requests.HTTPError(f"{e}; body={body}", response=resp) from e
+
+
+def _publish_container(container_id: str, attempts: int = 6, wait_sec: int = 10) -> str:
+    """Publish an IG media container, retrying while Meta finishes processing.
+
+    Carousel parent containers can be created before they are immediately
+    publishable. A short retry prevents false failures like job 15.
+    """
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        resp = requests.post(
+            f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media_publish",
+            data={"creation_id": container_id, "access_token": META_ACCESS_TOKEN},
+            timeout=30,
+        )
+        if resp.ok:
+            return resp.json()["id"]
+
+        last_error = resp
+        logger.warning(
+            "media_publish retryable failure: container_id=%s attempt=%s/%s status=%s body=%s",
+            container_id,
+            attempt,
+            attempts,
+            resp.status_code,
+            resp.text[:300],
+        )
+        if attempt < attempts:
+            time.sleep(wait_sec)
+
+    _raise_for_status_with_body(last_error)
+
+
 def _publish_ig_photo(image_url: str, caption: str) -> str:
     resp = requests.post(
         f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media",
         data={"image_url": image_url, "caption": caption, "access_token": META_ACCESS_TOKEN},
         timeout=30,
     )
-    resp.raise_for_status()
+    _raise_for_status_with_body(resp)
     container_id = resp.json()["id"]
-
-    resp2 = requests.post(
-        f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media_publish",
-        data={"creation_id": container_id, "access_token": META_ACCESS_TOKEN},
-        timeout=30,
-    )
-    resp2.raise_for_status()
-    return resp2.json()["id"]
+    return _publish_container(container_id)
 
 
 def _publish_ig_carousel(image_urls: list, caption: str) -> str:
@@ -103,7 +136,7 @@ def _publish_ig_carousel(image_urls: list, caption: str) -> str:
             },
             timeout=30,
         )
-        resp.raise_for_status()
+        _raise_for_status_with_body(resp)
         children.append(resp.json()["id"])
         logger.info(f"カルーセルアイテム作成: {resp.json()['id']}")
 
@@ -118,18 +151,12 @@ def _publish_ig_carousel(image_urls: list, caption: str) -> str:
         },
         timeout=30,
     )
-    resp.raise_for_status()
+    _raise_for_status_with_body(resp)
     container_id = resp.json()["id"]
     logger.info(f"カルーセルコンテナ作成: {container_id}")
 
     # Step3: 公開
-    resp2 = requests.post(
-        f"{GRAPH_API_BASE}/{META_IG_ACCOUNT_ID}/media_publish",
-        data={"creation_id": container_id, "access_token": META_ACCESS_TOKEN},
-        timeout=30,
-    )
-    resp2.raise_for_status()
-    return resp2.json()["id"]
+    return _publish_container(container_id)
 
 
 # ── メール通知 ────────────────────────────────────────────────────────
