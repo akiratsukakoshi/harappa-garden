@@ -311,7 +311,51 @@
 
 ---
 
-### Card 8: sns_manager(SNS 運用)← S45 新設
+### Card 8: meeting_coordinator(会議調整)← S64 新設
+
+| 項目 | 内容 |
+|---|---|
+| **自動度** | 半自動(候補出し・調整は Garden、確定はガクチョ/発議者) |
+| **トリガー** | 毎月第3月曜 08:30(翌月の運営会議)/ 対話「○○会議を調整して」 |
+| **承認境界** | Calendar / Zoom への書き込みは **確定者の明示後のみ** |
+| **通知先** | **LINE core_team グループ** |
+
+**月次運営会議フロー**:
+
+1. **毎月第3月曜 08:30**: `monthly-ops-meeting-check` 種が、翌月5〜9日の平日からガクチョの空き時間を抽出
+2. **Garden**: 午前優先・夜も可で候補 A/B/C... を作り、core_team LINE に投稿
+3. **少佐 / ゆーじさん**: LINE で都合のよい候補を返信
+4. **Garden**: 参加者の可否を state に記録し、候補を絞る材料にする
+5. **ガクチョ**: `運営会議 Aで確定` の定型で決定
+6. **Garden**: HARAPPA 会社 Zoom アカウントで URL 発行 → ガクチョ Google Calendar に予定作成 → 参加者 email に招待 → LINE に Zoom URL を通知(Calendarリンクは出さない)
+
+**スポット会議フロー**:
+
+1. core_team の誰かが「参加者 / おおよその時期 / 会議タイトル」を LINE で依頼
+2. Garden がガクチョ Calendar の空きから候補を提示
+3. 参加者の返信を state に記録
+4. 発議者またはガクチョが確定
+
+**toC soil 連携の考え方**:
+
+MVP では `meeting_type` / 参加者 / Calendar event / Zoom URL を state に残す。将来、Plaud 会議録(scribe)、STORES 予約、シフトカレンダー、Notion フィールドレポートと接続し、toC 領域の soil を豊かにする入口にする。
+
+**失敗時に見るところ**:
+
+- VPS: `/home/vps-harappa/garden/log/{date}-meeting-monthly-ops.log`
+- state: `/home/vps-harappa/garden/services/meeting-coordinator/state/meetings.json`
+- Calendar 認証: `/home/vps-harappa/garden/services/calendar/`
+- Zoom env: `/home/vps-harappa/garden/services/meeting-coordinator/.env`
+
+**関連ファイル**:
+
+- SKILL: [`garden/plots/meeting_coordinator/SKILL.md`](plots/meeting_coordinator/SKILL.md)
+- 種: [`garden/seeds/meeting_coordinator/monthly-ops-meeting-check.md`](seeds/meeting_coordinator/monthly-ops-meeting-check.md)
+- スクリプト: [`garden/services/meeting-coordinator/`](services/meeting-coordinator/)
+
+---
+
+### Card 9: sns_manager(SNS 運用)← S45 新設
 
 | 項目 | 内容 |
 |---|---|
@@ -345,7 +389,7 @@
 
 ---
 
-### Card 9: finance(財務 — 売上記帳 / データ整合性 / 財務分析)← S47 新設
+### Card 10: finance(財務 — 売上記帳 / データ整合性 / 財務分析)← S47 新設
 
 | 項目 | 内容 |
 |---|---|
@@ -383,7 +427,7 @@
 
 ---
 
-### Card 10: client_steward(クライアント台帳の世話役)← S48 新設
+### Card 11: client_steward(クライアント台帳の世話役)← S48 新設
 
 | 項目 | 内容 |
 |---|---|
@@ -404,7 +448,7 @@
 
 ---
 
-### Card 11: scribe(会議録の番人 — 録音のタイトリング + soil 取り込み)← S53 新設
+### Card 12: scribe(会議録の番人 — 録音のタイトリング + soil 取り込み)← S53 新設
 
 | 項目 | 内容 |
 |---|---|

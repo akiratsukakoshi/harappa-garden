@@ -49,6 +49,7 @@ def _system_prompt(bot_name: str) -> str:
 
 dispatch の選択基準(should_respond=true のときのみ):
 - URL を読む・ウェブ検索・「調べて」「できる?」などツール操作を要する依頼 → {{"type": "tools"}}
+- 会議調整、日程調整、候補A/B/Cの可否、運営会議の確定、Zoom URL発行、カレンダー登録、招待送信に関する発言 → {{"type": "tools"}}
 - 上記以外の通常会話・質問・雑談 → {{"type": "direct"}}
 
 必ず以下の JSON のみで出力してください。説明文は不要です:

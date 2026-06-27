@@ -7,3 +7,5 @@ anthropic>=0.39,<1
 # S42: get_event_roster tool の to_sheet(field_assistant 名簿スプシ出力)用
 gspread>=6.0
 google-auth>=2.0
+google-auth-oauthlib>=1.2
+google-api-python-client>=2.0

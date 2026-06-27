@@ -66,4 +66,7 @@ garden/services/field-assistant/output/
 #   ★board の住所は VPS /home/vps-harappa/garden/board/pending/ 一箇所。repo に board の
 #     コンテンツ用ディレクトリは持たない(S57: 旧 board/pending ローカル溜まりの混乱を撤去)。
 garden/services/scribe/state/
+garden/services/meeting-coordinator/state/*.json
+garden/services/meeting-coordinator/state/*.tmp
+garden/services/meeting-coordinator/__pycache__/
 garden/services/scribe/outbox/

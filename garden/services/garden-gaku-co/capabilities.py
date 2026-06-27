@@ -19,8 +19,22 @@ from __future__ import annotations
 # S42: core_team 初の実 tool = get_event_roster(field_assistant、read-only)。
 # line_staff には出さない(保護者・子どもの個人情報を扱うため staff_ops 階層ではない)。
 CAPABILITIES: dict[str, frozenset[str]] = {
-    "master":         frozenset({"echo", "get_event_roster", "get_weather"}),
-    "line_core_team": frozenset({"echo", "get_event_roster", "get_weather"}),
+    "master":         frozenset({
+        "echo",
+        "get_event_roster",
+        "get_weather",
+        "request_meeting_coordination",
+        "record_meeting_availability",
+        "confirm_meeting_coordination",
+    }),
+    "line_core_team": frozenset({
+        "echo",
+        "get_event_roster",
+        "get_weather",
+        "request_meeting_coordination",
+        "record_meeting_availability",
+        "confirm_meeting_coordination",
+    }),
     "line_staff":     frozenset({"echo"}),   # 将来: basic + staff_ops のみ(厳密)
 }
 

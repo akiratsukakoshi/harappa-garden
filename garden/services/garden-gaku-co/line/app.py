@@ -22,9 +22,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import importlib.util
 import json
 import logging
 import os
+import re
 import secrets
 from pathlib import Path
 
@@ -189,6 +191,12 @@ def _handle_text_sync(group_id: str, sender_id: str, text: str, direct: bool = F
 
     direct=True(1:1 テスト)では gate を素通り(全メッセージが bot 宛のため)。
     """
+    deterministic = _handle_deterministic_tool(text)
+    if deterministic:
+        context.record(group_id, sender_id, text)
+        context.record(group_id, context.BOT_NAME, deterministic)
+        return deterministic
+
     provider = get_provider()
     context.record(group_id, sender_id, text)
     history = context.history_text(group_id)
@@ -227,6 +235,43 @@ def _handle_text_sync(group_id: str, sender_id: str, text: str, direct: bool = F
         except Exception as e:  # noqa: BLE001
             logger.warning("memory_logger.append_turn failed: %s", e)
     return reply
+
+
+def _handle_deterministic_tool(text: str) -> str | None:
+    """LLMに任せると落ちると困る短い確定コマンドを決定的に処理する。
+
+    MVP対象: 「A案で運営会議を確定」「Bで確定、zoom発行」等。
+    """
+    # 確定は「会議名 + 候補 + 確定/決定」を基本形にする。
+    # 「Aで確定」だけの省略形も、open meeting が1件だけなら processor 側で解決する。
+    if "確定" not in text and "決定" not in text:
+        return None
+    has_meeting_name = "運営会議" in text
+    m = re.search(r"\b([A-F])\b|([A-F])案", text, re.I)
+    if not m:
+        return None
+    if not has_meeting_name and not re.search(r"\b[A-F]\s*で\s*(確定|決定)", text, re.I):
+        return None
+    candidate_id = (m.group(1) or m.group(2)).upper()
+    try:
+        mc = _load_meeting_coordinator()
+        return mc.confirm_meeting(None, candidate_id, meeting_type="operations_monthly")
+    except Exception as e:  # noqa: BLE001
+        logger.error("deterministic meeting confirm failed: %s", e, exc_info=True)
+        return f"会議確定に失敗しました({type(e).__name__}: {e})"
+
+
+def _load_meeting_coordinator():
+    mc_dir = os.environ.get(
+        "MEETING_COORDINATOR_DIR", "/home/vps-harappa/garden/services/meeting-coordinator"
+    )
+    module_path = os.path.join(mc_dir, "processor.py")
+    spec = importlib.util.spec_from_file_location("meeting_coordinator_processor_line", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load meeting coordinator from {module_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 @app.post("/webhook")
