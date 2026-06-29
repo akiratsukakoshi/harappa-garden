@@ -165,6 +165,39 @@ def _request_meeting_coordination(args: dict[str, Any]) -> str:
 
 
 @register(
+    "schedule_fixed_meeting",
+    "固定済み日時のスポット会議を作成し、Zoom URL発行、Google Calendar登録、LINE確定通知を行う。"
+    "ユーザーが「7/2 8-9時でAとBのミーティングを設定」「Zoomも発行」など、"
+    "候補調整ではなく日時を指定して作成依頼した時に使う。",
+    {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "会議タイトル"},
+            "participants": {"type": "string", "description": "参加者名。例: ガクチョ,ゆーじさん"},
+            "date": {"type": "string", "description": "日付。YYYY-MM-DD / M/D / M月D日"},
+            "start_time": {"type": "string", "description": "開始時刻。例: 08:00"},
+            "end_time": {"type": "string", "description": "終了時刻。例: 09:00"},
+            "proposer": {"type": "string", "description": "発議者 slug。通常は akira-tsukakoshi"},
+        },
+        "required": ["title", "participants", "date", "start_time", "end_time"],
+    },
+)
+def _schedule_fixed_meeting(args: dict[str, Any]) -> str:
+    try:
+        mc = _meeting_coordinator()
+        return mc.create_and_confirm_fixed_meeting(
+            title=str(args["title"]),
+            participants=str(args["participants"]),
+            date=str(args["date"]),
+            start_time=str(args["start_time"]),
+            end_time=str(args["end_time"]),
+            proposer=str(args.get("proposer") or "akira-tsukakoshi"),
+        )
+    except Exception as e:
+        return f"固定日時の会議作成に失敗しました({type(e).__name__}: {e})"
+
+
+@register(
     "record_meeting_availability",
     "会議調整中の参加者返信を記録する。例: AとCならOK、6日午前は不可。",
     {

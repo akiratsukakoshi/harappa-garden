@@ -32,7 +32,7 @@ DEFAULT_PARTICIPANTS = {
     "akira-tsukakoshi": {
         "name": "ガクチョ",
         "email": "tukapontas@gmail.com",
-        "aliases": ["ガクチョ", "ガクチョー", "塚越", "塚越さん"],
+        "aliases": ["ガクチョ", "ガクチョー", "がくちょ", "がくちょー", "塚越", "塚越さん"],
     },
     "shotaro-shimura": {
         "name": "少佐",
@@ -42,7 +42,10 @@ DEFAULT_PARTICIPANTS = {
     "yuji-wada": {
         "name": "ゆーじさん",
         "email": "yujiwada0920@gmail.com",
-        "aliases": ["ゆーじさん", "ユージさん", "ゆーじ", "和田", "和田さん"],
+        "aliases": [
+            "ゆーじさん", "ユージさん", "ゆーじ", "ユージ", "ゆうじ", "ゆうじさん",
+            "Yuji", "Yuji WADA", "和田", "和田さん", "和田祐司",
+        ],
     },
     "kei-suzuki": {
         "name": "慶ちゃん",
@@ -103,7 +106,11 @@ def _parse_month(value: str | None, *, base: dt.date | None = None) -> tuple[int
 
 
 def _participant_registry() -> dict[str, dict[str, Any]]:
-    """soil が読める環境では email/nickname を補完。失敗時は既定値だけ使う。"""
+    """soil が読める環境では staff 全体を名前解決辞書として使う。
+
+    DEFAULT_PARTICIPANTS は core team の表示名・fallback email を持つ初期値。
+    soil が読める場合は、全 staff の H1 / nicknames / line_display_name / email を alias として足す。
+    """
     reg = json.loads(json.dumps(DEFAULT_PARTICIPANTS))
     soil_dir = Path(os.environ.get(
         "SOIL_STAFF_DIR",
@@ -123,21 +130,52 @@ def _participant_registry() -> dict[str, dict[str, Any]]:
             continue
         fm = parts[1]
         slug = path.stem
-        if slug not in reg:
-            continue
+        reg.setdefault(slug, {"name": slug, "email": "", "aliases": []})
+        aliases = set(reg[slug].get("aliases", []))
+        aliases.add(slug)
+
+        h1 = re.search(r"^#\s+(.+?)\s*$", text, re.M)
+        if h1:
+            title = h1.group(1).strip()
+            aliases.add(title)
+            aliases.add(re.sub(r"\s+", "", title))
+            title_main = re.sub(r"[（(].*?[）)]", "", title).strip()
+            if title_main:
+                aliases.add(title_main)
+                aliases.add(re.sub(r"\s+", "", title_main))
+                if reg[slug]["name"] == slug:
+                    reg[slug]["name"] = title_main
+            for inner in re.findall(r"[（(](.*?)[）)]", title):
+                if inner.strip():
+                    aliases.add(inner.strip())
+
         emails = re.findall(r"^\s*-\s*([^@\s]+@[^@\s]+)\s*$", fm, re.M)
         if emails:
             reg[slug]["email"] = emails[0]
+        line_display = re.search(r"^line_display_name:\s*(.*?)\s*(?:#.*)?$", fm, re.M)
+        if line_display:
+            value = line_display.group(1).strip().strip('"').strip("'")
+            if value:
+                aliases.add(value)
+                aliases.add(re.sub(r"\s+", "", value))
+                for inner in re.findall(r"[（(](.*?)[）)]", value):
+                    if inner.strip():
+                        aliases.add(inner.strip())
         nick_block = re.search(r"nicknames:\n((?:\s*-\s*.+\n)+)", fm)
         if nick_block:
-            aliases = [n.strip() for n in re.findall(r"-\s*(.+)", nick_block.group(1))]
-            reg[slug]["aliases"] = sorted(set(reg[slug]["aliases"] + aliases))
+            for nickname in re.findall(r"-\s*(.+)", nick_block.group(1)):
+                value = nickname.split("#", 1)[0].strip().strip('"').strip("'")
+                if value:
+                    aliases.add(value)
+                    aliases.add(re.sub(r"\s+", "", value))
+        aliases.discard("")
+        reg[slug]["aliases"] = sorted(aliases)
     return reg
 
 
 def resolve_participants(value: str | list[str]) -> list[str]:
     if isinstance(value, str):
-        raw_names = [p.strip() for p in re.split(r"[,、\s]+", value) if p.strip()]
+        raw_names = [p.strip() for p in re.split(r"[,、]+", value) if p.strip()]
     else:
         raw_names = [str(p).strip() for p in value if str(p).strip()]
     reg = _participant_registry()
@@ -153,6 +191,50 @@ def resolve_participants(value: str | list[str]) -> list[str]:
         if hit not in resolved:
             resolved.append(hit)
     return resolved
+
+
+def extract_participants_from_text(text: str) -> list[str]:
+    """自然文から staff soil の alias に一致する参加者 slug を抽出する。"""
+    reg = _participant_registry()
+    hits: list[tuple[int, int, str]] = []
+    compact_text = re.sub(r"\s+", "", text)
+    for slug, info in reg.items():
+        names = set(info.get("aliases", [])) | {slug, info.get("name", "")}
+        for name in sorted((n for n in names if n), key=len, reverse=True):
+            patterns = {name, re.sub(r"\s+", "", name)}
+            for pattern in patterns:
+                if not pattern:
+                    continue
+                target = compact_text if pattern == re.sub(r"\s+", "", pattern) else text
+                pos = target.find(pattern)
+                if pos >= 0:
+                    hits.append((pos, len(pattern), slug))
+                    break
+            if hits and hits[-1][2] == slug:
+                break
+    resolved: list[str] = []
+    for _, _, slug in sorted(hits, key=lambda x: (x[0], -x[1])):
+        if slug not in resolved:
+            resolved.append(slug)
+    return resolved
+
+
+def infer_date(text: str, *, base: dt.date | None = None) -> dt.date:
+    """YYYY-MM-DD / M/D / M月D日 を JST 基準で解決する。年省略は次に来る日付。"""
+    base = base or today_jst()
+    value = text.strip()
+    m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", value)
+    if m:
+        return dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    m = re.fullmatch(r"(\d{1,2})[/-](\d{1,2})|(\d{1,2})月(\d{1,2})日?", value)
+    if not m:
+        raise ValueError("日付は YYYY-MM-DD / M/D / M月D日 のいずれかで指定してください")
+    month = int(m.group(1) or m.group(3))
+    day = int(m.group(2) or m.group(4))
+    inferred = dt.date(base.year, month, day)
+    if inferred < base:
+        inferred = dt.date(base.year + 1, month, day)
+    return inferred
 
 
 def _calendar_module():
@@ -393,6 +475,99 @@ def create_custom_meeting(
     return meeting
 
 
+def create_fixed_meeting(
+    *,
+    title: str,
+    meeting_type: str,
+    participants: list[str],
+    start: dt.datetime,
+    end: dt.datetime | None = None,
+    duration_min: int | None = None,
+    proposer: str,
+    confirmer: str,
+    related_workflows: list[str],
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """固定済み日時の会議stateを作る。候補は A 1件のみ。"""
+    if end is None:
+        if duration_min is None:
+            raise ValueError("end か duration_min のどちらかが必要です")
+        end = start + dt.timedelta(minutes=duration_min)
+    duration = int((end - start).total_seconds() // 60)
+    if duration <= 0:
+        raise ValueError("終了時刻は開始時刻より後にしてください")
+    meeting = {
+        "id": _meeting_id(meeting_type, title),
+        "status": "open",
+        "title": title,
+        "meeting_type": meeting_type,
+        "year_month": start.strftime("%Y-%m"),
+        "duration_min": duration,
+        "participants": participants,
+        "proposer": proposer,
+        "confirmer": confirmer,
+        "related_workflows": related_workflows,
+        "candidates": [{
+            "id": "A",
+            "start": start.astimezone(JST).isoformat(),
+            "end": end.astimezone(JST).isoformat(),
+            "label": "固定",
+        }],
+        "availability": [],
+        "created_at": _now_iso(),
+        "updated_at": _now_iso(),
+        "note": "fixed datetime",
+    }
+    if not dry_run:
+        state = _load_state()
+        state.setdefault("meetings", {})[meeting["id"]] = meeting
+        _save_state(state)
+    return meeting
+
+
+def create_and_confirm_fixed_meeting(
+    *,
+    title: str,
+    participants: list[str] | str,
+    date: str,
+    start_time: str,
+    end_time: str | None = None,
+    duration_min: int | None = None,
+    proposer: str = "akira-tsukakoshi",
+    confirmer: str | None = None,
+    meeting_type: str = "spot",
+    related_workflows: list[str] | None = None,
+    dry_run: bool = False,
+) -> str:
+    slugs = resolve_participants(participants)
+    day = infer_date(date)
+    start_parts = [int(p) for p in start_time.replace("時", ":").replace("分", "").split(":") if p != ""]
+    if len(start_parts) == 1:
+        start_parts.append(0)
+    start = dt.datetime.combine(day, dt.time(start_parts[0], start_parts[1]), tzinfo=JST)
+    end = None
+    if end_time:
+        end_parts = [int(p) for p in end_time.replace("時", ":").replace("分", "").split(":") if p != ""]
+        if len(end_parts) == 1:
+            end_parts.append(0)
+        end = dt.datetime.combine(day, dt.time(end_parts[0], end_parts[1]), tzinfo=JST)
+    meeting = create_fixed_meeting(
+        title=title,
+        meeting_type=meeting_type,
+        participants=slugs,
+        start=start,
+        end=end,
+        duration_min=duration_min,
+        proposer=proposer,
+        confirmer=confirmer or proposer,
+        related_workflows=related_workflows or [],
+        dry_run=dry_run,
+    )
+    if dry_run:
+        return render_request(meeting)
+    return confirm_meeting(meeting["id"], "A")
+
+
 def render_request(meeting: dict[str, Any]) -> str:
     lines = [
         f"📅 {meeting['title']} の日程調整です",
@@ -602,6 +777,8 @@ def confirm_meeting(meeting_id: str | None, candidate_id: str, *, dry_run: bool 
         zoom = {"id": "dry-run", "join_url": "https://zoom.us/j/dry-run"}
         cal = {"id": "dry-run", "htmlLink": "https://calendar.google.com/dry-run"}
     else:
+        # Calendar 依存や認証が壊れている場合、Zoom だけ孤立作成しないよう先に検査する。
+        _calendar_service()
         zoom = _create_zoom_meeting(meeting["title"], start, int(meeting["duration_min"]))
         cal = _create_calendar_event(meeting, candidate, zoom["join_url"])
         meeting["status"] = "confirmed"
@@ -710,6 +887,23 @@ def cmd_custom(args) -> int:
     return 0
 
 
+def cmd_fixed(args) -> int:
+    print(create_and_confirm_fixed_meeting(
+        title=args.title,
+        participants=args.participants,
+        date=args.date,
+        start_time=args.start_time,
+        end_time=args.end_time,
+        duration_min=int(args.duration) if args.duration else None,
+        proposer=args.proposer,
+        confirmer=args.confirmer,
+        meeting_type=args.meeting_type,
+        related_workflows=args.workflow or [],
+        dry_run=args.dry_run,
+    ))
+    return 0
+
+
 def cmd_availability(args) -> int:
     entry = add_availability(args.meeting_id, args.participant, args.text)
     print(f"recorded: {entry['participant']} / {entry['text']}")
@@ -765,6 +959,20 @@ def main(argv=None) -> int:
     cu.add_argument("--dry-run", action="store_true")
     cu.add_argument("--no-push", action="store_true", help="state保存のみでLINEへ送らない")
     cu.set_defaults(fn=cmd_custom)
+
+    fx = sub.add_parser("fixed", help="固定日時の会議を即時作成し Zoom + Calendar + LINE 通知")
+    fx.add_argument("--title", required=True)
+    fx.add_argument("--participants", required=True, help="参加者名をカンマ区切りで指定")
+    fx.add_argument("--date", required=True, help="YYYY-MM-DD / M/D / M月D日")
+    fx.add_argument("--start-time", required=True, help="HH:MM / H時")
+    fx.add_argument("--end-time", help="HH:MM / H時")
+    fx.add_argument("--duration", help="会議時間(分)。end-time 省略時に使う")
+    fx.add_argument("--meeting-type", default="spot")
+    fx.add_argument("--workflow", action="append", help="related_workflows。複数指定可")
+    fx.add_argument("--proposer", default="akira-tsukakoshi")
+    fx.add_argument("--confirmer")
+    fx.add_argument("--dry-run", action="store_true")
+    fx.set_defaults(fn=cmd_fixed)
 
     av = sub.add_parser("availability", help="参加者返信を記録")
     av.add_argument("--meeting-id", required=True)

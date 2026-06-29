@@ -64,6 +64,7 @@ def generate_response(
 
     specs = registry.specs_for(capabilities.tools_for(scope)) if offer_tools else []
 
+    last_tool_result = ""
     for _ in range(MAX_TOOL_ITERATIONS):
         try:
             resp = provider.chat(
@@ -102,7 +103,9 @@ def generate_response(
                 except Exception as e:  # noqa: BLE001
                     logger.error("tool %s failed: %s", tc.name, e)
                     result = f"(ツール実行エラー: {e})"
+            last_tool_result = result
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
     logger.warning("tool-use ループが上限 %d 回に達した", MAX_TOOL_ITERATIONS)
-    return None
+    detail = f" 最後の結果: {last_tool_result[:300]}" if last_tool_result else ""
+    return f"⚠️ 処理が完了しませんでした。tool-use の確認回数が上限に達しました。{detail}"

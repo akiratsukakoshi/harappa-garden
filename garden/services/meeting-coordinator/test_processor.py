@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import unittest
+import datetime as dt
 from pathlib import Path
 
 
@@ -22,6 +23,29 @@ class MeetingCoordinatorTest(unittest.TestCase):
             "shotaro-shimura",
             "yuji-wada",
         ])
+
+    def test_resolve_inbound_alias_variants(self):
+        self.assertEqual(processor.resolve_participants("がくちょー,ゆうじ"), [
+            "akira-tsukakoshi",
+            "yuji-wada",
+        ])
+        self.assertEqual(processor.resolve_participants("Yuji WADA"), ["yuji-wada"])
+
+    def test_extract_participants_from_staff_soil_aliases(self):
+        text = "7/2 8-9時でがくちょーとゆうじのミーティングを設定"
+        self.assertEqual(processor.extract_participants_from_text(text), [
+            "akira-tsukakoshi",
+            "yuji-wada",
+        ])
+        self.assertIn(
+            "kei-suzuki",
+            processor.extract_participants_from_text("けーちゃん(鈴木 慶)も参加です"),
+        )
+
+    def test_infer_date_without_year_uses_next_date(self):
+        base = dt.date(2026, 6, 29)
+        self.assertEqual(processor.infer_date("7/2", base=base), dt.date(2026, 7, 2))
+        self.assertEqual(processor.infer_date("6/1", base=base), dt.date(2027, 6, 1))
 
     def test_find_candidates_prefers_morning_then_afternoon(self):
         old_busy = processor._busy_events
@@ -57,6 +81,29 @@ class MeetingCoordinatorTest(unittest.TestCase):
             finally:
                 processor.STATE_PATH = old_state
                 processor._busy_events = old_busy
+
+    def test_create_fixed_meeting_dry_run_has_single_candidate(self):
+        with tempfile.TemporaryDirectory() as td:
+            old_state = processor.STATE_PATH
+            try:
+                processor.STATE_PATH = Path(td) / "meetings.json"
+                meeting = processor.create_fixed_meeting(
+                    title="固定会議",
+                    meeting_type="spot",
+                    participants=["akira-tsukakoshi", "yuji-wada"],
+                    start=dt.datetime(2026, 7, 2, 8, 0, tzinfo=processor.JST),
+                    end=dt.datetime(2026, 7, 2, 9, 0, tzinfo=processor.JST),
+                    proposer="akira-tsukakoshi",
+                    confirmer="akira-tsukakoshi",
+                    related_workflows=[],
+                    dry_run=True,
+                )
+                self.assertEqual(meeting["duration_min"], 60)
+                self.assertEqual(meeting["candidates"][0]["id"], "A")
+                self.assertEqual(meeting["candidates"][0]["label"], "固定")
+                self.assertFalse(processor.STATE_PATH.exists())
+            finally:
+                processor.STATE_PATH = old_state
 
     def test_add_availability_writes_state(self):
         with tempfile.TemporaryDirectory() as td:

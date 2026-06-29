@@ -2,7 +2,7 @@
 type: seed
 name: saturday-image-select
 plot: sns_manager
-description: 毎週土曜朝、ガクチョが金曜までに Google Drive に置いた候補画像から翌週の火(B)・土(A/C)用 2 枚を Garden が意図を汲んで選定し、board 剪定依頼にする種。ガクチョが日曜夜までに編集・一言コメント追記・承認。
+description: 毎週土曜朝、ガクチョが金曜までに Google Drive に置いた候補画像から翌週の火(B)・土(A/C)用 2 枚を Garden が意図を汲んで選定し、board 剪定依頼にする種。ガクチョが日曜夜までに Discord で一言コメント・差し替え・承認を伝える。
 status: draft
 phase: 3a
 execution_host: vps
@@ -86,18 +86,18 @@ execute:
         created: {today}T09:00:00+09:00
         ---
       - 本文に各投稿の「画像ファイル名 / 簡易な描写(何が写っているか)/ 選定理由(なぜこの目的に合うか)」
-      - ⭐ ガクチョが各画像に**一言コメント**を書き込む欄を必ず設ける(月曜の文案の起点):
+      - ⭐ ガクチョが Discord で返す**一言コメント**をガクコが反映する欄を必ず設ける(月曜の文案の起点):
         例)
         ## 火 {next_tuesday}(B: 既存共感)
         - 画像: xxxx.jpg
         - 描写: (Garden の描写)
         - 選定理由: (Garden の理由)
-        - 🖊 一言コメント(ガクチョ記入):
+        - 🖊 一言コメント(Discord でガクコに伝える):
 
     Step 4 庭師通知: log に `==NOTIFY==` で append:
       「📸 来週({next_monday}週)の SNS 画像を 2 枚セレクトしました(火=B / 土={saturday_purpose})。
         → board/pending/{today}-sns-select.md
-        画像の差し替え・一言コメントの記入をして「承認」してください(日曜夜まで)。
+        画像の差し替え・一言コメントを Discord で伝えて「承認」してください(日曜夜まで)。
         月曜朝に承認内容から文案を作ります。」
 
     失敗時: on_failure に従い log + fallback 通知。
@@ -118,14 +118,14 @@ pruning:
     group: master
     template: |
       📸 来週の SNS 画像 2 枚をセレクト → board/pending/{today}-sns-select.md
-      差し替え・一言コメント記入して「承認」を
+      Discord で差し替え・一言コメントを伝えて「承認」を
 
 # === ⑤ 承認後の振る舞い ===
 post_approval:
   via: gaku-co
   endpoint: discord_direct         # 月曜の monday-caption-draft 種が承認済 board を読んで文案化
   note: |
-    承認は Discord master でガクチョが board を編集(画像差し替え・一言コメント追記)→ status: approved。
+    承認は Discord master でガクチョが一言コメント・差し替え・承認を伝える → ガクコが board に反映 → status: approved。
     月曜 07:30 の monday-caption-draft が approved board を読み、一言コメントを起点に文案を作る。
 
 # === ⑥ べき等性 ===
@@ -163,11 +163,11 @@ audit:
 
 ## 目的(不変)
 
-ガクチョの作業を「画像を Drive に置く(金)」と「文案を構成する(月)」に分け、その間の**画像セレクト(複数候補から SNS の意図を汲んで火・土用 2 枚を選ぶ)を Garden が肩代わり**する。選定は必ず board でガクチョの剪定(差し替え・一言コメント・承認)を通す。
+ガクチョの作業を「画像を Drive に置く(金)」と「文案を構成する(月)」に分け、その間の**画像セレクト(複数候補から SNS の意図を汲んで火・土用 2 枚を選ぶ)を Garden が肩代わり**する。選定は必ず board を見ながら Discord でガクチョの剪定(差し替え・一言コメント・承認)を通す。
 
 ## 現状の方法
 
-frontmatter 参照。要約: 土 09:00 発火 → `fetch-images` で Drive 候補を DL → Claude が画像を Read して火(B)・土(A/C 交互)用に 2 枚選定 → board 起草(描写・理由・一言コメント欄)→ Discord 通知 → ガクチョが日曜夜まで編集・承認。
+frontmatter 参照。要約: 土 09:00 発火 → `fetch-images` で Drive 候補を DL → Claude が画像を Read して火(B)・土(A/C 交互)用に 2 枚選定 → board 起草(描写・理由・一言コメント欄)→ Discord 通知 → ガクチョが日曜夜まで Discord でコメント・差し替え・承認。
 
 ## 関連
 

@@ -36,6 +36,7 @@ const LOCK_DIR = process.env.GARDEN_LOCK_DIR || '/tmp';
 const CLAUDE_BIN = process.env.CLAUDE_BIN || `${process.env.HOME}/.npm-global/bin/claude`;
 const CODEX_BIN = process.env.CODEX_BIN || 'codex';
 const CLAUDE_TIMEOUT_MS = parseInt(process.env.CLAUDE_TIMEOUT_MS || '600000', 10); // 10 分
+const DISCORD_ENV_FILE = process.env.GARDEN_DISCORD_ENV || '/home/vps-harappa/garden/services/garden-gaku-co/.env';
 
 // ---- cron secrets の読み込み(S59: claude -p 認証トークン)----
 // cron は最小 env で起動するため、`claude -p` の認証情報(CLAUDE_CODE_OAUTH_TOKEN)を
@@ -370,6 +371,90 @@ function appendLog(logPath, msg) {
   fs.appendFileSync(logPath, msg);
 }
 
+function loadDiscordEnv() {
+  try {
+    for (const line of fs.readFileSync(DISCORD_ENV_FILE, 'utf8').split('\n')) {
+      const m = /^\s*(?:export\s+)?(DISCORD_[A-Z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+  } catch {
+    // Discord 通知は補助経路。不在ならログだけに留める。
+  }
+}
+
+function splitDiscordChunks(text, limit = 1900) {
+  const chunks = [];
+  for (let i = 0; i < text.length; i += limit) chunks.push(text.slice(i, i + limit));
+  return chunks;
+}
+
+function notifyMaster(content) {
+  loadDiscordEnv();
+  const token = process.env.DISCORD_BOT_TOKEN;
+  const channel = process.env.DISCORD_MASTER_CHANNEL_ID;
+  const text = String(content || '').trim();
+  if (!token || !channel || !text) return { ok: false, reason: 'missing token/channel/content' };
+  for (const chunk of splitDiscordChunks(text)) {
+    const payload = JSON.stringify({ content: chunk });
+    const script = `
+const https = require('node:https');
+const token = process.env.DISCORD_BOT_TOKEN;
+const channel = process.env.DISCORD_MASTER_CHANNEL_ID;
+const req = https.request({
+  hostname: 'discord.com',
+  path: '/api/v10/channels/' + channel + '/messages',
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bot ' + token,
+    'Content-Type': 'application/json',
+    'User-Agent': 'garden-launcher (https://github.com/akiratsukakoshi/harappa-garden, 0.1)'
+  }
+}, (res) => {
+  res.resume();
+  res.on('end', () => process.exit(res.statusCode >= 200 && res.statusCode < 300 ? 0 : 1));
+});
+req.on('error', () => process.exit(1));
+req.end(${JSON.stringify(payload)});
+`;
+    const ret = spawnSync(process.execPath, ['-'], {
+      input: script,
+      encoding: 'utf8',
+      timeout: 20000,
+      env: { ...process.env },
+    });
+    if (ret.status !== 0) return { ok: false, reason: `discord http failed status=${ret.status}` };
+  }
+  return { ok: true };
+}
+
+function shouldDispatchNotify(seed) {
+  return seed.pruning?.notify?.group === 'master';
+}
+
+function extractNotifyBlocks(stdout) {
+  const text = String(stdout || '');
+  const blocks = [];
+  const re = /(?:^|\n)==NOTIFY==\s*\n([\s\S]*?)(?=\n==END==|\n---- end ----|\n---- stderr ----|$)/g;
+  for (const m of text.matchAll(re)) {
+    const body = m[1].trim();
+    if (body) blocks.push(body);
+  }
+  return blocks;
+}
+
+function dispatchNotifyBlocks(seed, stdout, logPath) {
+  if (!shouldDispatchNotify(seed)) return;
+  const blocks = extractNotifyBlocks(stdout);
+  if (!blocks.length) return;
+  for (const block of blocks) {
+    const result = notifyMaster(block);
+    appendLog(
+      logPath,
+      `\n[notify] Discord master ${result.ok ? 'sent' : `skipped/failed: ${result.reason}`}\n`
+    );
+  }
+}
+
 // ---- AgentRunSpec 正規化 ----
 // seed frontmatter の provider/CLI 固有になりがちな指定を、runner 入力の中立形へ寄せる。
 // 既存 seed 互換のため frontmatter 名は当面 `execute.mcp.permission_mode` 等を受けるが、
@@ -646,6 +731,7 @@ function main() {
     });
 
     appendLog(logPath, ret.stdout || '');
+    dispatchNotifyBlocks(seed, ret.stdout || '', logPath);
     if (ret.stderr) {
       appendLog(logPath, `\n---- stderr ----\n${ret.stderr}`);
     }

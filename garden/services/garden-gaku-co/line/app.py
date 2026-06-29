@@ -242,6 +242,10 @@ def _handle_deterministic_tool(text: str) -> str | None:
 
     MVP対象: 「A案で運営会議を確定」「Bで確定、zoom発行」等。
     """
+    fixed_reply = _handle_fixed_meeting_request(text)
+    if fixed_reply:
+        return fixed_reply
+
     # 確定は「会議名 + 候補 + 確定/決定」を基本形にする。
     # 「Aで確定」だけの省略形も、open meeting が1件だけなら processor 側で解決する。
     if "確定" not in text and "決定" not in text:
@@ -259,6 +263,82 @@ def _handle_deterministic_tool(text: str) -> str | None:
     except Exception as e:  # noqa: BLE001
         logger.error("deterministic meeting confirm failed: %s", e, exc_info=True)
         return f"会議確定に失敗しました({type(e).__name__}: {e})"
+
+
+def _handle_fixed_meeting_request(text: str) -> str | None:
+    """固定日時のスポット会議作成依頼を決定的に処理する。
+
+    例: 「7/2 8-9時でガクチョとゆうじのミーティングを設定。zoomも」
+    """
+    lowered = text.lower()
+    if not any(word in lowered for word in ("zoom", "ミーティング", "会議", "mtg")):
+        return None
+    if not any(word in text for word in ("設定", "作成", "入れて", "登録", "発行")):
+        return None
+    date_match = re.search(r"(\d{1,2})[/-](\d{1,2})|(\d{1,2})月(\d{1,2})日?", text)
+    time_match = re.search(r"(\d{1,2})(?::(\d{2}))?\s*[-〜~－ー]\s*(\d{1,2})(?::(\d{2}))?\s*時?", text)
+    if not date_match or not time_match:
+        return None
+    date_text = date_match.group(0)
+    sh = int(time_match.group(1))
+    sm = int(time_match.group(2) or 0)
+    eh = int(time_match.group(3))
+    em = int(time_match.group(4) or 0)
+    if sh < 8 and eh <= 12 and "午後" in text:
+        sh += 12
+        eh += 12
+    mc = _load_meeting_coordinator()
+    participants = mc.extract_participants_from_text(text)
+    if not participants:
+        participants = _extract_meeting_participants(text)
+    if len(participants) < 2:
+        return None
+    title = _extract_meeting_title(text, participants)
+    try:
+        return mc.create_and_confirm_fixed_meeting(
+            title=title,
+            participants=",".join(participants),
+            date=date_text,
+            start_time=f"{sh:02d}:{sm:02d}",
+            end_time=f"{eh:02d}:{em:02d}",
+            proposer="akira-tsukakoshi",
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("deterministic fixed meeting failed: %s", e, exc_info=True)
+        return f"会議作成に失敗しました({type(e).__name__}: {e})"
+
+
+def _extract_meeting_participants(text: str) -> list[str]:
+    aliases = {
+        "akira-tsukakoshi": ["ガクチョ", "ガクチョー", "がくちょ", "がくちょー", "塚越", "塚越さん"],
+        "shotaro-shimura": ["少佐", "正太郎さん", "志村", "志村さん"],
+        "yuji-wada": ["ゆーじさん", "ユージさん", "ゆーじ", "ユージ", "ゆうじ", "ゆうじさん", "Yuji WADA", "Yuji", "和田祐司", "和田さん", "和田"],
+        "kei-suzuki": ["慶ちゃん", "けいちゃん", "けーちゃん", "鈴木慶", "鈴木さん"],
+    }
+    found: list[str] = []
+    for slug, names in aliases.items():
+        if any(name in text for name in names):
+            found.append(slug)
+    return found
+
+
+def _extract_meeting_title(text: str, participants: list[str]) -> str:
+    # 「Xのミーティング」があれば X を優先。人名だけなら汎用タイトルにする。
+    m = re.search(r"([^。\n]+?)の(?:ミーティング|会議|MTG|mtg)", text)
+    if m:
+        raw = m.group(1)
+        raw = re.sub(r".*?で", "", raw)
+        raw = re.sub(r"(ガクチョー?|がくちょー?|ゆーじ(?:さん)?|ゆうじ(?:さん)?|ユージ(?:さん)?|和田(?:さん)?|少佐|正太郎さん|慶ちゃん|けーちゃん|鈴木(?:さん)?)(と|、|,|・)?", "", raw)
+        title = raw.strip(" と、,・")
+        if title:
+            return title
+    names = {
+        "akira-tsukakoshi": "ガクチョ",
+        "shotaro-shimura": "少佐",
+        "yuji-wada": "ゆーじさん",
+        "kei-suzuki": "慶ちゃん",
+    }
+    return "・".join(names.get(p, p) for p in participants) + " ミーティング"
 
 
 def _load_meeting_coordinator():
