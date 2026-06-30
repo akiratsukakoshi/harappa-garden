@@ -646,7 +646,7 @@ def run_claude(prompt: str, extra_args=None) -> str:
     except UnsupportedEngineError as exc:
         print(f"[bot] unsupported engine: {exc}", flush=True)
         return unsupported_engine_message(exc)
-    # S38: 経費の extract(Gemini OCR + 分類)が走ると 1 turn が長くなるため 300s に拡大。
+    # S38: 経費/請求の処理(Gmail fetch + Gemini OCR/PDF解析 + Sheets書込)は 5 分を超える。
     # 通常会話はすぐ返るので実害なし。gateway は asyncio.to_thread 経由なので他メッセージは生きる。
     res = runner.run(
         prompt,
@@ -655,11 +655,19 @@ def run_claude(prompt: str, extra_args=None) -> str:
         disallowed_tools=["Glob", "Grep", "WebFetch", "WebSearch", "NotebookEdit", "TodoWrite", "Task"],
         strict_mcp=True,
         cwd=HERE,
-        timeout=300,
+        timeout=600,
         extra_args=extra_args,
     )
     if res.error == "timeout":
         return "(考えるのに時間がかかりすぎました。もう一度送ってください)"
+    if res.error == "auth":
+        return (
+            "⚠️ Claude の認証トークンが切れています。\n"
+            "VPS で再認証が必要です:\n"
+            "```\nssh harappa\n"
+            "/home/vps-harappa/.npm-global/bin/claude login\n```\n"
+            "→ `/login` → ブラウザで認証 → bot 再起動"
+        )
     if not res.ok:
         return f"(内部エラー: claude rc={res.returncode})"
     return res.text or "(返答が空でした)"

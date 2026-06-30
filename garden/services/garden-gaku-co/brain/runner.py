@@ -196,18 +196,10 @@ class ClaudeSubprocessRunner(AgentRunner):
         )
         return self.run_spec(spec)
 
-    def run_spec(self, spec: AgentRunSpec) -> AgentResult:
-        cmd = self.build_cmd(
-            spec.prompt,
-            system=spec.system,
-            model=spec.model,
-            disallowed_tools=spec.tool_policy.deny,
-            strict_mcp=spec.mcp.strict,
-            extra_args=spec.extra_args,
-        )
+    def _exec(self, cmd: list[str], timeout: int, cwd: str | None) -> AgentResult:
         try:
             proc = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=spec.timeout, cwd=spec.cwd
+                cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd
             )
         except subprocess.TimeoutExpired:
             return AgentResult(ok=False, error="timeout")
@@ -217,7 +209,51 @@ class ClaudeSubprocessRunner(AgentRunner):
                 returncode=proc.returncode,
                 error=(proc.stderr or "").strip(),
             )
-        return AgentResult(ok=True, text=(proc.stdout or "").strip(), returncode=0)
+        text = (proc.stdout or "").strip()
+        if _is_auth_error(text):
+            return AgentResult(ok=False, error="auth", text=text)
+        return AgentResult(ok=True, text=text, returncode=0)
+
+    def _try_refresh(self) -> bool:
+        """短いプロンプトで CLI を叩き、内部のトークンリフレッシュを促す。"""
+        try:
+            proc = subprocess.run(
+                [self.bin, "-p", "respond with only the word ok", "--model", "haiku"],
+                capture_output=True, text=True, timeout=30,
+            )
+            text = (proc.stdout or "").strip()
+            return proc.returncode == 0 and not _is_auth_error(text)
+        except Exception:
+            return False
+
+    def run_spec(self, spec: AgentRunSpec) -> AgentResult:
+        cmd = self.build_cmd(
+            spec.prompt,
+            system=spec.system,
+            model=spec.model,
+            disallowed_tools=spec.tool_policy.deny,
+            strict_mcp=spec.mcp.strict,
+            extra_args=spec.extra_args,
+        )
+        result = self._exec(cmd, spec.timeout, spec.cwd)
+        if result.error == "auth" and self._try_refresh():
+            result = self._exec(cmd, spec.timeout, spec.cwd)
+        return result
+
+
+_AUTH_ERROR_MARKERS = (
+    "Failed to authenticate",
+    "Invalid authentication credentials",
+    "401",
+)
+
+
+def _is_auth_error(text: str) -> bool:
+    """Claude CLI の stdout が認証エラーかどうかを判定する。"""
+    if not text:
+        return False
+    first_line = text.split("\n", 1)[0]
+    return any(m in first_line for m in _AUTH_ERROR_MARKERS)
 
 
 class CodexSubprocessRunner(AgentRunner):

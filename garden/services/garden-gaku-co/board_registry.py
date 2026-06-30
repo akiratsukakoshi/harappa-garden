@@ -41,6 +41,9 @@ REGISTRY = {
     "invoice_processor/monthly-invoice-draft": {
         "kind": "🧾 請求ドラフト", "title": "{target_month} の請求登録",
         "approval": CONVERSATIONAL, "dispatcher": None},
+    "invoice_processor (手動)": {
+        "kind": "🧾 請求ドラフト", "title": "{target_month} の請求登録(手動)",
+        "approval": CONVERSATIONAL, "dispatcher": None},
     "client_steward/weekly-client-sweep": {
         "kind": "👥 クライアント差分", "title": "クライアント Gmail 差分の要フォロー",
         "approval": FYI, "dispatcher": None},
