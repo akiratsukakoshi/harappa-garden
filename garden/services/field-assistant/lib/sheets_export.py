@@ -19,7 +19,10 @@ from . import stores_lib
 _DEFAULT_SA = "/home/vps-harappa/garden/services/shift-manager/secrets/credentials.json"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-KEEP_TABS = {"README", "readme"}
+# 月末 clear_all の削除対象から除外するタブ。
+# 振替チェックは毎月このタブに上書きするので月末掃除でも残す(A案・ガクチョ決定 S45)。
+FURIKAE_TAB = "月謝振替チェック"
+KEEP_TABS = {"README", "readme", FURIKAE_TAB}
 
 
 def _workbook():
@@ -53,6 +56,37 @@ def write_roster_tab(rows: list[dict], tab_name: str) -> str:
         a = (r.get("アレルギー・留意事項") or "").strip()
         if a and a not in ("なし", "ナシ", "無し", "特になし"):
             ws.format(f"A{i}:{chr(ord('A') + len(cols) - 1)}{i}",
+                      {"backgroundColor": {"red": 1.0, "green": 0.95, "blue": 0.6}})
+    return f"https://docs.google.com/spreadsheets/d/{sh.id}/edit#gid={ws.id}"
+
+
+FURIKAE_COLUMNS = ["顧客名", "契約中の月謝", "当月予約件数", "当月参加回数",
+                   "うち月謝利用回数", "参加明細", "振替要否"]
+
+
+def write_furikae_tab(rows: list[dict], month: str) -> str:
+    """月謝振替チェックの全会員行を固定タブに書き出して URL を返す。
+
+    タブ名は固定(FURIKAE_TAB)で毎月上書き。月末 clear_all の KEEP_TABS に
+    含まれるため掃除では消えない(A案)。振替対象(振替要否 = 要)の行は黄色表示。
+    """
+    sh = _workbook()
+    try:
+        sh.del_worksheet(sh.worksheet(FURIKAE_TAB))
+    except gspread.exceptions.WorksheetNotFound:
+        pass
+    cols = FURIKAE_COLUMNS
+    # 1 行目に対象月見出し、2 行目にヘッダ、3 行目以降にデータ
+    title = [f"{month} 月謝未消化チェック(月謝会員 {len(rows)}名)"] + [""] * (len(cols) - 1)
+    ws = sh.add_worksheet(FURIKAE_TAB, rows=max(len(rows) + 6, 10), cols=len(cols))
+    data = [title, cols] + [[str(r.get(c, "") or "") for c in cols] for r in rows]
+    ws.update(data, "A1")
+    ws.format("A1:Z2", {"textFormat": {"bold": True}})
+    ws.freeze(rows=2)
+    last_col = chr(ord("A") + len(cols) - 1)
+    for i, r in enumerate(rows, start=3):
+        if str(r.get("振替要否") or "").strip() in ("要", "○", "要振替"):
+            ws.format(f"A{i}:{last_col}{i}",
                       {"backgroundColor": {"red": 1.0, "green": 0.95, "blue": 0.6}})
     return f"https://docs.google.com/spreadsheets/d/{sh.id}/edit#gid={ws.id}"
 

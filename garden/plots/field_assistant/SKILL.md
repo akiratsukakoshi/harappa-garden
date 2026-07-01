@@ -11,7 +11,7 @@ linked_workflows:
 requires_soil:
   - garden/soil/people/staff/    # ニックネーム → 実名(メンション解決の参考)
 created: 2026-06-11
-last_updated: 2026-06-11
+last_updated: 2026-07-02
 created_by: claude (with ガクチョ, セッション42 / plot_gardener seedling 初適用)
 status: draft                    # スモーク → test、LINE グループ投入 + 初回発火で active
 ---
@@ -71,7 +71,8 @@ Garden 初の **core_team scope**(運営コアスタッフの LINE グループ)
 **種**: `field_assistant/monthly-furikae-check`(cron 28-31 日 19:30、`--if-last-day` で月末日のみ実行)
 
 当月の月謝会員のうち**月謝消化 0 回の人**を抽出して通知(回数券・現地決済のみで参加した人も対象 = 移植元の規準)。発行作業は STORES 管理画面(API は参照のみ)。
-同時に名簿ワークブックの全タブをクリア(`clear-sheets`、スプシ増殖防止 = ガクチョ決定 S42)。
+LINE 通知に加え、**全会員の一覧を名簿ワークブックの固定タブ `月謝振替チェック` に書き出し**、その URL を LINE に添付(A案・毎月上書き。振替対象行は黄色表示 = ガクチョ決定 S45)。
+同時に名簿ワークブックの他タブをクリア(`clear-sheets`、スプシ増殖防止 = ガクチョ決定 S42)。**`月謝振替チェック` タブは `KEEP_TABS` で保持**されるため掃除では消えない。
 
 実行: `processor.py furikae --if-last-day` → `processor.py clear-sheets`
 

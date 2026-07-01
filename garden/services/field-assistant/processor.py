@@ -271,6 +271,16 @@ def cmd_furikae(args) -> int:
             lines.append(f"・{t['顧客名']}({t['契約中の月謝']}){note}")
         lines.append("")
         lines.append("振替チケットの発行は STORES 管理画面からお願いします(API は参照のみ)")
+
+    # 一覧をスプシに書き出して URL を LINE に添付(A案・固定タブ上書き、月末掃除でも残す)
+    try:
+        from lib import sheets_export
+        url = sheets_export.write_furikae_tab(rows, month)
+        lines.append("")
+        lines.append(f"📋 全会員の一覧はこちら: {url}")
+    except Exception as e:  # noqa: BLE001 — シート出力失敗でも通知は止めない
+        print(f"[field-assistant] sheet export skipped: {e}")
+
     _send("\n".join(lines), args.dry_run)
 
     # 監査用 CSV(VPS ローカルのみ、repo には載らない)
